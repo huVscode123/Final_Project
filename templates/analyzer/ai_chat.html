@@ -1,0 +1,215 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — AI 助手{% endblock %}
+
+{% block extra_css %}
+<style>
+.chat-wrap{display:grid;grid-template-columns:1fr 260px;gap:16px;height:calc(100vh - 150px)}
+.chat-main{display:flex;flex-direction:column;background:rgba(13,17,23,.5);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.chat-msgs{flex:1;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.msg-ai{align-self:flex-start;max-width:78%;background:#161b22;border:1px solid var(--border2);padding:11px 15px;border-radius:4px 14px 14px 14px;color:var(--text-primary);font-size:.855rem;line-height:1.55}
+.msg-ai .msg-label{font-size:.62rem;color:var(--green);font-weight:700;margin-bottom:5px;font-family:var(--mono)}
+.msg-user{align-self:flex-end;max-width:78%;background:var(--green-dim);border:1px solid rgba(34,197,94,.2);padding:11px 15px;border-radius:14px 14px 4px 14px;color:var(--green);font-size:.855rem}
+.msg-thinking{opacity:.5;font-style:italic;font-size:.78rem}
+.chat-input-area{padding:16px;background:#0d1117;border-top:1px solid var(--border);display:flex;gap:10px}
+.chat-input{flex:1;background:#010409;border:1px solid var(--border2);border-radius:8px;padding:9px 14px;color:var(--text-primary);font-size:.855rem;font-family:'Inter',sans-serif;outline:none;resize:none;transition:border-color .2s}
+.chat-input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.1)}
+.chat-send{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:9px 16px;cursor:pointer;font-size:.82rem;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.chat-send:hover:not(:disabled){background:var(--green);color:#0d1117}
+.chat-send:disabled{opacity:.4;cursor:not-allowed}
+.sidebar-panel{display:flex;flex-direction:column;gap:12px}
+.ctx-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px}
+.ctx-title{font-size:.75rem;font-weight:600;color:var(--text-muted);font-family:var(--mono);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em}
+.session-chip{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background .15s;font-size:.76rem;border:1px solid transparent}
+.session-chip:hover{background:rgba(34,197,94,.06)}
+.session-chip.selected{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.25)}
+.session-chip .sc-id{font-family:var(--mono);color:var(--green);font-weight:700}
+.session-chip .sc-lbl{color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
+.quick-btn{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:6px;border:1px solid var(--border2);background:transparent;cursor:pointer;font-size:.75rem;color:var(--text-secondary);transition:all .15s;margin-bottom:5px}
+.quick-btn:hover{background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.25);color:var(--green)}
+.status-indicator{display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--text-muted)}
+.status-indicator .dot{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green)}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <div class="page-title">AI Security Assistant</div>
+    <div class="page-sub">Ask questions about network threats, anomaly detection, or analysis results</div>
+  </div>
+  <div class="status-indicator">
+    <span class="dot"></span>
+    <span id="connStatus">Connecting to AI...</span>
+  </div>
+</div>
+
+<div class="chat-wrap">
+  <!-- Chat Main -->
+  <div class="chat-main">
+    <div class="chat-msgs" id="chatMsgs">
+      <div class="msg-ai">
+        <div class="msg-label">▸ VNAAP AI ASSISTANT</div>
+        你好！我是 VNAAP 資安 AI 助手。我可以幫你：
+        <ul style="margin:8px 0 0 16px;line-height:1.8;font-size:.82rem;color:var(--text-secondary)">
+          <li>分析網路流量異常模式</li>
+          <li>解釋 Grad-CAM 熱力圖結果</li>
+          <li>提供攻擊防禦建議</li>
+          <li>解讀 CNN Autoencoder 偵測結果</li>
+        </ul>
+        <div style="margin-top:10px;font-size:.78rem;color:var(--text-muted)">
+          請選擇右側 Session 作為分析上下文，或直接輸入問題。
+        </div>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <textarea id="userInput" class="chat-input" rows="1"
+                placeholder="Ask about threat analysis, model behavior, or security recommendations..."
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+      <button class="chat-send" id="sendBtn" onclick="sendMessage()">
+        Send
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Right Sidebar -->
+  <div class="sidebar-panel">
+    <!-- Session Context -->
+    <div class="ctx-card">
+      <div class="ctx-title">Session Context</div>
+      <div id="selectedCtx" style="font-size:.72rem;color:var(--green);margin-bottom:8px;font-family:var(--mono)">
+        None selected
+      </div>
+      <div style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:3px">
+        <div class="session-chip {% if not request.GET.session %}selected{% endif %}"
+             onclick="selectSession(null,'No context')" id="chip-none">
+          <span class="sc-id">—</span>
+          <span class="sc-lbl">No context</span>
+        </div>
+        {% for s in sessions %}
+        <div class="session-chip" onclick="selectSession('{{ s.pk }}','{{ s.label|truncatechars:20 }}')" id="chip-{{ s.pk }}">
+          <span class="sc-id">#{{ s.pk }}</span>
+          <span class="sc-lbl">{{ s.label|truncatechars:18 }}</span>
+        </div>
+        {% empty %}
+        <div style="font-size:.72rem;color:var(--text-muted);text-align:center;padding:8px">
+          尚無完成的 Session
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Quick Questions -->
+    <div class="ctx-card">
+      <div class="ctx-title">Quick Questions</div>
+      <button class="quick-btn" onclick="quickAsk('這次分析偵測到哪些攻擊類型？')">攻擊類型分析</button>
+      <button class="quick-btn" onclick="quickAsk('請解釋 CNN Autoencoder 的重建誤差代表什麼？')">CNN 解釋</button>
+      <button class="quick-btn" onclick="quickAsk('Grad-CAM 熱力圖如何協助識別惡意封包？')">Grad-CAM 說明</button>
+      <button class="quick-btn" onclick="quickAsk('針對偵測到的威脅，建議採取哪些防禦措施？')">防禦建議</button>
+      <button class="quick-btn" onclick="quickAsk('如何降低誤報率（False Positive）？')">降低誤報</button>
+    </div>
+
+    <!-- API Status -->
+    <div class="ctx-card">
+      <div class="ctx-title">Connection</div>
+      <div style="font-size:.75rem;color:var(--text-muted);line-height:1.8">
+        <div>Endpoint: <span class="mono" style="color:var(--text-secondary)">/api/v1/ai/chat/</span></div>
+        <div>Backend: <span class="mono" id="backendStatus" style="color:var(--text-muted)">Checking...</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedSessionId = null;
+const msgs = document.getElementById('chatMsgs');
+
+function selectSession(sid, label) {
+  selectedSessionId = sid;
+  document.getElementById('selectedCtx').textContent = sid ? `Session #${sid} · ${label}` : 'None selected';
+  document.querySelectorAll('.session-chip').forEach(c => c.classList.remove('selected'));
+  document.getElementById(sid ? 'chip-' + sid : 'chip-none').classList.add('selected');
+}
+
+function quickAsk(text) {
+  document.getElementById('userInput').value = text;
+  sendMessage();
+}
+
+function appendMsg(cls, html, label='') {
+  const div = document.createElement('div');
+  div.className = cls;
+  if (label) div.innerHTML = `<div class="msg-label">${label}</div>${html}`;
+  else div.textContent = html;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const btn   = document.getElementById('sendBtn');
+  const text  = input.value.trim();
+  if (!text) return;
+
+  appendMsg('msg-user', text);
+  input.value = '';
+  input.style.height = 'auto';
+  btn.disabled = true;
+
+  const thinking = appendMsg('msg-ai msg-thinking', '⟳ Analyzing...', '▸ VNAAP AI');
+
+  const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+  try {
+    const r = await fetch('/api/v1/ai/chat/', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'X-CSRFToken': csrf },
+      body: JSON.stringify({ message: text, session_id: selectedSessionId }),
+    });
+    const d = await r.json();
+    thinking.remove();
+    const reply = d.reply || d.error || '⚠ 無回應';
+    appendMsg('msg-ai', reply, '▸ VNAAP AI');
+  } catch(e) {
+    thinking.remove();
+    appendMsg('msg-ai', '⚠ 無法連線至 AI 服務（請確認 n8n webhook 已啟動）', '▸ SYSTEM');
+    document.getElementById('backendStatus').textContent = 'Offline';
+    document.getElementById('backendStatus').style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+}
+
+/* Auto-resize textarea */
+document.getElementById('userInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+/* Check AI status */
+(async () => {
+  try {
+    const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+    const r = await fetch('/api/v1/ai/chat/', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':csrf},
+      body: JSON.stringify({message:'ping'}),
+    });
+    const d = await r.json();
+    if (d.reply) {
+      document.getElementById('connStatus').textContent = 'AI Connected';
+      document.getElementById('connStatus').style.color = 'var(--green)';
+      document.getElementById('backendStatus').textContent = 'Online';
+      document.getElementById('backendStatus').style.color = 'var(--green)';
+    }
+  } catch(e) {
+    document.getElementById('connStatus').textContent = 'AI Offline (n8n)';
+    document.getElementById('backendStatus').textContent = 'Offline';
+    document.getElementById('backendStatus').style.color = 'var(--text-muted)';
+  }
+})();
+</script>
+{% endblock %}

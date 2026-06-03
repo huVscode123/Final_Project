@@ -1,0 +1,137 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — Profile{% endblock %}
+{% block extra_css %}
+<style>
+.profile-grid{display:grid;grid-template-columns:260px 1fr;gap:16px}
+.avatar-xl{width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#22c55e,#16a34a);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1.4rem;font-weight:700;color:#0d1117;box-shadow:0 0 20px rgba(34,197,94,.3)}
+.perm-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border2);font-size:.8rem}
+.perm-row:last-child{border-bottom:none}
+.perm-on{color:var(--green);font-weight:600;font-family:var(--mono);font-size:.72rem}
+.perm-off{color:var(--red);font-weight:600;font-family:var(--mono);font-size:.72rem}
+.log-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(31,45,64,.5);font-size:.77rem}
+.log-row:last-child{border-bottom:none}
+.log-action{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.15);color:var(--green);padding:2px 8px;border-radius:4px;font-size:.67rem;font-family:var(--mono);white-space:nowrap}
+.log-time{color:var(--text-muted);font-family:var(--mono);font-size:.68rem;white-space:nowrap}
+.log-detail{color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div><div class="page-title">Profile Settings</div><div class="page-sub">管理您的帳號資訊與存取權限</div></div>
+</div>
+
+<div class="profile-grid">
+  <!-- Left Column -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <!-- User card -->
+    <div class="card" style="text-align:center;padding:24px">
+      {% if request.user.profile.avatar %}
+      <img src="{{ request.user.profile.avatar.url }}" style="width:72px;height:72px;border-radius:50%;object-fit:cover;margin:0 auto 12px">
+      {% else %}
+      <div class="avatar-xl" style="margin:0 auto 12px">{{ request.user.username|slice:":2"|upper }}</div>
+      {% endif %}
+      <div style="font-weight:700;font-size:1rem">{{ request.user.get_full_name|default:request.user.username }}</div>
+      <div style="color:var(--text-muted);font-size:.78rem;margin-top:3px">{{ request.user.email|default:"No email" }}</div>
+      <div style="margin-top:10px">
+        <span style="background:var(--green-dim);border:1px solid rgba(34,197,94,.25);color:var(--green);padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:600">
+          {{ request.user.profile.get_role_display }}
+        </span>
+      </div>
+      {% if request.user.profile.organization %}
+      <div style="font-size:.72rem;color:var(--text-muted);margin-top:8px">🏢 {{ request.user.profile.organization }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Permissions -->
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Permissions</div>
+      <div class="perm-row"><span style="color:var(--text-secondary)">上傳封包</span>
+        <span class="{% if request.user.profile.can_upload_pcap %}perm-on{% else %}perm-off{% endif %}">{% if request.user.profile.can_upload_pcap %}✓ ALLOWED{% else %}✗ DENIED{% endif %}</span>
+      </div>
+      <div class="perm-row"><span style="color:var(--text-secondary)">執行 AI 分析</span>
+        <span class="{% if request.user.profile.can_run_ai_analysis %}perm-on{% else %}perm-off{% endif %}">{% if request.user.profile.can_run_ai_analysis %}✓ ALLOWED{% else %}✗ DENIED{% endif %}</span>
+      </div>
+      <div class="perm-row"><span style="color:var(--text-secondary)">匯出報告</span>
+        <span class="{% if request.user.profile.can_export_report %}perm-on{% else %}perm-off{% endif %}">{% if request.user.profile.can_export_report %}✓ ALLOWED{% else %}✗ DENIED{% endif %}</span>
+      </div>
+      <div class="perm-row"><span style="color:var(--text-secondary)">管理專案</span>
+        <span class="{% if request.user.profile.can_manage_projects %}perm-on{% else %}perm-off{% endif %}">{% if request.user.profile.can_manage_projects %}✓ ALLOWED{% else %}✗ DENIED{% endif %}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <!-- Edit form -->
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Edit Profile</div>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">First Name</label>
+            <input type="text" name="first_name" class="form-input"
+                   value="{{ form.first_name.value|default:request.user.first_name }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Last Name</label>
+            <input type="text" name="last_name" class="form-input"
+                   value="{{ form.last_name.value|default:request.user.last_name }}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" name="email" class="form-input"
+                 value="{{ form.email.value|default:request.user.email }}">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label class="form-label">Organization</label>
+            <input type="text" name="organization" class="form-input"
+                   value="{{ form.organization.value|default:'' }}">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Phone</label>
+            <input type="text" name="phone" class="form-input"
+                   value="{{ form.phone.value|default:'' }}">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Bio</label>
+          <textarea name="bio" class="form-input" rows="2"
+                    style="resize:none">{{ form.bio.value|default:'' }}</textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Avatar</label>
+          <input type="file" name="avatar" class="form-input" accept="image/*">
+        </div>
+        <button type="submit" class="btn-primary">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="20 6 9 17 4 12"/></svg>
+          Save Changes
+        </button>
+      </form>
+    </div>
+
+    <!-- Activity Logs -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:13px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <div class="card-title" style="margin-bottom:0"><span class="dot" style="background:var(--blue);box-shadow:0 0 6px var(--blue)"></span>Activity Log</div>
+        <a href="{% url 'accounts:activity_logs' %}" style="font-size:.72rem;color:var(--green);text-decoration:none">View all →</a>
+      </div>
+      <div style="padding:10px 16px;max-height:200px;overflow-y:auto">
+        {% for log in logs %}
+        <div class="log-row">
+          <span class="log-time">{{ log.timestamp|date:"m/d H:i" }}</span>
+          <span class="log-action">{{ log.get_action_display }}</span>
+          <span class="log-detail">{{ log.detail|truncatechars:45|default:"—" }}</span>
+        </div>
+        {% empty %}
+        <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:.8rem">No activity yet</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

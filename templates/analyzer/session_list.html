@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}歷史紀錄 — NetGuard{% endblock %}
+{% block content %}
+<div class="page-header flex justify-between items-center">
+  <div><h1>歷史分析紀錄</h1><p>所有您可存取的 Session 列表。</p></div>
+  <a href="{% url 'analyzer:upload' %}" class="btn btn-primary">＋ 上傳分析</a>
+</div>
+
+<!-- 篩選列 -->
+<form method="get" class="card flex gap-2 items-center" style="padding:.75rem 1rem;margin-bottom:1rem">
+  <input type="text" name="q" value="{{ q }}" placeholder="搜尋標籤或檔名…"
+         class="form-control" style="max-width:240px">
+  <select name="status" class="form-control" style="max-width:140px">
+    <option value="">所有狀態</option>
+    <option value="done"     {% if status_filter == 'done' %}selected{% endif %}>已完成</option>
+    <option value="running"  {% if status_filter == 'running' %}selected{% endif %}>分析中</option>
+    <option value="pending"  {% if status_filter == 'pending' %}selected{% endif %}>等待中</option>
+    <option value="failed"   {% if status_filter == 'failed' %}selected{% endif %}>失敗</option>
+  </select>
+  <select name="project" class="form-control" style="max-width:200px">
+    <option value="">所有專案</option>
+    {% for p in projects %}
+    <option value="{{ p.pk }}" {% if proj_filter == p.pk|stringformat:'s' %}selected{% endif %}>
+      {{ p.name }}
+    </option>
+    {% endfor %}
+  </select>
+  <button type="submit" class="btn btn-outline btn-sm">🔍 篩選</button>
+  {% if q or status_filter or proj_filter %}
+  <a href="{% url 'analyzer:sessions' %}" class="btn btn-outline btn-sm">✕ 清除</a>
+  {% endif %}
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>#</th><th>標籤</th><th>模式</th><th>狀態</th>
+        <th>封包數</th><th>告警數</th><th>CNN</th>
+        <th>GradCAM</th><th>專案</th><th>時間</th><th>操作</th>
+      </tr></thead>
+      <tbody>
+        {% for s in sessions %}
+        <tr>
+          <td><a href="{% url 'analyzer:session_detail' s.pk %}"
+                 style="color:var(--accent);font-weight:600">#{{ s.pk }}</a></td>
+          <td>{{ s.label|truncatechars:35 }}</td>
+          <td style="color:var(--muted)">{{ s.get_mode_display }}</td>
+          <td><span class="status-{{ s.task_status }}">{{ s.get_task_status_display }}</span></td>
+          <td>{{ s.packet_count }}</td>
+          <td>
+            {% if s.alert_count > 0 %}
+            <span style="color:var(--danger);font-weight:600">{{ s.alert_count }}</span>
+            {% else %}0{% endif %}
+          </td>
+          <td>
+            {% if s.cnn_result %}
+              <span style="color:var(--accent2)">✓ {{ s.cnn_result.detection_rate|floatformat:1 }}%</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% with gc=s.gradcam_images.count %}
+            {% if gc > 0 %}<span style="color:var(--warn)">{{ gc }} 張</span>{% else %}—{% endif %}
+            {% endwith %}
+          </td>
+          <td>
+            {% if s.project %}
+            <a href="{% url 'projects:detail' s.project.pk %}"
+               style="color:var(--muted);font-size:.8rem">{{ s.project.name|truncatechars:18 }}</a>
+            {% else %}—{% endif %}
+          </td>
+          <td style="color:var(--muted);font-size:.8rem;white-space:nowrap">
+            {{ s.created_at|date:"Y-m-d H:i" }}
+          </td>
+          <td>
+            <a href="{% url 'analyzer:session_detail' s.pk %}"
+               class="btn btn-outline btn-sm">詳情</a>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="11"><div class="empty-state">
+          <h3>找不到符合條件的紀錄</h3>
+          <p><a href="{% url 'analyzer:upload' %}">上傳第一個 PCAP 開始分析</a></p>
+        </div></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

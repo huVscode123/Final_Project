@@ -1,0 +1,181 @@
+# notion 寫的有點雜亂，之後應該都會在這裡更新
+
+===========================================
+#都安裝好了，底下的pip install 都不用理會
+
+Step 1 venv\Scripts\activate
+Step 2 python manage.py runserver
+Step 3 http://127.0.0.1:8000/
+Step 4 訓練模型 :
+(需要到https://www.kaggle.com/ ，找資料集並用GPU訓練)
+
+# 使用 GPU 的完整流程(需安裝 nvidia cuda)
+# 1. 確認 GPU 驅動
+nvidia-smi
+
+# 2. 驗證 GPU 可用
+python -c "import torch; print(torch.cuda.get_device_name(0))"
+
+# 3. GPU 訓練
+    python core/run_full_pipeline.py `
+    --dataset cicids2017 `
+    --data-dir data/cicids2017 `
+    --augment --multiplier 3 `
+    --gpu --batch 64 --epochs 10
+
+# 4. 複製模型
+cp output/model/best_model.pt media/model/best_model.pt
+
+===========================================
+
+# 虛擬環境 & 啟用
+python -m venv venv
+venv\Scripts\activate
+
+
+# 安裝 New
+pip install django djangorestframework requests pandas tabulate pytest pytest-cov pytest-django
+pip install torch==2.1.0+cu121 torchvision==0.16.0+cu121 --extra-index-url https://download.pytorch.org/whl/cu121
+pip install --upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+
+# 安裝
+pip install scapy pyshark  colorama
+pip install numpy pillow matplotlib
+pip install scikit-learn
+安裝Wireshake ，會內建安裝 Npcap (因為pytorch需要)
+
+# 單元測試
+封包解析 pytest core/tests/test_parser.py
+攻擊偵測 pytest core/tests/test_anomaly.py
+影像化   python core/tests/test_visualization.py
+CNN模型  pytest core/tests/test_cnn_model.py
+資料集載入 pytest core/tests/test_dataset_loader.py
+端對端訓練 python run_training.py --epochs 10
+攻擊PCAP偵測 python main.py pcap -f core/tests/mixed_attacks.pcap --full
+
+一次跑全部測試並顯示覆蓋率 pytest core/tests/ -v --cov=. --cov-report=term-missing
+
+# 影像化功能測試
+Step 1 — 先產生測試用 PCAP 檔案 python core/tests/generate_attack_pcap.py
+Step 2 — 執行影像化測試，同時會生成示意圖 python core/tests/test_visualization.py
+Step 3 — 確認影像檔案有正常產生，到 output/visualization_demo/ 資料夾會找到圖片
+
+# 離線 PCAP 分析測試（不需 root）
+基本摘要分析 python main.py pcap -f core/tests/sample.pcap --full
+
+單項功能分別測試
+python main.py pcap -f core/tests/sample.pcap --dns
+python main.py pcap -f core/tests/sample.pcap --http
+python main.py pcap -f core/tests/tls_traffic.pcap --tls
+python main.py pcap -f core/tests/arp_spoof.pcap --arp
+python main.py pcap -f core/tests/sample.pcap --timeline
+python main.py pcap -f core/tests/sample.pcap --tcp
+
+攻擊偵測測試
+python main.py pcap -f core/tests/syn_flood.pcap --detect
+python main.py pcap -f core/tests/port_scan.pcap --detect
+python main.py pcap -f core/tests/icmp_flood.pcap --detect
+python main.py pcap -f core/tests/arp_spoof.pcap --arp --detect
+python main.py pcap -f core/tests/mixed_attacks.pcap --detect
+
+完整分析並儲存所有格式（含 SQLite） python main.py pcap -f core/tests/mixed_attacks.pcap --full --save --db
+執行後到 `output/` 確認有產生：
+
+output/
+├── pcap_analysis.csv    ← 可用 Excel 開啟
+├── pcap_analysis.json
+└── packets.db           ← SQLite 資料庫
+
+即時擷取測試
+先查詢介面名稱 python main.py interfaces 
+會列出所有網路介面，找到你實際使用的那一個（例如 乙太網路 或 Wi-Fi）
+系統管理員身分執行，開始監聽 python main.py live -i "Wi-Fi" --stats 5
+(按 Ctrl+C 停止後自動儲存結果)
+
+
+# 清空/初始化輸出結果
+# 列出目前所有輸出項目的大小（不刪除任何東西）
+python main.py clean --list
+python main.py clean          # 不指定 target 同樣顯示狀態
+
+# 清空單一類別（會詢問確認）
+python main.py clean sessions   # Session 擷取紀錄
+python main.py clean dataset    # 封包影像 .npy 矩陣
+python main.py clean model      # CNN 模型與訓練圖表
+python main.py clean pcap       # 擷取的 PCAP 檔案
+python main.py clean csv        # CSV / JSON / SQLite
+python main.py clean viz        # visualization_demo 展示圖
+
+# 同時清空多個類別
+python main.py clean sessions model
+
+# 清空全部
+python main.py clean all
+
+# 略過確認（適合自動化腳本）
+python main.py clean all --yes
+python main.py clean sessions model --yes
+
+
+
+平台啟動步驟
+
+# 初始化資料庫
+python manage.py makemigrations analyzer
+python manage.py makemigrations api
+python manage.py migrate
+
+# 建立管理員帳號
+python manage.py createsuperuser
+管理員 : admin admin@gmail.com 123
+
+
+# 啟動伺服器
+python manage.py runserver
+
+
+
+# 使用 GPU 的完整流程
+# 1. 確認 GPU 驅動
+nvidia-smi
+
+# 2. 驗證 GPU 可用
+python -c "import torch; print(torch.cuda.get_device_name(0))"
+
+# 3. GPU 訓練
+    python core/run_full_pipeline.py `
+    --dataset cicids2017 `
+    --data-dir data/cicids2017 `
+    --augment --multiplier 3 `
+    --gpu --batch 64 --epochs 10
+
+# 4. 複製模型
+cp output/model/best_model.pt media/model/best_model.pt
+
+
+==========模型訓練===============
+基礎模型訓練 :
+  1. NSL-KDD (經典入侵偵測資料集)
+  python core/run_training.py --dataset nslkdd --data-dir data/nsl-kdd --epochs 10 --latent 32
+
+  2. CIC-IDS2017 (現代網路流量資料集)
+  python core/run_training.py --dataset cicids2017 --data-dir data/cicids2017 --epochs 10 --latent 32
+
+  3. CIC-DDoS2019 (專門針對 DDoS 攻擊的資料集)
+  python core/run_training.py --dataset cicddos2019 --data-dir data/cic-ddos2019 --epochs 10 --latent 32
+
+  參數說明：
+   * --dataset: 指定使用的資料集名稱（例如 cicids2017, nslkdd）。
+   * --data-dir: 資料集檔案所在的目錄路徑。
+   * --epochs: 訓練輪數（預設通常為 100）。
+   * --latent: 潛在空間維度（影響 Autoencoder 的壓縮率）。
+
+
+訓練 + 閾值微調 (Threshold Tuning) : 在訓練後自動尋找最佳的異常偵測閾值
+python core/run_threshold_tuning.py --dataset cicddos2019 --data-dir data/cic-ddos2019 --ablation --epochs 10
+
+
+半監督式學習訓練 (Semi-supervised) : python core/run_semi_supervised.py --dataset cicddos2019 --data-dir data/cic-ddos2019 --pretrain-epochs 5 --finetune-epochs 5
+
+   * 儲存位置：
+      所有訓練產生的模型權重 (best_model.pt) 與視覺化圖表均會儲存在 output/model/ 或 output/model_semi/ 資料夾中。

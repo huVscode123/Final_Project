@@ -1,0 +1,100 @@
+視覺化網路攻擊自動化分析平台 - 專案架構圖
+============================================================
+
+final_project/
+    │
+    ├── core/                                         核心引擎 (核心邏輯與 AI 模型)
+    │   ├── parser.py / config.py / anomaly_detector.py      (封包解析、全域配置、特徵/規則偵測)
+    │   ├── capture.py / pcap_analyzer.py                    (即時抓包、離線 PCAP 分析引擎)
+    │   ├── packet_visualizer.py / dataset_builder.py        (封包影像化、二進位資料集建構)
+    │   ├── dataset_loader.py / data_augmentor.py            (多資料集載入、資料增強策略)
+    │   ├── cnn_autoencoder.py / trainer.py                  (CAE 模型定義、基礎訓練器與 EarlyStopping)
+    │   ├── semi_supervised_trainer.py / run_semi_supervised.py (半監督式訓練核心與執行腳本)
+    │   ├── anomaly_scorer.py / threshold_tuner.py           (異常重建評分、自動閾值掃描)
+    │   ├── threshold_tuner_semi.py                          (半監督專用閾值調校工具)
+    │   ├── report_generator.py                              (自動化 Markdown/PDF 分析報告生成)
+    │   ├── run_training.py / run_full_pipeline.py           (訓練進入點、全流程自動化管線)
+    │   ├── run_threshold_tuning.py                          (整合：訓練 + 閾值掃描 + 消融實驗 + 壓縮)
+    │   ├── ablation_study.py                                (CAE 消融實驗模組，支援潛在空間等六維度)
+    │   ├── model_compression.py                             (模型壓縮：剪枝、量化、知識蒸餾評估) 
+    │   ├── comparison_benchmark.py                          (訓練策略基準比較：Semi-supervised vs Unsupervised) 
+    │   ├── storage.py / session_manager.py / cleaner.py     (資料持久化、Session 生命週期、環境清理)
+    │   ├── generate_attack_pcap.py                          (流量模擬：SYN Flood, ARP Spoof, ICMP Flood 等)
+    │   ├── Semi-supervised model and trainer/                  (半監督模型特定資料集實作)
+    │   │   ├── cnn_autoencoder.py                           (半監督專用模型變體)
+    │   │   ├── semi_supervised_cicddos2019.py               (針對 CIC-DDoS2019 的訓練實作)
+    │   │   ├── semi_supervised_cicids2017.py                (針對 CIC-IDS2017 的訓練實作)
+    │   │   └── semi_supervised_nslkdd.py                    (針對 NSL-KDD 的訓練實作)
+    │   ├── cnn_gradcam/                                     (XAI 可解釋性 AI 套件)
+    │   │   ├── gradcam_core.py                              (Grad-CAM 核心演算法：MSE-based / Pixel-based)
+    │   │   ├── gradcam_hooks.py                             (層級梯度 Hook 管理器)
+    │   │   ├── gradcam_analyzer.py                          (批次特徵重要性分析)
+    │   │   ├── gradcam_visualizer.py                        (熱力圖疊加與封包影像合成)
+    │   │   ├── gradcam_reporter.py                          (視覺化解釋報告匯出)
+    │   │   └── run_gradcam.py                               (可解釋性分析整合執行腳本)
+    │   └── tests/                                           (核心單元與整合測試)
+    │       ├── test_parser.py / test_anomaly.py             (解析器與規則偵測測試)
+    │       ├── test_cnn_model.py / test_dataset_loader.py   (模型與資料載入測試)
+    │       └── test_gradcam_*.py                            (Grad-CAM 完整測試套件)
+    │
+    ├── analyzer/                  分析管理應用 (Django App)
+    │   ├── models.py              (AnalysisSession, Alert, CNNResult 資料模型)
+    │   ├── views.py               (儀表板、檔案上傳、即時分析、Session 詳情邏輯)
+    │   ├── tasks.py               (Celery 非同步任務：背景執行 PCAP 分析與模型推論)
+    │   └── urls.py                (前端路徑路由)
+    │
+    ├── api/                       系統接口應用 (Django App)
+    │   ├── serializers.py         (DRF 序列化器，處理 Session/Alert 轉換)
+    │   ├── views.py               (REST API 端點：/api/sessions/, /api/ai/chat/)
+    │   └── urls.py                (API 路由導航)
+    │
+    ├── accounts/                  用戶權限應用 (Django App)
+    │   ├── models.py / forms.py   (自定義用戶模型與登入/註冊表單)
+    │   └── views.py / urls.py     (認證流程控制)
+    │
+    ├── projects/                  專案管理應用 (Django App)
+    │   ├── models.py              (Project 容器模型，用於分類管理不同分析任務)
+    │   └── views.py / urls.py     (專案列表與建立視圖)
+    │
+    ├── reports/                   報告導出應用 (Django App)
+    │   ├── generators.py          (PDF/Excel 報告生成邏輯)
+    │   └── views.py / urls.py     (報告下載與在線預覽)
+    │
+    ├── network_platform/          Django 核心配置
+    │   ├── settings.py            (全域配置：CNN 閾值、模型路徑、Celery 代理人)
+    │   ├── celery.py              (Celery 分散式任務序列配置)
+    │   └── urls.py                (全域根路由)
+    │
+    ├── templates/                 HTML 模板系統 (Tailwind CSS + Chart.js)
+    │   ├── base.html              (主佈局檔案，包含 Sidebar 與 Navbar)
+    │   ├── analyzer/              (分析相關頁面：dashboard, upload, live, ai_chat)
+    │   ├── projects/              (專案管理頁面)
+    │   └── accounts/              (登入、註冊、個人資料頁面)
+    │
+    ├── output/                    系統輸出物 (自動生成)
+    │   ├── model/ / model_semi/   (訓練完成的模型權重 .pth 與權重檔案)
+    │   ├── ablation/              (消融實驗數據與對比圖表)
+    │   ├── compression/           (壓縮後模型與 Trade-off 報告)
+    │   ├── dataset_*/             (從 PCAP 轉換後的 .npy 數值矩陣)
+    │   └── gradcam_test_output/   (Grad-CAM 視覺化分析熱力圖)
+    │
+    ├── data/                      原始訓練數據 (需手動放置)
+    │   ├── cicids2017/ / nsl-kdd/ / cic-ddos2019/
+    │
+    ├── media/                     媒體儲存空間
+    │   ├── uploads/               (用戶上傳的原始 PCAP 檔案)
+    │   ├── pcap/                  (系統處理中的 PCAP 檔案)
+    │   └── reports/               (生成供用戶下載的 PDF 分析報告)
+    │
+    ├── 根目錄工具與文件
+    │   ├── GEMINI.md              (核心技術指南與開發範例)
+    │   ├── SEMI_SUPERVISED_README.md (半監督學習模組專用說明)
+    │   ├── manage.py              (Django 管理入口)
+    │   ├── requirements.txt       (Python 依賴套件清單)
+    │   ├── export_source.py       (程式碼匯出工具)
+    │   ├── export_split_code.py   (程式碼切割與模組化匯出工具)
+    │   └── db.sqlite3             (預設關聯式資料庫)
+
+============================================================
+更新日期: 2026-05-27
+狀態: 已同步最新程式碼結構 (包含 Accounts, Projects, Reports 模組)

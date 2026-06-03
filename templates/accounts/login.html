@@ -1,0 +1,87 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VNAAP — Login</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--green:#22c55e;--green-dim:rgba(34,197,94,.12);--red:#ef4444;--border:#1f2d40;--border2:#1e293b;--bg:#0f172a;--bg-card:#111827;--text:#e2e8f0;--muted:#94a3b8;--faint:#334155;--mono:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;position:relative;overflow:hidden}
+/* Animated background grid */
+.bg-grid{position:fixed;inset:0;background-image:linear-gradient(rgba(34,197,94,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(34,197,94,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
+.bg-glow{position:fixed;top:20%;left:50%;transform:translateX(-50%);width:600px;height:300px;background:radial-gradient(ellipse,rgba(34,197,94,.06),transparent 70%);pointer-events:none}
+.login-box{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:36px;width:100%;max-width:400px;position:relative;z-index:1;box-shadow:0 0 60px rgba(34,197,94,.05)}
+.logo-row{text-align:center;margin-bottom:28px}
+.logo-mark{width:48px;height:48px;background:linear-gradient(135deg,#22c55e,#16a34a);border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1.1rem;font-weight:800;color:#0d1117;box-shadow:0 0 20px rgba(34,197,94,.4);margin:0 auto 12px}
+.logo-name{font-family:var(--mono);font-size:.95rem;font-weight:700;color:var(--text)}
+.logo-sub{font-size:.65rem;color:var(--green);letter-spacing:.12em;margin-top:3px;text-transform:uppercase}
+.page-title{font-size:1.05rem;font-weight:700;margin-bottom:4px}
+.page-sub{font-size:.75rem;color:var(--muted);margin-bottom:22px}
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:.76rem;font-weight:500;color:var(--muted);margin-bottom:6px}
+.form-input{width:100%;background:#010409;border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text);font-size:.855rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.1)}
+.form-input::placeholder{color:var(--faint)}
+.error-msg{font-size:.75rem;color:var(--red);margin-top:4px;display:flex;align-items:center;gap:4px}
+.error-box{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:10px 14px;font-size:.8rem;color:var(--red);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.btn-submit{width:100%;background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:11px;font-size:.88rem;font-weight:700;cursor:pointer;transition:all .2s;font-family:'Inter',sans-serif;letter-spacing:.02em}
+.btn-submit:hover{background:var(--green);color:#0d1117}
+.divider{display:flex;align-items:center;gap:10px;margin:18px 0}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border2)}
+.divider span{font-size:.68rem;color:var(--faint)}
+.link-row{text-align:center;font-size:.78rem;color:var(--muted)}
+.link-row a{color:var(--green);text-decoration:none}
+.link-row a:hover{text-decoration:underline}
+.security-note{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:16px;font-size:.67rem;color:var(--faint)}
+.security-note svg{width:11px;height:11px;color:var(--green)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="login-box">
+  <div class="logo-row">
+    <div class="logo-mark">VN</div>
+    <div class="logo-name">VNAAP</div>
+    <div class="logo-sub">Network Attack Analysis Platform</div>
+  </div>
+  <div class="page-title">Welcome back</div>
+  <div class="page-sub">Sign in to your security dashboard</div>
+
+  {% if form.non_field_errors %}
+  <div class="error-box">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+    {{ form.non_field_errors.0 }}
+  </div>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input type="text" name="username" class="form-input" placeholder="Enter your username" autofocus
+             value="{{ form.username.value|default:'' }}" autocomplete="username">
+      {% for err in form.username.errors %}<div class="error-msg">✗ {{ err }}</div>{% endfor %}
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input type="password" name="password" class="form-input" placeholder="Enter your password" autocomplete="current-password">
+      {% for err in form.password.errors %}<div class="error-msg">✗ {{ err }}</div>{% endfor %}
+    </div>
+    <button type="submit" class="btn-submit">Sign In →</button>
+  </form>
+
+  <div class="divider"><span>OR</span></div>
+  <div class="link-row">
+    Don't have an account? <a href="{% url 'accounts:register' %}">Create account</a>
+  </div>
+  <div class="security-note">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    Secured by VNAAP · All traffic encrypted
+  </div>
+</div>
+</body>
+</html>

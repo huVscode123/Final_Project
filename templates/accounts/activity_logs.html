@@ -1,0 +1,40 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — Activity Logs{% endblock %}
+{% block content %}
+<div class="page-bar">
+  <div>
+    <div class="page-title">Activity Audit Log</div>
+    <div class="page-sub">{% if request.user.profile.is_admin %}系統所有使用者操作紀錄{% else %}您的操作稽核紀錄{% endif %}</div>
+  </div>
+</div>
+<div class="card" style="padding:0;overflow:hidden">
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Time</th>
+        {% if request.user.profile.is_admin %}<th>User</th>{% endif %}
+        <th>Action</th><th>Details</th><th>IP Address</th>
+      </tr></thead>
+      <tbody>
+        {% for log in logs %}
+        <tr>
+          <td class="mono" style="font-size:.75rem;color:var(--text-muted);white-space:nowrap">{{ log.timestamp|date:"Y-m-d H:i:s" }}</td>
+          {% if request.user.profile.is_admin %}
+          <td style="font-size:.8rem;font-weight:600">{{ log.user.username }}</td>
+          {% endif %}
+          <td>
+            <span style="background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.15);color:var(--green);padding:2px 9px;border-radius:4px;font-size:.7rem;font-family:var(--mono);white-space:nowrap">
+              {{ log.get_action_display }}
+            </span>
+          </td>
+          <td style="color:var(--text-muted);font-size:.8rem;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ log.detail|default:"—" }}</td>
+          <td class="mono" style="color:var(--text-muted);font-size:.75rem">{{ log.ip_address|default:"—" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="empty-state">No activity records found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

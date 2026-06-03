@@ -1,0 +1,134 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — 分析任務列表{% endblock %}
+
+{% block extra_css %}
+<style>
+.filter-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.filter-bar .form-input{max-width:200px}
+.status-select{max-width:130px}
+.proj-select{max-width:180px}
+.sessions-table td{vertical-align:middle}
+.anomaly-dot{display:inline-flex;align-items:center;gap:4px}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <div class="page-title">Historical Analysis</div>
+    <div class="page-sub">所有可存取的分析任務記錄</div>
+  </div>
+  <a href="{% url 'analyzer:upload' %}" class="btn-primary">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M12 4v16m8-8H4"/></svg>
+    New Analysis
+  </a>
+</div>
+
+<!-- Filter Bar -->
+<form method="get" class="card" style="padding:12px 16px">
+  <div class="filter-bar">
+    <input type="text" name="q" value="{{ q }}" placeholder="搜尋標籤或檔名…"
+           class="form-input" style="max-width:220px">
+    <select name="status" class="form-input status-select">
+      <option value="">All Status</option>
+      <option value="done"    {% if status_filter == 'done' %}selected{% endif %}>✓ Completed</option>
+      <option value="running" {% if status_filter == 'running' %}selected{% endif %}>⟳ Running</option>
+      <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>⏳ Pending</option>
+      <option value="failed"  {% if status_filter == 'failed' %}selected{% endif %}>✗ Failed</option>
+    </select>
+    <select name="project" class="form-input proj-select">
+      <option value="">All Projects</option>
+      {% for p in projects %}
+      <option value="{{ p.pk }}" {% if proj_filter == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn-ghost btn-sm">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Filter
+    </button>
+    {% if q or status_filter or proj_filter %}
+    <a href="{% url 'analyzer:sessions' %}" class="btn-ghost btn-sm" style="color:var(--text-muted)">✕ Clear</a>
+    {% endif %}
+  </div>
+</form>
+
+<!-- Table -->
+<div class="card" style="padding:0;overflow:hidden">
+  {% if sessions %}
+  <div class="table-wrap">
+    <table class="sessions-table">
+      <thead><tr>
+        <th>Task ID</th>
+        <th>Started At</th>
+        <th>Label</th>
+        <th>Status</th>
+        <th style="text-align:center">Packets</th>
+        <th style="text-align:center">Alerts</th>
+        <th style="text-align:center">CNN</th>
+        <th style="text-align:center">Grad-CAM</th>
+        <th>Project</th>
+        <th style="text-align:right">Actions</th>
+      </tr></thead>
+      <tbody>
+        {% for s in sessions %}
+        <tr>
+          <td class="mono text-green" style="font-size:.82rem">#{{ s.pk }}</td>
+          <td style="color:var(--text-muted);font-size:.75rem;font-family:var(--mono)">{{ s.created_at|date:"Y-m-d H:i" }}</td>
+          <td style="max-width:200px">
+            <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem">{{ s.label|truncatechars:38 }}</div>
+            <div style="font-size:.67rem;color:var(--text-faint)">{{ s.get_mode_display }}</div>
+          </td>
+          <td>
+            <span class="status-pill status-{{ s.task_status }}">
+              <span class="dot"></span>{{ s.get_task_status_display }}
+            </span>
+          </td>
+          <td style="text-align:center" class="mono">{{ s.packet_count|default:"—" }}</td>
+          <td style="text-align:center">
+            {% if s.alert_count > 0 %}
+            <span class="anomaly-dot">
+              <span style="width:5px;height:5px;border-radius:50%;background:var(--red);display:inline-block"></span>
+              <span class="mono text-red">{{ s.alert_count }}</span>
+            </span>
+            {% else %}<span class="text-muted mono">0</span>{% endif %}
+          </td>
+          <td style="text-align:center">
+            {% if s.cnn_result %}
+            <span style="color:var(--green);font-family:var(--mono);font-size:.75rem">{{ s.cnn_result.detection_rate|floatformat:1 }}%</span>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </td>
+          <td style="text-align:center">
+            {% with gc=s.gradcam_images.count %}
+            {% if gc > 0 %}<span style="color:var(--orange);font-family:var(--mono);font-size:.75rem">{{ gc }}張</span>
+            {% else %}<span class="text-muted">—</span>{% endif %}
+            {% endwith %}
+          </td>
+          <td>
+            {% if s.project %}
+            <a href="{% url 'projects:detail' s.project.pk %}"
+               style="color:var(--text-muted);font-size:.75rem;text-decoration:none">
+              {{ s.project.name|truncatechars:16 }}
+            </a>
+            {% else %}<span class="text-muted" style="font-size:.75rem">—</span>{% endif %}
+          </td>
+          <td style="text-align:right">
+            <a href="{% url 'analyzer:session_detail' s.pk %}" class="btn-primary btn-sm">View Details →</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state" style="padding:56px">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;margin:0 auto 16px">
+      <path d="M20 13V6a2 2 0 00-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2h7m9-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+    </svg>
+    <h3>No analysis records found</h3>
+    <p style="margin-top:8px">
+      <a href="{% url 'analyzer:upload' %}" style="color:var(--green)">Upload your first PCAP file to get started</a>
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

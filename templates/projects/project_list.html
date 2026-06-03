@@ -1,0 +1,85 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — Projects{% endblock %}
+{% block extra_css %}
+<style>
+.proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.proj-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:18px;transition:all .2s;cursor:pointer;position:relative;overflow:hidden}
+.proj-card:hover{border-color:rgba(34,197,94,.3);transform:translateY(-2px);box-shadow:0 8px 30px rgba(0,0,0,.3)}
+.proj-accent{position:absolute;top:0;left:0;right:0;height:2px}
+.proj-name{font-size:.95rem;font-weight:700;color:var(--text-primary);margin-bottom:4px}
+.proj-seg{font-size:.72rem;color:var(--green);font-family:var(--mono);margin-bottom:8px}
+.proj-desc{font-size:.78rem;color:var(--text-muted);line-height:1.5;margin-bottom:12px;min-height:36px}
+.proj-stats{display:flex;gap:14px;margin-bottom:12px}
+.proj-stat{text-align:center}
+.proj-stat .val{font-size:1.1rem;font-weight:700;font-family:var(--mono)}
+.proj-stat .lbl{font-size:.62rem;color:var(--text-muted);margin-top:1px}
+.proj-footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border2);padding-top:10px;margin-top:4px}
+.status-active{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:var(--green);padding:2px 8px;border-radius:10px;font-size:.65rem;font-weight:700}
+.status-archived{background:rgba(139,148,158,.1);border:1px solid rgba(139,148,158,.25);color:#94a3b8;padding:2px 8px;border-radius:10px;font-size:.65rem;font-weight:700}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <div class="page-title">Project Management</div>
+    <div class="page-sub">依網段、時段或任務分類管理封包分析</div>
+  </div>
+  {% if request.user.profile.can_manage_projects %}
+  <a href="{% url 'projects:create' %}" class="btn-primary">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M12 4v16m8-8H4"/></svg>
+    New Project
+  </a>
+  {% endif %}
+</div>
+
+{% if projects %}
+<div class="proj-grid">
+  {% for p in projects %}
+  <div class="proj-card" onclick="location.href='{% url 'projects:detail' p.pk %}'">
+    <div class="proj-accent" style="background:{% if p.status == 'active' %}var(--green){% else %}#334155{% endif %}"></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+      <div class="proj-name">{{ p.name }}</div>
+      <span class="{% if p.status == 'active' %}status-active{% else %}status-archived{% endif %}">{{ p.get_status_display }}</span>
+    </div>
+    {% if p.network_segment %}
+    <div class="proj-seg">🌐 {{ p.network_segment }}</div>
+    {% endif %}
+    <div class="proj-desc">{{ p.description|truncatechars:90|default:"No description provided." }}</div>
+    <div class="proj-stats">
+      <div class="proj-stat">
+        <div class="val" style="color:var(--green)">{{ p.session_count }}</div>
+        <div class="lbl">Sessions</div>
+      </div>
+      <div class="proj-stat">
+        <div class="val" style="color:{% if p.total_alerts > 0 %}var(--red){% else %}var(--text-muted){% endif %}">{{ p.total_alerts }}</div>
+        <div class="lbl">Alerts</div>
+      </div>
+      <div class="proj-stat">
+        <div class="val" style="color:var(--text-secondary)">{{ p.packet_files.count }}</div>
+        <div class="lbl">Files</div>
+      </div>
+    </div>
+    <div class="proj-footer">
+      <span style="font-size:.7rem;color:var(--text-muted)">by {{ p.owner.username }} · {{ p.updated_at|date:"m/d" }}</span>
+      <div class="flex gap-2" onclick="event.stopPropagation()">
+        {% if p.owner == request.user %}
+        <a href="{% url 'projects:upload' p.pk %}" class="btn-ghost btn-sm" style="font-size:.72rem">Upload</a>
+        {% endif %}
+        <a href="{% url 'projects:detail' p.pk %}" class="btn-primary btn-sm" style="font-size:.72rem">View →</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state" style="padding:80px">
+  <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;margin:0 auto 14px"><path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7l9 6 9-6"/></svg>
+  <h3>No Projects Yet</h3>
+  <p style="margin-top:6px">建立第一個專案，開始分類管理您的封包分析。</p>
+  {% if request.user.profile.can_manage_projects %}
+  <a href="{% url 'projects:create' %}" class="btn-primary" style="display:inline-flex;margin-top:16px">＋ Create First Project</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,79 @@
+{
+  "meta": {
+    "session_id": 1,
+    "label": "Full Report Session",
+    "mode": "pcap",
+    "task_status": "done",
+    "packet_count": 200,
+    "alert_count": 5,
+    "project": null,
+    "created_at": "2026-05-24T14:08:03.116484+00:00",
+    "finished_at": null,
+    "generated_at": "2026-05-24T22:08:04.693794",
+    "generated_by": "reportview"
+  },
+  "cnn_result": {
+    "threshold": 0.000822,
+    "normal_count": 180,
+    "anomaly_count": 20,
+    "avg_normal_error": 0.0003,
+    "avg_attack_error": 0.0028,
+    "detection_rate": 0.1
+  },
+  "alerts": [
+    {
+      "attack_type": "Attack_4",
+      "severity": "LOW",
+      "src_ip": "10.0.0.5",
+      "dst_ip": "",
+      "dst_port": null,
+      "detail": "Detail for attack 4",
+      "suggestion": "Suggestion for attack 4",
+      "timestamp": "2026-05-24T14:08:03.119496+00:00"
+    },
+    {
+      "attack_type": "Attack_2",
+      "severity": "HIGH",
+      "src_ip": "10.0.0.3",
+      "dst_ip": "",
+      "dst_port": null,
+      "detail": "Detail for attack 2",
+      "suggestion": "Suggestion for attack 2",
+      "timestamp": "2026-05-24T14:08:03.118503+00:00"
+    },
+    {
+      "attack_type": "Attack_3",
+      "severity": "MEDIUM",
+      "src_ip": "10.0.0.4",
+      "dst_ip": "",
+      "dst_port": null,
+      "detail": "Detail for attack 3",
+      "suggestion": "Suggestion for attack 3",
+      "timestamp": "2026-05-24T14:08:03.118503+00:00"
+    },
+    {
+      "attack_type": "Attack_0",
+      "severity": "CRITICAL",
+      "src_ip": "10.0.0.1",
+      "dst_ip": "",
+      "dst_port": null,
+      "detail": "Detail for attack 0",
+      "suggestion": "Suggestion for attack 0",
+      "timestamp": "2026-05-24T14:08:03.117496+00:00"
+    },
+    {
+      "attack_type": "Attack_1",
+      "severity": "HIGH",
+      "src_ip": "10.0.0.2",
+      "dst_ip": "",
+      "dst_port": null,
+      "detail": "Detail for attack 1",
+      "suggestion": "Suggestion for attack 1",
+      "timestamp": "2026-05-24T14:08:03.117496+00:00"
+    }
+  ],
+  "gradcam_summary": {
+    "total_images": 0,
+    "anomaly_images": 0
+  }
+}

@@ -1,0 +1,118 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>VNAAP — Register</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--green:#22c55e;--green-dim:rgba(34,197,94,.12);--red:#ef4444;--border:#1f2d40;--border2:#1e293b;--bg:#0f172a;--bg-card:#111827;--text:#e2e8f0;--muted:#94a3b8;--faint:#334155;--mono:'JetBrains Mono',monospace}
+body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;position:relative;overflow:hidden}
+.bg-grid{position:fixed;inset:0;background-image:linear-gradient(rgba(34,197,94,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(34,197,94,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
+.bg-glow{position:fixed;top:20%;left:50%;transform:translateX(-50%);width:600px;height:300px;background:radial-gradient(ellipse,rgba(34,197,94,.05),transparent 70%);pointer-events:none}
+.register-box{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:480px;position:relative;z-index:1;box-shadow:0 0 60px rgba(34,197,94,.04)}
+.logo-row{text-align:center;margin-bottom:22px}
+.logo-mark{width:44px;height:44px;background:linear-gradient(135deg,#22c55e,#16a34a);border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1rem;font-weight:800;color:#0d1117;box-shadow:0 0 18px rgba(34,197,94,.35);margin:0 auto 10px}
+.logo-name{font-family:var(--mono);font-size:.9rem;font-weight:700}
+.logo-sub{font-size:.62rem;color:var(--green);letter-spacing:.1em;margin-top:2px;text-transform:uppercase}
+.page-title{font-size:1rem;font-weight:700;margin-bottom:3px}
+.page-sub{font-size:.72rem;color:var(--muted);margin-bottom:20px}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{margin-bottom:12px}
+.form-label{display:block;font-size:.74rem;font-weight:500;color:var(--muted);margin-bottom:5px}
+.form-input{width:100%;background:#010409;border:1px solid var(--border2);border-radius:8px;padding:9px 13px;color:var(--text);font-size:.845rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.1)}
+.form-input::placeholder{color:var(--faint)}
+select.form-input option{background:#111827}
+.help-text{font-size:.68rem;color:var(--faint);margin-top:3px}
+.error-msg{font-size:.72rem;color:var(--red);margin-top:3px}
+.btn-submit{width:100%;background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:11px;font-size:.875rem;font-weight:700;cursor:pointer;transition:all .2s;margin-top:6px;font-family:'Inter',sans-serif}
+.btn-submit:hover{background:var(--green);color:#0d1117}
+.link-row{text-align:center;font-size:.76rem;color:var(--muted);margin-top:14px}
+.link-row a{color:var(--green);text-decoration:none}
+.role-desc{font-size:.67rem;color:var(--faint);margin-top:3px;padding:6px 10px;background:rgba(34,197,94,.04);border-radius:5px;border:1px solid rgba(34,197,94,.1)}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<div class="bg-glow"></div>
+<div class="register-box">
+  <div class="logo-row">
+    <div class="logo-mark">VN</div>
+    <div class="logo-name">VNAAP</div>
+    <div class="logo-sub">Network Attack Analysis Platform</div>
+  </div>
+  <div class="page-title">Create Account</div>
+  <div class="page-sub">Join the VNAAP security analysis platform</div>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">First Name</label>
+        <input type="text" name="first_name" class="form-input" placeholder="名字"
+               value="{{ form.first_name.value|default:'' }}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Last Name</label>
+        <input type="text" name="last_name" class="form-input" placeholder="姓氏"
+               value="{{ form.last_name.value|default:'' }}">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Username <span style="color:#ef4444">*</span></label>
+      <input type="text" name="username" class="form-input" placeholder="帳號（唯一識別碼）"
+             value="{{ form.username.value|default:'' }}" required autocomplete="username">
+      {% for err in form.username.errors %}<div class="error-msg">✗ {{ err }}</div>{% endfor %}
+      {% if form.username.help_text %}<div class="help-text">{{ form.username.help_text }}</div>{% endif %}
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input type="email" name="email" class="form-input" placeholder="your@email.com"
+             value="{{ form.email.value|default:'' }}">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Organization</label>
+      <input type="text" name="organization" class="form-input" placeholder="所屬組織 / 公司">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Role</label>
+      <select name="role" class="form-input" onchange="updateRoleDesc(this.value)">
+        <option value="analyst">資安分析師 (Analyst)</option>
+        <option value="viewer">唯讀檢視者 (Viewer)</option>
+      </select>
+      <div class="role-desc" id="roleDesc">可上傳 PCAP、執行 AI 分析、匯出報告及管理專案。</div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group">
+        <label class="form-label">Password <span style="color:#ef4444">*</span></label>
+        <input type="password" name="password1" class="form-input" placeholder="密碼" required autocomplete="new-password">
+        {% for err in form.password1.errors %}<div class="error-msg">✗ {{ err }}</div>{% endfor %}
+      </div>
+      <div class="form-group">
+        <label class="form-label">Confirm Password <span style="color:#ef4444">*</span></label>
+        <input type="password" name="password2" class="form-input" placeholder="確認密碼" required autocomplete="new-password">
+        {% for err in form.password2.errors %}<div class="error-msg">✗ {{ err }}</div>{% endfor %}
+      </div>
+    </div>
+    {% if form.non_field_errors %}
+    <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:9px 13px;font-size:.78rem;color:#ef4444;margin-bottom:10px">
+      {{ form.non_field_errors.0 }}
+    </div>
+    {% endif %}
+    <button type="submit" class="btn-submit">Create Account →</button>
+  </form>
+  <div class="link-row">Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a></div>
+</div>
+<script>
+function updateRoleDesc(role) {
+  const descs = {
+    analyst: '可上傳 PCAP、執行 AI 分析、匯出報告及管理專案。',
+    viewer:  '僅可檢視分析結果，無法上傳或執行 AI 功能。',
+  };
+  document.getElementById('roleDesc').textContent = descs[role] || '';
+}
+</script>
+</body>
+</html>

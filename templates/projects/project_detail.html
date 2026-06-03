@@ -1,0 +1,172 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — {{ project.name }}{% endblock %}
+{% block extra_css %}
+<style>
+.detail-grid{display:grid;grid-template-columns:1fr 260px;gap:16px}
+.file-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(31,45,64,.5)}
+.file-row:last-child{border-bottom:none}
+.file-icon{width:32px;height:32px;border-radius:8px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.65rem;font-family:var(--mono);font-weight:700;color:var(--green)}
+.member-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border2);font-size:.8rem}
+.member-row:last-child{border-bottom:none}
+.role-pill{padding:2px 8px;border-radius:10px;font-size:.65rem;font-weight:700}
+.role-owner{background:rgba(34,197,94,.1);color:var(--green)}
+.role-editor{background:rgba(59,130,246,.1);color:#3b82f6}
+.role-viewer{background:rgba(139,148,158,.1);color:#94a3b8}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <div class="page-title" style="display:flex;align-items:center;gap:10px">
+      {{ project.name }}
+      <span class="{% if project.status == 'active' %}status-active{% endif %}"
+            style="font-size:.65rem;padding:2px 8px;border-radius:10px;
+                   {% if project.status == 'active' %}background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.25);color:var(--green){% else %}background:rgba(139,148,158,.1);color:#94a3b8;border:1px solid rgba(139,148,158,.25){% endif %}">
+        {{ project.get_status_display }}
+      </span>
+    </div>
+    <div class="page-sub">
+      {% if project.network_segment %}🌐 {{ project.network_segment }} · {% endif %}
+      Owner: {{ project.owner.username }} · Created {{ project.created_at|date:"Y-m-d" }}
+    </div>
+  </div>
+  <div class="flex gap-2">
+    <a href="{% url 'analyzer:upload' %}?project={{ project.pk }}" class="btn-primary">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      New Analysis
+    </a>
+    {% if project.owner == request.user %}
+    <a href="{% url 'projects:upload' project.pk %}" class="btn-ghost btn-sm">Upload PCAP</a>
+    <a href="{% url 'projects:edit' project.pk %}" class="btn-ghost btn-sm">⚙ Settings</a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="detail-grid">
+  <!-- Left: Files + Sessions -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <!-- Packet Files -->
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span><span class="dot"></span>Packet Files ({{ packet_files.count }})</span>
+        {% if project.owner == request.user or user_role == 'editor' %}
+        <a href="{% url 'projects:upload' project.pk %}" class="btn-primary btn-sm">＋ Upload</a>
+        {% endif %}
+      </div>
+      {% for f in packet_files %}
+      <div class="file-row">
+        <div class="file-icon">{{ f.original_name|slice:":4"|upper }}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.original_name }}</div>
+          <div style="font-size:.68rem;color:var(--text-muted);display:flex;gap:10px;margin-top:2px">
+            <span>{{ f.file_size_mb }} MB</span>
+            <span>{{ f.packet_count }} pkts</span>
+            {% if f.network_tag %}<span style="color:var(--green)">{{ f.network_tag }}</span>{% endif %}
+            <span class="status-pill status-{{ f.status }}" style="font-size:.65rem"><span class="dot"></span>{{ f.get_status_display }}</span>
+          </div>
+        </div>
+        <div style="font-size:.7rem;color:var(--text-muted)">{{ f.uploaded_at|date:"m/d" }}</div>
+        {% if project.owner == request.user %}
+        <form method="post" action="{% url 'projects:file_delete' project.pk f.pk %}" onsubmit="return confirm('刪除此檔案？')">
+          {% csrf_token %}
+          <button class="btn-danger btn-sm" style="padding:3px 8px">✕</button>
+        </form>
+        {% endif %}
+      </div>
+      {% empty %}
+      <div class="empty-state" style="padding:24px"><h3 style="font-size:.85rem">No packet files</h3><p><a href="{% url 'projects:upload' project.pk %}" style="color:var(--green)">Upload first PCAP</a></p></div>
+      {% endfor %}
+    </div>
+
+    <!-- Sessions -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:13px 16px;border-bottom:1px solid var(--border)">
+        <div class="card-title" style="margin-bottom:0"><span class="dot" style="background:var(--blue);box-shadow:0 0 6px var(--blue)"></span>Analysis Sessions (Recent 20)</div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Label</th><th>Status</th><th>Alerts</th><th>Time</th><th></th></tr></thead>
+          <tbody>
+            {% for s in sessions %}
+            <tr>
+              <td><a href="{% url 'analyzer:session_detail' s.pk %}" class="mono text-green" style="text-decoration:none">#{{ s.pk }}</a></td>
+              <td style="font-size:.8rem">{{ s.label|truncatechars:32 }}</td>
+              <td><span class="status-pill status-{{ s.task_status }}"><span class="dot"></span>{{ s.get_task_status_display }}</span></td>
+              <td>{% if s.alert_count %}<span class="text-red mono">{{ s.alert_count }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
+              <td style="color:var(--text-muted);font-size:.72rem">{{ s.created_at|date:"m/d H:i" }}</td>
+              <td><a href="{% url 'analyzer:session_detail' s.pk %}" class="btn-ghost btn-sm">View</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" class="empty-state" style="padding:20px">No sessions yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right: Info + Members -->
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <!-- Project info -->
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>Project Info</div>
+      {% if project.description %}
+      <div style="font-size:.78rem;color:var(--text-muted);line-height:1.6;margin-bottom:12px">{{ project.description }}</div>
+      {% endif %}
+      <div style="display:flex;flex-direction:column;gap:7px;font-size:.78rem">
+        <div class="flex justify-between"><span class="text-muted">Total Alerts</span><span class="text-red mono">{{ project.total_alerts }}</span></div>
+        <div class="flex justify-between"><span class="text-muted">Sessions</span><span class="mono">{{ project.session_count }}</span></div>
+        <div class="flex justify-between"><span class="text-muted">My Role</span><span style="color:var(--green)">{{ user_role }}</span></div>
+        <div class="flex justify-between"><span class="text-muted">Updated</span><span class="mono text-sec">{{ project.updated_at|date:"m/d H:i" }}</span></div>
+      </div>
+    </div>
+
+    <!-- Members -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--purple);box-shadow:0 0 6px var(--purple)"></span>Members ({{ project.memberships.count }})</div>
+      {% for m in project.memberships.all %}
+      <div class="member-row">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--green-dim);border:1px solid rgba(34,197,94,.25);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:var(--green)">{{ m.user.username|slice:":2"|upper }}</div>
+          <span>{{ m.user.username }}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="role-pill role-{{ m.role }}">{{ m.role }}</span>
+          {% if project.owner == request.user and m.user != request.user %}
+          <form method="post" action="{% url 'projects:member_remove' project.pk m.user.pk %}">
+            {% csrf_token %}
+            <button class="btn-danger" style="padding:2px 6px;font-size:.65rem;border-radius:4px">✕</button>
+          </form>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+
+      {% if project.owner == request.user %}
+      <form method="post" action="{% url 'projects:member_add' project.pk %}" style="margin-top:10px">
+        {% csrf_token %}
+        <div class="flex gap-2">
+          <input type="text" name="username" placeholder="Username" class="form-input" style="flex:1;font-size:.78rem;padding:7px 10px">
+          <select name="role" class="form-input" style="max-width:80px;font-size:.78rem;padding:7px 8px">
+            <option value="editor">Editor</option>
+            <option value="viewer">Viewer</option>
+          </select>
+          <button type="submit" class="btn-ghost btn-sm">Add</button>
+        </div>
+      </form>
+      {% endif %}
+    </div>
+
+    {% if project.owner == request.user %}
+    <div class="card" style="border-color:rgba(239,68,68,.2)">
+      <div class="card-title" style="color:var(--red)">⚠ Danger Zone</div>
+      <form method="post" action="{% url 'projects:archive' project.pk %}" onsubmit="return confirm('確定封存此專案？')">
+        {% csrf_token %}
+        <button class="btn-danger" style="width:100%;justify-content:center">Archive Project</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

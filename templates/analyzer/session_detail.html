@@ -1,0 +1,401 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — Session #{{ session.pk }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.tab-bar{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:18px}
+.tab-btn{background:none;border:none;border-bottom:2px solid transparent;color:var(--text-muted);padding:8px 16px;cursor:pointer;font-size:.82rem;font-weight:500;transition:all .15s;font-family:'Inter',sans-serif}
+.tab-btn:hover{color:var(--text-secondary)}
+.tab-btn.active{color:var(--green);border-bottom-color:var(--green)}
+.tab-panel{display:none}.tab-panel.active{display:block}
+.gcam-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px}
+.gcam-card{background:#0d1117;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.gcam-card img{width:100%;display:block;image-rendering:pixelated}
+.gcam-card .gcam-info{padding:8px 10px;font-size:.72rem;color:var(--text-muted)}
+.gcam-card .gcam-info strong{color:var(--text-primary)}
+.cnn-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.cnn-stat{background:#0d1117;border:1px solid var(--border);border-radius:8px;padding:14px}
+.cnn-stat .label{font-size:.67rem;color:var(--text-muted);margin-bottom:6px}
+.cnn-stat .val{font-size:1.5rem;font-weight:700;font-family:var(--mono)}
+.gradcam-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.progress-bar{height:4px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:6px}
+.progress-fill{height:100%;background:var(--green);border-radius:4px;transition:width .3s}
+.status-running-bar .progress-fill{animation:progressAnim 1.5s ease-in-out infinite}
+@keyframes progressAnim{0%{width:20%}50%{width:75%}100%{width:20%}}
+.report-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
+.report-item:last-child{border-bottom:none}
+.fmt-badge{font-size:.68rem;padding:2px 8px;border-radius:4px;font-family:var(--mono);font-weight:700}
+.fmt-pdf{background:rgba(239,68,68,.12);color:#ef4444}
+.fmt-json{background:rgba(59,130,246,.12);color:#3b82f6}
+.fmt-csv{background:rgba(34,197,94,.12);color:#22c55e}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal-box{background:#111827;border:1px solid var(--border);border-radius:14px;padding:24px;width:400px;max-width:90vw}
+.modal-title{font-size:.95rem;font-weight:600;margin-bottom:16px;font-family:var(--mono)}
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="page-bar">
+  <div>
+    <div class="page-title" style="display:flex;align-items:center;gap:10px">
+      Session <span class="mono" style="color:var(--green)">#{{ session.pk }}</span>
+      <span class="status-pill status-{{ session.task_status }}" id="statusBadge">
+        <span class="dot"></span>{{ session.get_task_status_display }}
+      </span>
+    </div>
+    <div class="page-sub" style="display:flex;align-items:center;gap:12px;margin-top:4px">
+      <span>{{ session.label }}</span>
+      {% if session.project %}
+      · <a href="{% url 'projects:detail' session.project.pk %}" style="color:var(--green);text-decoration:none">{{ session.project.name }}</a>
+      {% endif %}
+      · <span id="pktSpan" class="mono">{{ session.packet_count }} pkts</span>
+      · <span id="alertSpan" style="color:var(--red)" class="mono">{{ session.alert_count }} alerts</span>
+    </div>
+  </div>
+  <div class="flex gap-2">
+    {% if can_export %}
+    <button onclick="document.getElementById('exportModal').classList.add('open')" class="btn-ghost btn-sm">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Export Report
+    </button>
+    {% endif %}
+    {% if session.created_by == request.user or request.user.is_staff %}
+    <form method="post" action="{% url 'analyzer:session_delete' session.pk %}" onsubmit="return confirm('確定刪除？')">
+      {% csrf_token %}<button class="btn-danger btn-sm">Delete</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Progress bar when running -->
+{% if session.task_status == 'running' or session.task_status == 'pending' %}
+<div class="card" style="padding:12px 16px" id="progressCard">
+  <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:6px">
+    <span style="color:var(--text-muted)">分析進度</span>
+    <span class="status-pill status-{{ session.task_status }}"><span class="dot"></span>{{ session.get_task_status_display }}</span>
+  </div>
+  <div class="progress-bar status-running-bar"><div class="progress-fill" style="width:50%"></div></div>
+</div>
+{% endif %}
+
+{% if session.error_message %}
+<div style="background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:10px 14px;font-size:.8rem;color:var(--red)">
+  ⚠ 錯誤：{{ session.error_message|truncatechars:200 }}
+</div>
+{% endif %}
+
+<!-- Tabs -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('alerts',this)">
+    🚨 Alerts <span style="font-family:var(--mono);opacity:.6">({{ alerts.count }})</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('cnn',this)">🧠 CNN Results</button>
+  <button class="tab-btn" onclick="switchTab('gradcam',this)">
+    🔥 Grad-CAM <span style="font-family:var(--mono);opacity:.6">({{ gradcam_imgs|length }})</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab('reports',this)">📄 Reports ({{ reports.count }})</button>
+</div>
+
+<!-- ── Tab: Alerts ── -->
+<div id="tab-alerts" class="tab-panel active">
+  {% if alerts %}
+  <div style="display:grid;grid-template-columns:220px 1fr;gap:16px">
+    <div class="card" style="padding:14px">
+      <div class="card-title" style="font-size:.8rem">Severity Breakdown</div>
+      <canvas id="sevChart" height="200"></canvas>
+    </div>
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+        <span class="mono" style="font-size:.82rem;font-weight:600">Alert Details</span>
+        <span style="font-size:.7rem;color:var(--text-muted)">{{ alerts.count }} total</span>
+      </div>
+      <div style="overflow-y:auto;max-height:340px">
+        <table>
+          <thead><tr><th>Severity</th><th>Type</th><th>Source IP</th><th>Destination</th><th>Details</th></tr></thead>
+          <tbody>
+            {% for a in alerts %}
+            <tr>
+              <td><span class="sev sev-{{ a.severity }}">{{ a.severity }}</span></td>
+              <td class="mono" style="font-size:.75rem;color:var(--text-secondary)">{{ a.attack_type }}</td>
+              <td class="mono" style="color:var(--text-secondary)">{{ a.src_ip }}</td>
+              <td class="mono" style="color:var(--text-muted);font-size:.75rem">{{ a.dst_ip|default:"—" }}{% if a.dst_port %}:{{ a.dst_port }}{% endif %}</td>
+              <td style="font-size:.72rem;color:var(--text-muted);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.detail|truncatechars:60 }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:40px;height:40px;margin:0 auto 12px"><polyline points="20 6 9 17 4 12"/></svg>
+    <h3 style="color:var(--green)">No Alerts Detected</h3>
+    <p>本次分析未偵測到已知攻擊特徵。</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── Tab: CNN ── -->
+<div id="tab-cnn" class="tab-panel">
+  {% if cnn_result %}
+  <div class="cnn-grid">
+    <div class="cnn-stat" style="border-color:rgba(34,197,94,.3)">
+      <div class="label">Detection Rate</div>
+      <div class="val" style="color:var(--green)">{{ cnn_result.detection_rate|floatformat:2 }}%</div>
+    </div>
+    <div class="cnn-stat" style="border-color:rgba(59,130,246,.3)">
+      <div class="label">Normal Packets</div>
+      <div class="val" style="color:var(--blue)">{{ cnn_result.normal_count }}</div>
+    </div>
+    <div class="cnn-stat" style="border-color:rgba(239,68,68,.3)">
+      <div class="label">Anomaly Packets</div>
+      <div class="val" style="color:var(--red)">{{ cnn_result.anomaly_count }}</div>
+    </div>
+    <div class="cnn-stat" style="border-color:rgba(234,179,8,.3)">
+      <div class="label">Threshold</div>
+      <div class="val" style="color:var(--yellow);font-size:1rem">{{ cnn_result.threshold }}</div>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+    <div class="card">
+      <div class="card-title">Reconstruction Error Stats</div>
+      <table style="font-size:.82rem">
+        <tr><td style="color:var(--text-muted);padding:6px 0">平均正常封包誤差</td>
+            <td class="mono" style="padding:6px 0">{{ cnn_result.avg_normal_error }}</td></tr>
+        <tr><td style="color:var(--text-muted);padding:6px 0">平均異常封包誤差</td>
+            <td class="mono" style="color:var(--red);padding:6px 0">{{ cnn_result.avg_attack_error }}</td></tr>
+        <tr><td style="color:var(--text-muted);padding:6px 0">閾值</td>
+            <td class="mono" style="color:var(--yellow);padding:6px 0">{{ cnn_result.threshold }}</td></tr>
+      </table>
+    </div>
+    {% if cnn_result.error_histogram %}
+    <div class="card" style="padding:0;overflow:hidden">
+      <img src="{{ cnn_result.error_histogram.url }}" style="width:100%;display:block">
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <h3>CNN 結果尚未產生</h3>
+    <p style="margin-top:8px">分析完成後將自動顯示。</p>
+    {% if can_gradcam %}
+    <button onclick="triggerCNNRun()" class="btn-primary" style="margin-top:14px">重新執行 CNN 分析</button>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── Tab: GradCAM ── -->
+<div id="tab-gradcam" class="tab-panel">
+  {% if can_gradcam %}
+  <div class="card" style="padding:14px;margin-bottom:14px">
+    <div class="card-title" style="margin-bottom:10px">觸發 Grad-CAM 視覺化</div>
+    <div class="gradcam-toolbar">
+      <select id="gcVariant" class="form-input" style="max-width:150px">
+        <option value="gradcam">Grad-CAM</option>
+        <option value="gradcam++">Grad-CAM++</option>
+        <option value="scorecam">Score-CAM</option>
+      </select>
+      <input type="number" id="gcMaxImgs" value="20" min="1" max="100"
+             class="form-input" style="max-width:90px" placeholder="張數">
+      <label class="flex items-center gap-2" style="font-size:.8rem;color:var(--text-secondary);cursor:pointer">
+        <input type="checkbox" id="gcAnomalyOnly" checked> 僅顯示異常封包
+      </label>
+      <button onclick="triggerGradCAM()" id="gcBtn" class="btn-primary">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        Run Grad-CAM
+      </button>
+      <span id="gcMsg" style="font-size:.78rem;color:var(--text-muted)"></span>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="gcam-grid" id="gcamGrid">
+    {% for img in gradcam_imgs %}
+    <div class="gcam-card">
+      {% if img.comparison_image %}
+      <a href="{{ img.comparison_image.url }}" target="_blank">
+        <img src="{{ img.comparison_image.url }}" alt="GradCAM #{{ img.packet_index }}" loading="lazy">
+      </a>
+      {% endif %}
+      <div class="gcam-info">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <strong>Packet #{{ img.packet_index }}</strong>
+          <span class="sev {% if img.is_anomaly %}sev-HIGH{% else %}sev-LOW{% endif %}">
+            {% if img.is_anomaly %}ANOMALY{% else %}NORMAL{% endif %}
+          </span>
+        </div>
+        <div style="margin-top:4px">{{ img.variant }} · <span class="mono">{{ img.recon_error|floatformat:5 }}</span></div>
+        <div style="display:flex;gap:10px;margin-top:5px">
+          {% if img.original_image %}<a href="{{ img.original_image.url }}" target="_blank" style="color:var(--blue);font-size:.68rem">原圖</a>{% endif %}
+          {% if img.heatmap_image %}<a href="{{ img.heatmap_image.url }}" target="_blank" style="color:var(--orange);font-size:.68rem">熱力圖</a>{% endif %}
+        </div>
+      </div>
+    </div>
+    {% empty %}
+    <div class="empty-state" style="grid-column:1/-1">
+      <h3>尚無 Grad-CAM 影像</h3>
+      <p>點擊上方「Run Grad-CAM」按鈕觸發視覺化分析。</p>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── Tab: Reports ── -->
+<div id="tab-reports" class="tab-panel">
+  {% if can_export %}
+  <div class="card" style="padding:14px;margin-bottom:14px">
+    <div class="card-title" style="margin-bottom:10px">匯出新報告</div>
+    <form method="post" action="{% url 'reports:export' session.pk %}" class="flex gap-2 items-center">
+      {% csrf_token %}
+      <select name="format" class="form-input" style="max-width:280px">
+        <option value="pdf">PDF — 完整報告（含 Grad-CAM 影像）</option>
+        <option value="json">JSON — 原始資料</option>
+        <option value="csv">CSV — 告警清單（Excel 相容）</option>
+      </select>
+      <button type="submit" class="btn-primary">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        Generate & Download
+      </button>
+    </form>
+  </div>
+  {% endif %}
+
+  {% for r in reports %}
+  <div class="report-item">
+    <div class="flex items-center gap-3">
+      <span class="fmt-badge fmt-{{ r.format }}">{{ r.format|upper }}</span>
+      <div>
+        <div style="font-size:.82rem">Report #{{ r.pk }}</div>
+        <div style="font-size:.7rem;color:var(--text-muted)">{{ r.created_at|date:"Y-m-d H:i" }} · {{ r.generated_by.username|default:"system" }}</div>
+      </div>
+    </div>
+    <a href="{% url 'reports:download' r.pk %}" class="btn-ghost btn-sm">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+      Download
+    </a>
+  </div>
+  {% empty %}
+  <div class="empty-state" style="padding:32px"><h3>尚無報告</h3><p>使用上方表單產生報告。</p></div>
+  {% endfor %}
+</div>
+
+<!-- Export Modal -->
+<div class="modal-overlay" id="exportModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal-box">
+    <div class="modal-title">Export Analysis Report</div>
+    <form method="post" action="{% url 'reports:export' session.pk %}">
+      {% csrf_token %}
+      <div class="form-group">
+        <label class="form-label">Format</label>
+        <select name="format" class="form-input">
+          <option value="pdf">PDF（含圖表與 Grad-CAM 影像）</option>
+          <option value="json">JSON（原始資料）</option>
+          <option value="csv">CSV（告警清單，Excel 相容）</option>
+        </select>
+      </div>
+      <div class="flex gap-2" style="margin-top:16px">
+        <button type="submit" class="btn-primary">Generate & Download</button>
+        <button type="button" class="btn-ghost" onclick="document.getElementById('exportModal').classList.remove('open')">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function switchTab(name, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+/* Severity chart */
+{% if alerts %}
+const sd = {{ sev_data|safe }};
+new Chart(document.getElementById('sevChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['CRITICAL','HIGH','MEDIUM','LOW'],
+    datasets: [{ data: [sd.CRITICAL,sd.HIGH,sd.MEDIUM,sd.LOW],
+      backgroundColor: ['rgba(239,68,68,.8)','rgba(249,115,22,.8)','rgba(234,179,8,.8)','rgba(34,197,94,.8)'],
+      borderColor: '#111827', borderWidth: 2 }]
+  },
+  options: { responsive:true, cutout:'62%',
+    plugins:{ legend:{ position:'bottom', labels:{ color:'#94a3b8', font:{size:9}, boxWidth:8, padding:8 } } } }
+});
+{% endif %}
+
+/* Status polling */
+let pollTimer = null;
+async function pollStatus() {
+  try {
+    const r = await fetch('{% url "analyzer:session_status" session.pk %}');
+    const d = await r.json();
+    const m = { pending:'等待中', running:'分析中', done:'已完成', failed:'分析失敗' };
+    const badge = document.getElementById('statusBadge');
+    badge.className = 'status-pill status-' + d.task_status;
+    badge.innerHTML = '<span class="dot"></span>' + (m[d.task_status] || d.task_status);
+    document.getElementById('pktSpan').textContent   = d.packet_count + ' pkts';
+    document.getElementById('alertSpan').textContent = d.alert_count + ' alerts';
+    if (d.task_status === 'done' || d.task_status === 'failed') {
+      clearInterval(pollTimer);
+      if (d.task_status === 'done') setTimeout(() => location.reload(), 800);
+    }
+  } catch(e) {}
+}
+{% if session.task_status == 'running' or session.task_status == 'pending' %}
+pollTimer = setInterval(pollStatus, 3000);
+{% endif %}
+
+/* GradCAM trigger */
+async function triggerGradCAM() {
+  const btn  = document.getElementById('gcBtn');
+  const msg  = document.getElementById('gcMsg');
+  const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+  btn.disabled = true; btn.textContent = '⏳ Queuing...';
+  msg.textContent = '';
+  try {
+    const r = await fetch('{% url "analyzer:trigger_gradcam" session.pk %}', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        variant:      document.getElementById('gcVariant').value,
+        max_images:   document.getElementById('gcMaxImgs').value,
+        anomaly_only: document.getElementById('gcAnomalyOnly').checked ? 'true' : 'false',
+        csrfmiddlewaretoken: csrf,
+      }),
+    });
+    const d = await r.json();
+    if (d.status === 'queued') {
+      msg.style.color = '#22c55e';
+      msg.textContent = '✓ ' + d.message;
+    } else {
+      msg.style.color = '#ef4444';
+      msg.textContent = '✗ ' + (d.error || 'Error');
+    }
+  } catch(e) { msg.style.color='#ef4444'; msg.textContent = '✗ Connection failed'; }
+  finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polygon points="5 3 19 12 5 21 5 3"/></svg> Run Grad-CAM';
+  }
+}
+
+/* CNN re-run */
+async function triggerCNNRun() {
+  const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+  const r = await fetch('/api/v1/sessions/{{ session.pk }}/cnn/run/', {
+    method:'POST', headers:{'X-CSRFToken':csrf}
+  });
+  const d = await r.json();
+  alert('CNN 分析任務已派發，Task ID: ' + d.task_id);
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollStatus, 3000);
+}
+</script>
+{% endblock %}

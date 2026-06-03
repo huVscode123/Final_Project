@@ -1,0 +1,488 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}VNAAP — 視覺化網路攻擊分析平台{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:    #0f172a;
+      --bg-card:    #111827;
+      --bg-header:  #0d1117;
+      --border:     #1f2d40;
+      --border2:    #1e293b;
+      --green:      #22c55e;
+      --green-dim:  rgba(34,197,94,0.12);
+      --green-glow: rgba(34,197,94,0.25);
+      --red:        #ef4444;
+      --red-dim:    rgba(239,68,68,0.12);
+      --orange:     #f97316;
+      --orange-dim: rgba(249,115,22,0.12);
+      --yellow:     #eab308;
+      --yellow-dim: rgba(234,179,8,0.12);
+      --blue:       #3b82f6;
+      --blue-dim:   rgba(59,130,246,0.12);
+      --purple:     #a855f7;
+      --text-primary:   #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted:     #475569;
+      --text-faint:     #334155;
+      --mono: 'JetBrains Mono', monospace;
+      --radius: 12px;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-base);
+      color: var(--text-primary);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
+
+    /* ═══ HEADER ══════════════════════════════════════════ */
+    header {
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px;
+      height: 62px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+    .header-logo { display: flex; align-items: center; }
+    .header-logo a { display: flex; align-items: center; text-decoration: none; }
+    .header-logo .logo-img {
+      height: 120px;
+      width: auto;
+      display: block;
+      filter: drop-shadow(0 0 8px rgba(34,197,94,0.2));
+      transition: transform 0.2s;
+    }
+    .header-logo .logo-img:hover {
+      transform: scale(1.02);
+    }
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .live-badge {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 0.7rem; color: var(--text-secondary);
+      font-family: var(--mono);
+    }
+    .live-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 8px var(--green);
+      animation: pulse 1.5s infinite;
+    }
+    .header-clock {
+      font-family: var(--mono); font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+    .profile-btn {
+      display: flex; align-items: center; gap: 8px;
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 8px; padding: 6px 12px;
+      cursor: pointer; transition: background 0.2s;
+      text-decoration: none;
+    }
+    .profile-btn:hover { background: #263548; }
+    .avatar {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: linear-gradient(135deg, #22c55e, #16a34a);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.65rem; font-weight: 700; color: #0d1117; flex-shrink: 0;
+    }
+    .profile-name { font-size: 0.72rem; font-weight: 600; color: var(--text-primary); }
+    .profile-role { font-size: 0.6rem; color: var(--green); }
+
+    /* Django messages toast */
+    .toast-wrap {
+      position: fixed; top: 70px; right: 16px; z-index: 999;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .toast {
+      padding: 10px 16px; border-radius: 8px; font-size: 0.8rem;
+      min-width: 240px; max-width: 360px;
+      animation: slideIn 0.3s ease;
+    }
+    .toast-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: #22c55e; }
+    .toast-error, .toast-danger { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; }
+    .toast-info  { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); color: #3b82f6; }
+    .toast-warning { background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.25); color: #eab308; }
+    @keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+
+    /* ═══ LAYOUT ══════════════════════════════════════════ */
+    .body-wrap { display: flex; flex: 1; overflow: hidden; }
+
+    /* ═══ SIDEBAR ════════════════════════════════════════= */
+    aside {
+      width: 220px; flex-shrink: 0;
+      background: var(--bg-header);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 16px 0; overflow-y: auto;
+    }
+    .nav-section { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
+    .nav-group-label {
+      font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em;
+      color: var(--text-faint); padding: 8px 10px 4px;
+      text-transform: uppercase;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 10px; border-radius: 8px;
+      border: 1px solid transparent; cursor: pointer;
+      transition: all 0.2s; text-decoration: none;
+      background: transparent; position: relative;
+    }
+    .nav-item:hover { background: rgba(255,255,255,0.04); }
+    .nav-item.active {
+      background: linear-gradient(90deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04));
+      border-color: rgba(34,197,94,0.25);
+    }
+    .nav-item.active::before {
+      content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+      width: 3px; height: 20px; border-radius: 2px;
+      background: var(--green); box-shadow: 0 0 8px var(--green);
+    }
+    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
+    .nav-item.active svg { color: var(--green); filter: drop-shadow(0 0 4px var(--green)); }
+    .nav-item:not(.active) svg { color: #475569; }
+    .nav-label { font-size: 0.78rem; }
+    .nav-item.active .nav-label { color: var(--text-primary); font-weight: 600; }
+    .nav-item:not(.active) .nav-label { color: #64748b; }
+    .nav-badge {
+      margin-left: auto; font-size: 0.6rem; padding: 2px 5px; border-radius: 20px;
+      font-weight: 700; background: rgba(239,68,68,0.15); color: var(--red);
+      border: 1px solid rgba(239,68,68,0.3);
+    }
+    .sidebar-divider { margin: 10px 14px; border-top: 1px solid var(--border2); }
+    .nav-bottom { display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
+    .nav-bottom-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 10px; border-radius: 8px;
+      cursor: pointer; transition: background 0.2s;
+      background: transparent; border: none; width: 100%;
+      text-decoration: none;
+    }
+    .nav-bottom-item:hover { background: rgba(255,255,255,0.04); }
+    .nav-bottom-item svg { width: 14px; height: 14px; color: #475569; flex-shrink: 0; }
+    .nav-bottom-item span { font-size: 0.75rem; color: #475569; }
+    .sidebar-version {
+      margin: 10px 10px 0; padding: 8px;
+      border-radius: 8px; text-align: center;
+      background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.1);
+    }
+    .sidebar-version .v { font-size: 0.6rem; color: var(--green); letter-spacing: 0.1em; font-family: var(--mono); }
+    .sidebar-version .sub { font-size: 0.55rem; color: #475569; margin-top: 2px; }
+
+    /* ═══ MAIN ════════════════════════════════════════════ */
+    main {
+      flex: 1; overflow-y: auto; padding: 22px;
+      display: flex; flex-direction: column; gap: 20px;
+    }
+
+    /* ─── Cards ─── */
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+    }
+    .card-title {
+      font-size: 0.88rem; font-weight: 600; color: var(--text-primary);
+      margin-bottom: 14px; font-family: var(--mono);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .card-title .dot {
+      width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+    }
+
+    /* ─── Buttons ─── */
+    .btn-primary {
+      background: var(--green-dim); color: var(--green);
+      border: 1px solid rgba(34,197,94,0.3);
+      padding: 8px 16px; border-radius: 8px; cursor: pointer;
+      font-size: 0.82rem; font-weight: 600; transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 7px;
+      text-decoration: none;
+    }
+    .btn-primary:hover { background: var(--green); color: #0d1117; }
+    .btn-danger {
+      background: var(--red-dim); color: var(--red);
+      border: 1px solid rgba(239,68,68,0.3);
+      padding: 8px 16px; border-radius: 8px; cursor: pointer;
+      font-size: 0.82rem; font-weight: 600; transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+    }
+    .btn-danger:hover { background: var(--red); color: #fff; }
+    .btn-ghost {
+      background: transparent; color: var(--text-secondary);
+      border: 1px solid var(--border2);
+      padding: 7px 14px; border-radius: 8px; cursor: pointer;
+      font-size: 0.8rem; font-weight: 500; transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+    .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
+
+    /* ─── Forms ─── */
+    .form-group { margin-bottom: 14px; }
+    .form-label {
+      display: block; font-size: 0.78rem; font-weight: 500;
+      color: var(--text-secondary); margin-bottom: 6px;
+    }
+    .form-input {
+      width: 100%; background: #010409; border: 1px solid var(--border2);
+      border-radius: 8px; padding: 9px 14px; color: var(--text-primary);
+      font-size: 0.85rem; font-family: 'Inter', sans-serif;
+      outline: none; transition: border-color 0.2s;
+    }
+    .form-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(34,197,94,0.1); }
+    .form-input::placeholder { color: var(--text-faint); }
+    select.form-input { cursor: pointer; }
+    select.form-input option { background: #111827; }
+
+    /* ─── Tables ─── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    thead tr { border-bottom: 1px solid var(--border); }
+    th {
+      padding: 9px 14px; text-align: left;
+      font-size: 0.68rem; font-weight: 600; letter-spacing: 0.07em;
+      text-transform: uppercase; color: var(--text-muted);
+      background: rgba(255,255,255,0.02);
+    }
+    td { padding: 10px 14px; border-bottom: 1px solid rgba(31,45,64,0.5); }
+    tr:hover td { background: rgba(255,255,255,0.015); }
+    tr:last-child td { border-bottom: none; }
+
+    /* ─── Severity pills ─── */
+    .sev {
+      font-size: 0.68rem; padding: 2px 8px; border-radius: 20px;
+      font-weight: 700; letter-spacing: 0.04em; font-family: var(--mono);
+    }
+    .sev-CRITICAL { background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); }
+    .sev-HIGH     { background:rgba(249,115,22,0.15); color:#f97316; border:1px solid rgba(249,115,22,0.3); }
+    .sev-MEDIUM   { background:rgba(234,179,8,0.15);  color:#eab308; border:1px solid rgba(234,179,8,0.3); }
+    .sev-LOW      { background:rgba(34,197,94,0.12);  color:#22c55e; border:1px solid rgba(34,197,94,0.25); }
+
+    /* ─── Status dots ─── */
+    .status-pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 0.72rem; font-weight: 600;
+    }
+    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; }
+    .status-done    .dot { background: var(--green); box-shadow: 0 0 5px var(--green); }
+    .status-running .dot { background: var(--blue);  box-shadow: 0 0 5px var(--blue); animation: pulse 1.5s infinite; }
+    .status-pending .dot { background: var(--text-muted); }
+    .status-failed  .dot { background: var(--red); box-shadow: 0 0 5px var(--red); }
+    .status-done    { color: var(--green); }
+    .status-running { color: var(--blue); }
+    .status-pending { color: var(--text-muted); }
+    .status-failed  { color: var(--red); }
+
+    /* ─── Page bar ─── */
+    .page-bar {
+      display: flex; align-items: flex-start; justify-content: space-between;
+    }
+    .page-title { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
+    .page-sub   { font-size: 0.7rem; color: var(--text-muted); margin-top: 3px; }
+    .page-controls { display: flex; align-items: center; gap: 10px; }
+
+    /* ─── Misc utils ─── */
+    .mono { font-family: var(--mono); }
+    .text-green  { color: var(--green); }
+    .text-red    { color: var(--red); }
+    .text-yellow { color: var(--yellow); }
+    .text-blue   { color: var(--blue); }
+    .text-muted  { color: var(--text-muted); }
+    .text-sec    { color: var(--text-secondary); }
+    .flex { display: flex; }
+    .items-center { align-items: center; }
+    .justify-between { justify-content: space-between; }
+    .gap-2 { gap: 8px; }
+    .gap-3 { gap: 12px; }
+    .mb-1 { margin-bottom: 6px; }
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+    .empty-state svg { opacity: 0.25; margin-bottom: 12px; }
+    .empty-state h3 { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 6px; }
+    .empty-state p  { font-size: 0.8rem; }
+    code {
+      background: rgba(255,255,255,0.06); padding: 1px 6px;
+      border-radius: 4px; font-family: var(--mono); font-size: 0.82em;
+    }
+
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+    {% block extra_css %}{% endblock %}
+  </style>
+</head>
+<body>
+
+<!-- ═══ HEADER ════════════════════════════════════════════ -->
+<header>
+  <div class="header-logo">
+    <a href="{% url 'analyzer:dashboard' %}">
+      <img src="{% static 'img/breaking bad - Visualized Network Attack Automated Analysis Platform.png' %}" 
+           alt="VNAAP Logo" class="logo-img">
+    </a>
+  </div>
+  <div class="header-right">
+    <div class="live-badge"><span class="live-dot"></span> LIVE</div>
+    <div class="header-clock" id="headerClock">--:--:--</div>
+    {% if user.is_authenticated %}
+    <a href="{% url 'accounts:profile' %}" class="profile-btn">
+      <div class="avatar">{{ user.username|slice:":2"|upper }}</div>
+      <div>
+        <div class="profile-name">{{ user.get_full_name|default:user.username }}</div>
+        <div class="profile-role">{{ user.profile.get_role_display }}</div>
+      </div>
+    </a>
+    {% endif %}
+  </div>
+</header>
+
+<!-- ═══ TOAST MESSAGES ════════════════════════════════════ -->
+{% if messages %}
+<div class="toast-wrap" id="toastWrap">
+  {% for msg in messages %}
+  <div class="toast toast-{{ msg.tags }}" onclick="this.remove()">{{ msg }}</div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<div class="body-wrap">
+  <!-- ═══ SIDEBAR ══════════════════════════════════════════ -->
+  <aside>
+    <div class="nav-section">
+      <div class="nav-group-label">Analysis</div>
+
+      <a href="{% url 'analyzer:dashboard' %}"
+         class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        <span class="nav-label">儀表板</span>
+      </a>
+
+      <a href="{% url 'analyzer:upload' %}"
+         class="nav-item {% if request.resolver_match.url_name == 'upload' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+        </svg>
+        <span class="nav-label">上傳 PCAP</span>
+      </a>
+
+      <a href="{% url 'analyzer:sessions' %}"
+         class="nav-item {% if request.resolver_match.url_name == 'sessions' or request.resolver_match.url_name == 'session_detail' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2z"/>
+        </svg>
+        <span class="nav-label">分析任務列表</span>
+        {% if running_count %}
+        <span class="nav-badge">{{ running_count }}</span>
+        {% endif %}
+      </a>
+
+      <a href="{% url 'analyzer:live' %}"
+         class="nav-item {% if request.resolver_match.url_name == 'live' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+        <span class="nav-label">即時監控 (Live)</span>
+      </a>
+
+      <a href="{% url 'analyzer:ai_chat' %}"
+         class="nav-item {% if request.resolver_match.url_name == 'ai_chat' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/>
+        </svg>
+        <span class="nav-label">AI 助手對話</span>
+      </a>
+
+      <div class="sidebar-divider"></div>
+      <div class="nav-group-label">Projects</div>
+
+      <a href="{% url 'projects:list' %}"
+         class="nav-item {% if request.resolver_match.app_name == 'projects' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/>
+          <path d="M3 7l9 6 9-6"/>
+        </svg>
+        <span class="nav-label">專案管理</span>
+      </a>
+
+    </div>
+
+    <div class="sidebar-divider"></div>
+    <div class="nav-bottom">
+      {% if user.is_staff %}
+      <a href="{% url 'admin:index' %}" class="nav-bottom-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        <span>後台管理</span>
+      </a>
+      {% endif %}
+      <a href="{% url 'accounts:profile' %}" class="nav-bottom-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+        <span>個人設定</span>
+      </a>
+      <a href="{% url 'accounts:logout' %}" class="nav-bottom-item">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+        </svg>
+        <span>登出</span>
+      </a>
+    </div>
+
+    <div class="sidebar-version">
+      <div class="v">VNAAP v2.5.0</div>
+      <div class="sub">Semi-supervised CNN Autoencoder</div>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN CONTENT ═══════════════════════════════════ -->
+  <main id="mainContent">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+{% block extra_js %}{% endblock %}
+
+<script>
+/* Clock */
+(function tick() {
+  const el = document.getElementById('headerClock');
+  if (el) {
+    const n = new Date();
+    el.textContent = n.toLocaleTimeString('zh-TW', {hour12: false}) + ' UTC+8';
+  }
+  setTimeout(tick, 1000);
+})();
+
+/* Auto-dismiss toasts */
+setTimeout(() => {
+  const w = document.getElementById('toastWrap');
+  if (w) w.style.opacity = '0', w.style.transition = 'opacity 0.5s', setTimeout(()=>w.remove(), 500);
+}, 4000);
+</script>
+</body>
+</html>

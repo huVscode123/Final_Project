@@ -1,0 +1,40 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — Upload PCAP to {{ project.name }}{% endblock %}
+{% block content %}
+<div class="page-bar">
+  <div>
+    <div class="page-title">Upload Packet File</div>
+    <div class="page-sub">Project: <a href="{% url 'projects:detail' project.pk %}" style="color:var(--green);text-decoration:none">{{ project.name }}</a></div>
+  </div>
+  <a href="{% url 'projects:detail' project.pk %}" class="btn-ghost btn-sm">← Back</a>
+</div>
+<div style="max-width:540px">
+  <div class="card">
+    <form method="post" enctype="multipart/form-data">
+      {% csrf_token %}
+      {% for field in form %}
+      <div class="form-group">
+        <label class="form-label">{{ field.label }}</label>
+        {% if field.name == 'description' %}
+        <textarea name="{{ field.html_name }}" class="form-input" rows="2">{{ field.value|default:'' }}</textarea>
+        {% elif field.name == 'capture_time' %}
+        <input type="datetime-local" name="{{ field.html_name }}" class="form-input"
+               value="{{ field.value|default:'' }}">
+        {% elif field.name == 'file' %}
+        <input type="file" name="{{ field.html_name }}" class="form-input"
+               accept=".pcap,.pcapng,.cap">
+        {% else %}
+        <input type="text" name="{{ field.html_name }}" class="form-input"
+               value="{{ field.value|default:'' }}" placeholder="{{ field.label }}">
+        {% endif %}
+        {% for e in field.errors %}<div style="color:var(--red);font-size:.75rem;margin-top:4px">✗ {{ e }}</div>{% endfor %}
+      </div>
+      {% endfor %}
+      <div class="flex gap-2">
+        <button type="submit" class="btn-primary">Upload File</button>
+        <a href="{% url 'projects:detail' project.pk %}" class="btn-ghost">Cancel</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
