@@ -291,7 +291,7 @@ class TestDnsAmplification:
 class TestDetectorUtility:
 
     def test_reset_clears_counters(self, detector, parser):
-        """reset() 後計數器歸零，alerted 集合清空"""
+        """reset() 後計數器歸零，冷卻狀態清空"""
         for _ in range(6):
             pkt = IP(src="1.1.1.1", dst="2.2.2.2") / TCP(dport=80, flags="S")
             detector.inspect(pkt, parser.parse(pkt))
@@ -299,8 +299,9 @@ class TestDetectorUtility:
         assert len(detector.alert_history) > 0
         detector.reset()
 
-        assert detector.syn_count["1.1.1.1"] == 0
-        assert len(detector.alerted) == 0
+        # [更新] 使用滑動窗口計數器的 count() 方法驗證歸零
+        assert detector.syn_counter.count("1.1.1.1") == 0
+        assert len(detector._alert_cooldown) == 0
         # alert_history 保留（不清空）
         assert len(detector.alert_history) > 0
 

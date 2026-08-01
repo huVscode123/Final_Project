@@ -1,70 +1,681 @@
-=== django_logic Source Export ===
+========================================================================
+  Django 核心業務邏輯彙整 (Python/Logic)
+  匯出時間 : 2026-08-01 16:38:10
+  總檔案數 : 31
+========================================================================
 
+[檔案目錄]
+  01. accounts\admin.py
+  02. accounts\apps.py
+  03. accounts\forms.py
+  04. accounts\models.py
+  05. accounts\urls.py
+  06. accounts\views.py
+  07. analyzer\admin.py
+  08. analyzer\apps.py
+  09. analyzer\models.py
+  10. analyzer\tasks.py
+  11. analyzer\urls.py
+  12. analyzer\views.py
+  13. api\apps.py
+  14. api\permissions.py
+  15. api\serializers.py
+  16. api\urls.py
+  17. api\views.py
+  18. network_platform\celery.py
+  19. network_platform\settings.py
+  20. network_platform\urls.py
+  21. network_platform\wsgi.py
+  22. projects\admin.py
+  23. projects\apps.py
+  24. projects\forms.py
+  25. projects\models.py
+  26. projects\urls.py
+  27. projects\views.py
+  28. reports\apps.py
+  29. reports\generators.py
+  30. reports\urls.py
+  31. reports\views.py
 
 ========================================================================
-  FILE: analyzer/admin.py
-========================================================================
 
+// FILE: accounts\admin.py
+----------------------------------------
+# ============================================================
+# accounts/admin.py
+# ============================================================
 from django.contrib import admin
-from .models import AnalysisSession, Alert, CNNResult
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import User
+from .models import UserProfile, UserActivityLog
+
+
+class UserProfileInline(admin.StackedInline):
+    model = UserProfile
+    can_delete = False
+    verbose_name_plural = '使用者資料'
+    fields = ('role', 'organization', 'phone', 'bio',
+              'can_upload_pcap', 'can_run_ai_analysis',
+              'can_export_report', 'can_manage_projects')
+
+
+class CustomUserAdmin(BaseUserAdmin):
+    inlines = (UserProfileInline,)
+    list_display  = ('username', 'email', 'get_role', 'get_org',
+                     'is_staff', 'is_active', 'date_joined')
+    list_filter   = ('is_staff', 'is_active', 'profile__role')
+    search_fields = ('username', 'email', 'profile__organization')
+
+    @admin.display(description='角色', ordering='profile__role')
+    def get_role(self, obj):
+        return obj.profile.get_role_display() if hasattr(obj, 'profile') else '-'
+
+    @admin.display(description='組織', ordering='profile__organization')
+    def get_org(self, obj):
+        return obj.profile.organization if hasattr(obj, 'profile') else '-'
+
+
+admin.site.unregister(User)
+admin.site.register(User, CustomUserAdmin)
+
+
+@admin.register(UserActivityLog)
+class UserActivityLogAdmin(admin.ModelAdmin):
+    list_display  = ('timestamp', 'user', 'action', 'ip_address', 'detail')
+    list_filter   = ('action',)
+    search_fields = ('user__username', 'detail')
+    readonly_fields = ('user', 'action', 'detail', 'ip_address', 'timestamp')
+    ordering      = ('-timestamp',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+========================================================================
+
+// FILE: accounts\apps.py
+----------------------------------------
+from django.apps import AppConfig
+
+class AccountsConfig(AppConfig):
+    name = 'accounts'
+    verbose_name = '使用者系統'
+
+
+========================================================================
+
+// FILE: accounts\forms.py
+----------------------------------------
+# ============================================================
+# accounts/forms.py
+# ============================================================
+from django import forms
+from django.contrib.auth.models import User
+from django.contrib.auth.forms import UserCreationForm, AuthenticationForm
+from .models import UserProfile
+
+
+class RegisterForm(UserCreationForm):
+    email        = forms.EmailField(required=True, label='電子郵件')
+    organization = forms.CharField(max_length=100, required=False, label='所屬組織')
+    # [安全修正] 移除 admin 角色自選，防止權限提升漏洞
+    role         = forms.ChoiceField(
+        choices=[c for c in UserProfile.ROLE_CHOICES if c[0] != 'admin'],
+        label='角色',
+        initial='analyst',
+    )
+
+    class Meta:
+        model  = User
+        fields = ('username', 'email', 'first_name', 'last_name',
+                  'password1', 'password2')
+        labels = {
+            'username':   '帳號',
+            'first_name': '名字',
+            'last_name':  '姓氏',
+        }
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        user.email = self.cleaned_data['email']
+        if commit:
+            user.save()
+            user.profile.organization = self.cleaned_data.get('organization', '')
+            user.profile.role = self.cleaned_data.get('role', 'analyst')
+            user.profile.save()
+        return user
+
+
+class LoginForm(AuthenticationForm):
+    username = forms.CharField(label='帳號', widget=forms.TextInput(
+        attrs={'autofocus': True, 'placeholder': '輸入帳號'}))
+    password = forms.CharField(label='密碼', widget=forms.PasswordInput(
+        attrs={'placeholder': '輸入密碼'}))
+
+
+class UserProfileForm(forms.ModelForm):
+    first_name   = forms.CharField(max_length=50, required=False, label='名字')
+    last_name    = forms.CharField(max_length=50, required=False, label='姓氏')
+    email        = forms.EmailField(required=False, label='電子郵件')
+
+    class Meta:
+        model  = UserProfile
+        fields = ('organization', 'phone', 'bio', 'avatar')
+        labels = {
+            'organization': '所屬組織',
+            'phone':        '聯絡電話',
+            'bio':          '個人簡介',
+            'avatar':       '頭像',
+        }
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        if user:
+            self.fields['first_name'].initial = user.first_name
+            self.fields['last_name'].initial  = user.last_name
+            self.fields['email'].initial      = user.email
+
+
+========================================================================
+
+// FILE: accounts\models.py
+----------------------------------------
+# ============================================================
+# accounts/models.py
+# 使用者擴充資料（UserProfile）與角色/權限系統
+# ============================================================
+from django.db import models
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
+
+
+class UserProfile(models.Model):
+    """
+    擴充 Django 預設 User 的個人資料。
+    透過 OneToOneField 與 User 連結，信號自動建立。
+    """
+    ROLE_CHOICES = [
+        ('admin',    '系統管理員'),
+        ('analyst',  '資安分析師'),
+        ('viewer',   '唯讀檢視者'),
+    ]
+
+    user         = models.OneToOneField(User, on_delete=models.CASCADE,
+                                        related_name='profile')
+    role         = models.CharField(max_length=20, choices=ROLE_CHOICES,
+                                    default='analyst')
+    organization = models.CharField(max_length=100, blank=True, verbose_name='所屬組織')
+    phone        = models.CharField(max_length=30, blank=True, verbose_name='聯絡電話')
+    avatar       = models.ImageField(upload_to='avatars/', null=True, blank=True,
+                                     verbose_name='頭像')
+    bio          = models.TextField(blank=True, verbose_name='個人簡介')
+    created_at   = models.DateTimeField(auto_now_add=True)
+    updated_at   = models.DateTimeField(auto_now=True)
+
+    # ── 功能開關 ─────────────────────────────────────────────
+    can_upload_pcap      = models.BooleanField(default=True,  verbose_name='可上傳 PCAP')
+    can_run_ai_analysis  = models.BooleanField(default=True,  verbose_name='可執行 AI 分析')
+    can_export_report    = models.BooleanField(default=True,  verbose_name='可匯出報告')
+    can_manage_projects  = models.BooleanField(default=True,  verbose_name='可管理專案')
+
+    class Meta:
+        verbose_name      = '使用者資料'
+        verbose_name_plural = '使用者資料'
+
+    def __str__(self):
+        return f'{self.user.username} ({self.get_role_display()})'
+
+    @property
+    def is_admin(self):
+        return self.role == 'admin' or self.user.is_staff
+
+    @property
+    def is_viewer(self):
+        return self.role == 'viewer'
+
+
+@receiver(post_save, sender=User)
+def create_user_profile(sender, instance, created, **kwargs):
+    """User 建立時自動建立 UserProfile。"""
+    if created:
+        UserProfile.objects.create(user=instance)
+
+
+@receiver(post_save, sender=User)
+def save_user_profile(sender, instance, **kwargs):
+    """User 儲存時同步儲存 Profile。"""
+    if hasattr(instance, 'profile'):
+        instance.profile.save()
+
+
+class UserActivityLog(models.Model):
+    """
+    使用者操作稽核日誌。
+    記錄上傳、分析、匯出等關鍵操作。
+    """
+    ACTION_CHOICES = [
+        ('login',           '登入系統'),
+        ('logout',          '登出系統'),
+        ('upload_pcap',     '上傳 PCAP'),
+        ('run_analysis',    '執行分析'),
+        ('run_gradcam',     '執行 Grad-CAM'),
+        ('export_report',   '匯出報告'),
+        ('create_project',  '建立專案'),
+        ('delete_session',  '刪除 Session'),
+    ]
+
+    user       = models.ForeignKey(User, on_delete=models.CASCADE,
+                                   related_name='activity_logs')
+    action     = models.CharField(max_length=30, choices=ACTION_CHOICES)
+    detail     = models.TextField(blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    timestamp  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        verbose_name      = '操作日誌'
+        verbose_name_plural = '操作日誌'
+
+    def __str__(self):
+        return f'[{self.timestamp:%Y-%m-%d %H:%M}] {self.user.username} - {self.get_action_display()}'
+
+
+========================================================================
+
+// FILE: accounts\urls.py
+----------------------------------------
+# ============================================================
+# accounts/urls.py
+# ============================================================
+from django.urls import path
+from . import views
+
+app_name = 'accounts'
+
+urlpatterns = [
+    path('register/',                views.register,          name='register'),
+    path('login/',                   views.user_login,        name='login'),
+    path('logout/',                  views.user_logout,       name='logout'),
+    path('profile/',                 views.profile,           name='profile'),
+    path('activity-logs/',           views.activity_logs,     name='activity_logs'),
+    # 管理員面板
+    path('admin-panel/',             views.admin_panel,       name='admin_panel'),
+    path('admin/user/<int:user_id>/',views.admin_update_user, name='admin_update_user'),
+]
+
+
+========================================================================
+
+// FILE: accounts\views.py
+----------------------------------------
+# ============================================================
+# accounts/views.py
+# ============================================================
+from django.shortcuts import render, redirect
+from django.contrib.auth import login, logout, authenticate
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import JsonResponse
+
+from .forms import RegisterForm, LoginForm, UserProfileForm
+from .models import UserActivityLog
+
+
+def _log_action(request, action, detail=''):
+    """記錄使用者操作至稽核日誌。"""
+    ip = request.META.get('HTTP_X_FORWARDED_FOR',
+                          request.META.get('REMOTE_ADDR', ''))
+    if ip and ',' in ip:
+        ip = ip.split(',')[0].strip()
+    UserActivityLog.objects.create(
+        user=request.user, action=action,
+        detail=detail, ip_address=ip or None,
+    )
+
+
+def register(request):
+    """使用者註冊頁面。"""
+    if request.user.is_authenticated:
+        return redirect('/')
+    if request.method == 'POST':
+        form = RegisterForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            messages.success(request, f'歡迎加入！帳號 {user.username} 已建立。')
+            return redirect('/')
+    else:
+        form = RegisterForm()
+    return render(request, 'accounts/register.html', {'form': form})
+
+
+def user_login(request):
+    """使用者登入頁面。"""
+    if request.user.is_authenticated:
+        return redirect('/')
+    if request.method == 'POST':
+        form = LoginForm(request, data=request.POST)
+        if form.is_valid():
+            user = form.get_user()
+            login(request, user)
+            _log_action(request, 'login')
+            messages.success(request, f'歡迎回來，{user.get_full_name() or user.username}！')
+            return redirect(request.GET.get('next', '/'))
+        else:
+            messages.error(request, '帳號或密碼錯誤，請重試。')
+    else:
+        form = LoginForm()
+    return render(request, 'accounts/login.html', {'form': form})
+
+
+@login_required
+def user_logout(request):
+    """登出。"""
+    _log_action(request, 'logout')
+    logout(request)
+    messages.info(request, '您已安全登出系統。')
+    return redirect('accounts:login')
+
+
+@login_required
+def profile(request):
+    """使用者個人資料頁面。"""
+    profile_obj = request.user.profile
+    if request.method == 'POST':
+        form = UserProfileForm(request.POST, request.FILES,
+                               instance=profile_obj, user=request.user)
+        if form.is_valid():
+            form.save()
+            # 同步更新 User 欄位
+            u = request.user
+            u.first_name = form.cleaned_data.get('first_name', '')
+            u.last_name  = form.cleaned_data.get('last_name', '')
+            u.email      = form.cleaned_data.get('email', '')
+            u.save()
+            messages.success(request, '個人資料已更新。')
+            return redirect('accounts:profile')
+    else:
+        form = UserProfileForm(instance=profile_obj, user=request.user)
+
+    # 最近操作紀錄
+    logs = UserActivityLog.objects.filter(user=request.user)[:20]
+    return render(request, 'accounts/profile.html', {
+        'form': form, 'logs': logs,
+    })
+
+
+@login_required
+def activity_logs(request):
+    """使用者操作稽核日誌（管理員可看全部）。"""
+    if request.user.profile.is_admin:
+        logs = UserActivityLog.objects.select_related('user').all()[:200]
+    else:
+        logs = UserActivityLog.objects.filter(user=request.user)[:100]
+    return render(request, 'accounts/activity_logs.html', {'logs': logs})
+
+
+@login_required
+def admin_panel(request):
+    """管理員管理面板 — 使用者管理、系統統計。"""
+    if not request.user.profile.is_admin:
+        messages.error(request, '權限不足：僅管理員可存取。')
+        return redirect('analyzer:dashboard')
+
+    from django.contrib.auth.models import User
+    from analyzer.models import AnalysisSession, Alert
+    from projects.models import Project
+
+    users = User.objects.select_related('profile').all().order_by('-date_joined')
+    logs = UserActivityLog.objects.select_related('user').all()[:50]
+
+    # 系統統計
+    stats = {
+        'total_users':    users.count(),
+        'admin_count':    users.filter(profile__role='admin').count(),
+        'analyst_count':  users.filter(profile__role='analyst').count(),
+        'viewer_count':   users.filter(profile__role='viewer').count(),
+        'total_sessions': AnalysisSession.objects.count(),
+        'done_sessions':  AnalysisSession.objects.filter(task_status='done').count(),
+        'total_alerts':   Alert.objects.count(),
+        'critical_alerts':Alert.objects.filter(severity='CRITICAL').count(),
+        'total_projects': Project.objects.exclude(status='deleted').count(),
+    }
+
+    return render(request, 'accounts/admin_panel.html', {
+        'users': users,
+        'logs': logs,
+        'stats': stats,
+    })
+
+
+@login_required
+def admin_update_user(request, user_id):
+    """管理員更新使用者角色或狀態（AJAX）。"""
+    if not request.user.profile.is_admin:
+        return JsonResponse({'error': '權限不足'}, status=403)
+
+    import json
+    from django.contrib.auth.models import User
+
+    try:
+        target = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({'error': '使用者不存在'}, status=404)
+
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        action = data.get('action')
+
+        if action == 'change_role':
+            new_role = data.get('role')
+            if new_role in ['admin', 'analyst', 'viewer']:
+                target.profile.role = new_role
+                target.profile.save()
+                _log_action(request, 'admin_change_role',
+                            f'將 {target.username} 的角色變更為 {new_role}')
+                return JsonResponse({'ok': True, 'role': new_role})
+
+        elif action == 'toggle_active':
+            target.is_active = not target.is_active
+            target.save()
+            status = '啟用' if target.is_active else '停用'
+            _log_action(request, 'admin_toggle_active',
+                        f'{status}使用者 {target.username}')
+            return JsonResponse({'ok': True, 'is_active': target.is_active})
+
+    return JsonResponse({'error': '無效的操作'}, status=400)
+
+
+
+========================================================================
+
+// FILE: analyzer\admin.py
+----------------------------------------
+# ============================================================
+# analyzer/admin.py
+# ============================================================
+from django.contrib import admin
+from django.utils.html import format_html
+from .models import AnalysisSession, Alert, CNNResult, GradCAMImage, AnalysisReport
+
+
+class AlertInline(admin.TabularInline):
+    model  = Alert
+    extra  = 0
+    fields = ('attack_type', 'severity', 'src_ip', 'dst_ip', 'timestamp')
+    readonly_fields = ('timestamp',)
+    show_change_link = True
+    ordering = ('-timestamp',)
+
+
+class CNNResultInline(admin.StackedInline):
+    model   = CNNResult
+    extra   = 0
+    can_delete = False
+    readonly_fields = ('threshold', 'normal_count', 'anomaly_count',
+                       'avg_normal_error', 'avg_attack_error',
+                       'detection_rate', 'created_at')
+
 
 @admin.register(AnalysisSession)
-class SessionAdmin(admin.ModelAdmin):
-    list_display  = ('label', 'mode', 'packet_count', 'alert_count', 'created_at')
-    list_filter   = ('mode',)
-    search_fields = ('label',)
+class AnalysisSessionAdmin(admin.ModelAdmin):
+    list_display  = ('label', 'project', 'mode', 'task_status_badge',
+                     'packet_count', 'alert_count', 'created_by', 'created_at')
+    list_filter   = ('mode', 'task_status', 'project')
+    search_fields = ('label', 'pcap_file', 'created_by__username')
+    readonly_fields = ('celery_task_id', 'created_at', 'finished_at', 'error_message')
+    inlines       = [AlertInline, CNNResultInline]
+
+    @admin.display(description='狀態')
+    def task_status_badge(self, obj):
+        colors = {
+            'done':    '#3fb950', 'running': '#58a6ff',
+            'pending': '#8b949e', 'failed':  '#f85149',
+        }
+        color = colors.get(obj.task_status, '#8b949e')
+        return format_html(
+            '<span style="color:{};font-weight:bold">{}</span>',
+            color, obj.get_task_status_display()
+        )
+
 
 @admin.register(Alert)
 class AlertAdmin(admin.ModelAdmin):
-    list_display  = ('attack_type', 'severity', 'src_ip', 'session', 'timestamp')
+    list_display  = ('attack_type', 'severity', 'src_ip', 'dst_ip',
+                     'session', 'timestamp')
     list_filter   = ('severity', 'attack_type')
-    search_fields = ('src_ip', 'attack_type')
+    search_fields = ('src_ip', 'dst_ip', 'attack_type', 'session__label')
+    date_hierarchy = 'timestamp'
+
 
 @admin.register(CNNResult)
 class CNNResultAdmin(admin.ModelAdmin):
-    list_display = ('session', 'normal_count', 'anomaly_count', 'threshold')
+    list_display = ('session', 'normal_count', 'anomaly_count',
+                    'detection_rate_pct', 'threshold', 'created_at')
+    readonly_fields = ('created_at',)
+
+    @admin.display(description='偵測率')
+    def detection_rate_pct(self, obj):
+        return f'{obj.detection_rate * 100:.2f}%'
+
+
+@admin.register(GradCAMImage)
+class GradCAMImageAdmin(admin.ModelAdmin):
+    list_display  = ('session', 'packet_index', 'variant', 'is_anomaly',
+                     'recon_error', 'preview', 'created_at')
+    list_filter   = ('variant', 'is_anomaly', 'session')
+    readonly_fields = ('created_at',)
+
+    @admin.display(description='預覽')
+    def preview(self, obj):
+        if obj.comparison_image:
+            return format_html(
+                '<img src="{}" width="80" style="border-radius:4px">',
+                obj.comparison_image.url
+            )
+        return '-'
+
+
+@admin.register(AnalysisReport)
+class AnalysisReportAdmin(admin.ModelAdmin):
+    list_display  = ('session', 'format', 'generated_by', 'file_size', 'created_at')
+    list_filter   = ('format',)
+    readonly_fields = ('created_at', 'file_size')
 
 
 ========================================================================
-  FILE: analyzer/apps.py
-========================================================================
 
+// FILE: analyzer\apps.py
+----------------------------------------
 from django.apps import AppConfig
-
 
 class AnalyzerConfig(AppConfig):
     name = 'analyzer'
+    verbose_name = '封包分析'
 
 
 ========================================================================
-  FILE: analyzer/models.py
-========================================================================
 
+// FILE: analyzer\models.py
+----------------------------------------
+# ============================================================
 # analyzer/models.py
-# 資料庫模型：記錄每次分析的 Session 與告警歷史
+# 分析任務、告警、CNN 結果、視覺化影像儲存
+# ============================================================
+import os
 from django.db import models
+from django.contrib.auth.models import User
+
+
+def gradcam_upload_path(instance, filename):
+    return f'gradcam/session_{instance.session_id}/{filename}'
+
+
+def report_upload_path(instance, filename):
+    return f'reports/session_{instance.session_id}/{filename}'
 
 
 class AnalysisSession(models.Model):
-    """每次 PCAP 上傳 / 即時擷取對應一個 Session"""
+    """
+    每次 PCAP 上傳 / 即時擷取對應一個 Session。
+    可掛載至 Project（非必填，向下相容舊資料）。
+    """
     MODE_CHOICES = [('pcap', 'PCAP 離線分析'), ('live', '即時擷取')]
+    TASK_STATUS  = [
+        ('pending',    '等待中'),
+        ('running',    '分析中'),
+        ('done',       '已完成'),
+        ('failed',     '分析失敗'),
+    ]
 
-    mode       = models.CharField(max_length=10, choices=MODE_CHOICES)
-    label      = models.CharField(max_length=100, blank=True)
-    pcap_file  = models.FileField(upload_to='uploads/', null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    # ── 關聯 ─────────────────────────────────────────────────
+    project     = models.ForeignKey(
+        'projects.Project', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='sessions',
+        verbose_name='所屬專案',
+    )
+    created_by  = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='analysis_sessions', verbose_name='建立者',
+    )
+    packet_file = models.ForeignKey(
+        'projects.PacketFile', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='sessions',
+        verbose_name='來源封包檔',
+    )
+
+    # ── 基本欄位 ─────────────────────────────────────────────
+    mode        = models.CharField(max_length=10, choices=MODE_CHOICES)
+    label       = models.CharField(max_length=200, blank=True)
+    pcap_file   = models.FileField(upload_to='uploads/', null=True, blank=True)
+    task_status = models.CharField(max_length=20, choices=TASK_STATUS, default='pending')
+    celery_task_id = models.CharField(max_length=100, blank=True,
+                                      verbose_name='Celery Task ID')
+    error_message  = models.TextField(blank=True, verbose_name='錯誤訊息')
+
+    # ── 統計 ─────────────────────────────────────────────────
     packet_count = models.IntegerField(default=0)
     alert_count  = models.IntegerField(default=0)
+    created_at   = models.DateTimeField(auto_now_add=True)
+    finished_at  = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
+        verbose_name      = '分析 Session'
+        verbose_name_plural = '分析 Session'
 
     def __str__(self):
-        return f"[{self.mode}] {self.label} ({self.created_at:%Y-%m-%d %H:%M})"
+        proj = f' [{self.project.name}]' if self.project else ''
+        return f'[{self.mode}]{proj} {self.label} ({self.created_at:%Y-%m-%d %H:%M})'
 
 
 class Alert(models.Model):
-    """單筆告警紀錄"""
+    """規則式攻擊偵測結果（單筆告警）。"""
     SEVERITY_CHOICES = [
         ('LOW',      'Low'),
         ('MEDIUM',   'Medium'),
@@ -72,53 +683,541 @@ class Alert(models.Model):
         ('CRITICAL', 'Critical'),
     ]
 
-    session     = models.ForeignKey(
-        AnalysisSession, on_delete=models.CASCADE, related_name='alerts'
-    )
-    attack_type = models.CharField(max_length=50)
+    session     = models.ForeignKey(AnalysisSession, on_delete=models.CASCADE,
+                                    related_name='alerts')
+    attack_type = models.CharField(max_length=100)
     severity    = models.CharField(max_length=10, choices=SEVERITY_CHOICES)
     src_ip      = models.CharField(max_length=50)
+    dst_ip      = models.CharField(max_length=50, blank=True)
+    dst_port    = models.IntegerField(null=True, blank=True)
     detail      = models.TextField(blank=True)
     suggestion  = models.TextField(blank=True)
     timestamp   = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-timestamp']
+        verbose_name      = '告警'
+        verbose_name_plural = '告警'
 
     def __str__(self):
-        return f"[{self.severity}] {self.attack_type} from {self.src_ip}"
+        return f'[{self.severity}] {self.attack_type} from {self.src_ip}'
+
+    @property
+    def severity_color(self):
+        return {
+            'LOW': '#3fb950', 'MEDIUM': '#d29922',
+            'HIGH': '#f85149', 'CRITICAL': '#ff7b72',
+        }.get(self.severity, '#8b949e')
 
 
 class CNNResult(models.Model):
-    """CNN Autoencoder 異常分析結果"""
-    session          = models.OneToOneField(
-        AnalysisSession, on_delete=models.CASCADE, related_name='cnn_result'
-    )
+    """CNN Autoencoder 異常偵測結果。"""
+    session          = models.OneToOneField(AnalysisSession, on_delete=models.CASCADE,
+                                            related_name='cnn_result')
     threshold        = models.FloatField()
     normal_count     = models.IntegerField(default=0)
     anomaly_count    = models.IntegerField(default=0)
     avg_normal_error = models.FloatField(default=0)
     avg_attack_error = models.FloatField(default=0)
-    heatmap_image    = models.ImageField(upload_to='reports/', null=True, blank=True)
+    detection_rate   = models.FloatField(default=0, verbose_name='偵測率')
+    # 重建誤差直方圖
+    error_histogram  = models.ImageField(upload_to='cnn_results/', null=True, blank=True)
     created_at       = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        verbose_name      = 'CNN 結果'
+        verbose_name_plural = 'CNN 結果'
+
     def __str__(self):
-        return f"CNN Result for Session {self.session_id}"
+        return f'CNN Result for Session {self.session_id}'
+
+
+class GradCAMImage(models.Model):
+    """
+    Grad-CAM 視覺化影像儲存。
+    每張影像對應 Session 中的一個封包（由 packet_index 標識）。
+    """
+    VARIANT_CHOICES = [
+        ('gradcam',   'Grad-CAM'),
+        ('gradcam++', 'Grad-CAM++'),
+        ('scorecam',  'Score-CAM'),
+    ]
+
+    session       = models.ForeignKey(AnalysisSession, on_delete=models.CASCADE,
+                                      related_name='gradcam_images')
+    packet_index  = models.IntegerField(verbose_name='封包索引')
+    variant       = models.CharField(max_length=20, choices=VARIANT_CHOICES,
+                                     default='gradcam')
+    is_anomaly    = models.BooleanField(default=False, verbose_name='是否為異常封包')
+    recon_error   = models.FloatField(default=0, verbose_name='重建誤差')
+
+    # 原始封包影像（灰階 32×32）
+    original_image = models.ImageField(upload_to=gradcam_upload_path,
+                                       null=True, blank=True,
+                                       verbose_name='原始影像')
+    # Grad-CAM 熱力圖疊圖
+    heatmap_image  = models.ImageField(upload_to=gradcam_upload_path,
+                                       null=True, blank=True,
+                                       verbose_name='熱力圖')
+    # 並排對比圖（原圖 + 熱力圖）
+    comparison_image = models.ImageField(upload_to=gradcam_upload_path,
+                                         null=True, blank=True,
+                                         verbose_name='對比圖')
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['session', 'packet_index']
+        verbose_name      = 'Grad-CAM 影像'
+        verbose_name_plural = 'Grad-CAM 影像'
+        unique_together = ('session', 'packet_index', 'variant')
+
+    def __str__(self):
+        return (f'GradCAM #{self.packet_index} '
+                f'({"異常" if self.is_anomaly else "正常"}) '
+                f'Session {self.session_id}')
+
+
+class AnalysisReport(models.Model):
+    """
+    分析報告：記錄每次報告的匯出紀錄與檔案位置。
+    支援 PDF / JSON / CSV 三種格式。
+    """
+    FORMAT_CHOICES = [
+        ('pdf',  'PDF 報告'),
+        ('json', 'JSON 資料'),
+        ('csv',  'CSV 告警清單'),
+    ]
+
+    session     = models.ForeignKey(AnalysisSession, on_delete=models.CASCADE,
+                                    related_name='reports')
+    generated_by = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                     null=True, related_name='generated_reports')
+    format      = models.CharField(max_length=10, choices=FORMAT_CHOICES)
+    file        = models.FileField(upload_to=report_upload_path, null=True, blank=True)
+    file_size   = models.IntegerField(default=0)
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name      = '分析報告'
+        verbose_name_plural = '分析報告'
+
+    def __str__(self):
+        return f'Report [{self.format.upper()}] Session {self.session_id}'
 
 
 ========================================================================
-  FILE: analyzer/tests.py
+
+// FILE: analyzer\tasks.py
+----------------------------------------
+# ============================================================
+# analyzer/tasks.py
+# Celery 非同步任務：封包前處理、規則偵測、CNN 分析、Grad-CAM
+# ============================================================
+import os
+import sys
+import logging
+from datetime import datetime
+
+from celery import shared_task
+from django.conf import settings
+from django.utils import timezone
+
+logger = logging.getLogger(__name__)
+
+# 確保 core/ 在路徑中
+_CORE = str(settings.BASE_DIR / 'core')
+if _CORE not in sys.path:
+    sys.path.insert(0, _CORE)
+
+
+# ── 工具函式 ─────────────────────────────────────────────────
+def _get_session(session_id):
+    from analyzer.models import AnalysisSession
+    return AnalysisSession.objects.get(pk=session_id)
+
+
+def _mark_failed(session, error):
+    session.task_status  = 'failed'
+    session.error_message = str(error)[:2000]
+    session.finished_at  = timezone.now()
+    session.save(update_fields=['task_status', 'error_message', 'finished_at'])
+    logger.error(f'Session {session.pk} 失敗: {error}')
+
+
+# ── Task 1：封包檔案前處理（SHA-256 + 封包數量計算）──────────
+@shared_task(bind=True, max_retries=2, default_retry_delay=10)
+def process_packet_file(self, packet_file_pk):
+    """
+    非同步計算 PacketFile 的 SHA-256 與封包數量。
+    任務完成後自動觸發 run_pcap_analysis。
+    """
+    from projects.models import PacketFile
+    try:
+        pf = PacketFile.objects.get(pk=packet_file_pk)
+        pf.status = 'processing'
+        pf.save(update_fields=['status'])
+
+        # SHA-256
+        pf.compute_sha256()
+
+        # 封包數（使用 scapy）
+        try:
+            from scapy.all import rdpcap
+            pkts = rdpcap(pf.file.path)
+            pf.packet_count = len(pkts)
+        except Exception as e:
+            logger.warning(f'scapy 讀取失敗: {e}')
+
+        pf.status = 'done'
+        pf.save(update_fields=['status', 'packet_count'])
+        logger.info(f'PacketFile {packet_file_pk} 處理完成，共 {pf.packet_count} 封包')
+
+    except Exception as exc:
+        logger.error(f'process_packet_file 失敗: {exc}')
+        try:
+            pf.status = 'failed'
+            pf.save(update_fields=['status'])
+        except Exception:
+            pass
+        raise self.retry(exc=exc)
+
+
+# ── Task 2：完整 PCAP 分析（規則偵測 + CNN）─────────────────
+@shared_task(bind=True, max_retries=1, default_retry_delay=5,
+             time_limit=600, soft_time_limit=540)
+def run_pcap_analysis(self, session_id):
+    """
+    主要分析流程：
+      1. 規則式攻擊偵測（PcapAnalyzer）
+      2. CNN Autoencoder 異常偵測
+      3. 儲存結果至資料庫
+    """
+    from analyzer.models import AnalysisSession, Alert, CNNResult
+
+    try:
+        session = _get_session(session_id)
+        session.task_status   = 'running'
+        session.celery_task_id = self.request.id or ''
+        session.save(update_fields=['task_status', 'celery_task_id'])
+
+        pcap_path = str(settings.MEDIA_ROOT / session.pcap_file.name)
+        if not os.path.exists(pcap_path):
+            raise FileNotFoundError(f'PCAP 不存在: {pcap_path}')
+
+        # ── Step 1：規則式偵測 ────────────────────────────────
+        logger.info(f'[Session {session_id}] 執行規則式偵測...')
+        try:
+            from pcap_analyzer import PcapAnalyzer
+            analyzer = PcapAnalyzer(pcap_path)
+            analyzer.load()
+            
+            # [Bug 2 修正] detect_attacks 現在回傳複合 dict {"alerts": [...], "summary": ...}
+            analysis_result = analyzer.detect_attacks()
+            alerts_raw      = analysis_result.get("alerts", [])
+            summary_info    = analysis_result.get("summary", {})
+            
+            # 從摘要中取得總封包數
+            session.packet_count = summary_info.get('total_packets', 0)
+        except ImportError:
+            logger.warning('PcapAnalyzer 未安裝，跳過規則式偵測')
+            alerts_raw  = []
+        except Exception as e:
+            logger.error(f'規則式偵測過程發生錯誤: {e}')
+            alerts_raw = []
+
+        # 清除舊告警再重寫
+        Alert.objects.filter(session=session).delete()
+        for a in alerts_raw:
+            Alert.objects.create(
+                session     = session,
+                attack_type = a.get('attack_type', 'Unknown'),
+                severity    = a.get('severity', 'LOW'),
+                src_ip      = a.get('src_ip', ''),
+                dst_ip      = a.get('dst_ip', ''),
+                dst_port    = a.get('dst_port'),
+                detail      = a.get('detail', ''),
+                suggestion  = a.get('suggestion', ''),
+            )
+        session.alert_count = session.alerts.count()
+
+        # ── Step 2：CNN Autoencoder 偵測 ─────────────────────
+        logger.info(f'[Session {session_id}] 執行 CNN 異常偵測...')
+        cnn_metrics = _run_cnn_analysis(session, pcap_path)
+        if cnn_metrics:
+            CNNResult.objects.update_or_create(
+                session=session,
+                defaults=cnn_metrics,
+            )
+
+        session.task_status = 'done'
+        session.finished_at = timezone.now()
+        session.save(update_fields=[
+            'task_status', 'finished_at', 'packet_count', 'alert_count'])
+        logger.info(f'[Session {session_id}] 分析完成')
+
+    except Exception as exc:
+        session = _get_session(session_id)
+        _mark_failed(session, exc)
+        raise self.retry(exc=exc)
+
+
+def _compute_errors_batched(model, X, device, batch_size=256):
+    """[P1-3 修正] 分批推論，避免大型 pcap 造成 GPU OOM"""
+    import numpy as np
+    import torch
+    errs = []
+    with torch.no_grad():
+        for i in range(0, len(X), batch_size):
+            batch = torch.from_numpy(
+                X[i:i+batch_size, np.newaxis, :, :].astype(np.float32)
+            ).to(device)
+            e = model.reconstruction_error(batch)
+            errs.append(e.cpu().numpy())
+    return np.concatenate(errs)
+
+
+def _run_cnn_analysis(session, pcap_path):
+    """CNN Autoencoder 推論，回傳指標 dict（失敗回傳 None）。"""
+    import numpy as np
+    import torch
+
+    model_path = str(settings.CNN_MODEL_PATH)
+    if not os.path.exists(model_path):
+        logger.warning(f'CNN 模型不存在: {model_path}，跳過 CNN 分析')
+        return None
+
+    try:
+        from cnn_autoencoder import CNNAutoencoder
+        from packet_visualizer import PacketVisualizer
+        from scapy.all import rdpcap
+
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # ── [P1-2 修正] 優先從 checkpoint 讀取閾值 ──
+        ckpt = torch.load(model_path, map_location=device, weights_only=True)
+        if isinstance(ckpt, dict) and 'model_state' in ckpt:
+            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
+            model.load_state_dict(ckpt['model_state'])
+            threshold = float(ckpt.get('threshold', settings.CNN_THRESHOLD))
+        else:
+            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
+            model.load_state_dict(ckpt)
+            threshold = float(settings.CNN_THRESHOLD)
+        model.eval()
+
+        packets = rdpcap(pcap_path)
+        vis     = PacketVisualizer('medium', apply_mask=True, skip_ethernet=True)
+        images  = []
+        for pkt in packets:
+            try:
+                img = vis.bytes_to_image(bytes(pkt))
+                images.append(img)
+            except Exception:
+                continue
+
+        if not images:
+            return None
+
+        X        = np.array(images, dtype=np.float32)
+        
+        errors = _compute_errors_batched(model, X, device)
+        anomaly_mask = errors > threshold
+        n_normal     = int((~anomaly_mask).sum())
+        n_anomaly    = int(anomaly_mask.sum())
+
+        return {
+            'threshold':        threshold,
+            'normal_count':     n_normal,
+            'anomaly_count':    n_anomaly,
+            'detection_rate':   float(n_anomaly / (len(errors) + 1e-9)),
+            'avg_normal_error': float(errors[~anomaly_mask].mean()) if n_normal  > 0 else 0.0,
+            'avg_attack_error': float(errors[anomaly_mask].mean())  if n_anomaly > 0 else 0.0,
+        }
+
+    except Exception as e:
+        logger.error(f'CNN 分析失敗: {e}')
+        return None
+
+
+# ── Task 3：Grad-CAM 視覺化（非同步掛載 AI 核心）─────────────
+@shared_task(bind=True, max_retries=1, time_limit=300, soft_time_limit=270)
+def run_gradcam(self, session_id, max_images=20,
+                variant='gradcam', anomaly_only=True):
+    """
+    對 Session 中的封包執行 Grad-CAM，並將熱力圖儲存到 GradCAMImage。
+
+    Args:
+        session_id  : AnalysisSession.pk
+        max_images  : 最多處理幾張影像（預設 20）
+        variant     : gradcam / gradcam++ / scorecam
+        anomaly_only: 是否只對異常封包產生熱力圖
+    """
+    import io
+    import numpy as np
+    import torch
+    from PIL import Image
+    from django.core.files.base import ContentFile
+
+    from analyzer.models import AnalysisSession, GradCAMImage, CNNResult
+
+    try:
+        session = _get_session(session_id)
+
+        model_path = str(settings.CNN_MODEL_PATH)
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f'CNN 模型不存在: {model_path}')
+
+        # ── 載入 CNN 模型 ─────────────────────────────────────
+        from cnn_autoencoder import CNNAutoencoder
+        from packet_visualizer import PacketVisualizer
+        from scapy.all import rdpcap
+
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        model  = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
+        model.load_state_dict(torch.load(model_path, map_location=device))
+        model.eval()
+
+        # ── 建立 GradCAM 實例 ─────────────────────────────────
+        from cnn_gradcam import GradCAM, GradCAMVisualizer
+        cam = GradCAM(model, target_layer='encoder_conv', variant=variant)
+        viz = GradCAMVisualizer()
+
+        # ── 讀取封包並產生影像 ────────────────────────────────
+        pcap_path = str(settings.MEDIA_ROOT / session.pcap_file.name)
+        packets   = rdpcap(pcap_path)
+        vis_tool  = PacketVisualizer('medium', apply_mask=True, skip_ethernet=True)
+
+        threshold  = float(settings.CNN_THRESHOLD)
+        processed  = 0
+
+        for idx, pkt in enumerate(packets):
+            if processed >= max_images:
+                break
+            try:
+                img = vis_tool.bytes_to_image(bytes(pkt))
+            except Exception:
+                continue
+
+            x_np     = np.array(img, dtype=np.float32)
+            x_tensor = torch.from_numpy(x_np[np.newaxis, np.newaxis, :, :]).to(device)
+
+            # 取得重建誤差
+            with torch.no_grad():
+                err = float(model.reconstruction_error(x_tensor).cpu().numpy()[0])
+
+            is_anomaly = err > threshold
+            if anomaly_only and not is_anomaly:
+                continue
+
+            # 產生熱力圖
+            heatmap = cam.generate(x_tensor)  # (1, H, W)
+
+            # 轉換為 PNG bytes
+            orig_png = _array_to_png(x_np)
+            heat_png = _heatmap_to_png(viz, x_tensor, heatmap)
+            comp_png = _comparison_png(viz, x_tensor, heatmap)
+
+            # 儲存至資料庫
+            gcam_obj, _ = GradCAMImage.objects.update_or_create(
+                session=session, packet_index=idx, variant=variant,
+                defaults={
+                    'is_anomaly':  is_anomaly,
+                    'recon_error': err,
+                },
+            )
+            gcam_obj.original_image.save(
+                f'orig_{idx}.png', ContentFile(orig_png), save=False)
+            gcam_obj.heatmap_image.save(
+                f'heat_{idx}.png', ContentFile(heat_png), save=False)
+            gcam_obj.comparison_image.save(
+                f'comp_{idx}.png', ContentFile(comp_png), save=False)
+            gcam_obj.save()
+
+            processed += 1
+
+        logger.info(f'[Session {session_id}] Grad-CAM 完成，共產生 {processed} 張影像')
+        return {'session_id': session_id, 'images_generated': processed}
+
+    except Exception as exc:
+        logger.error(f'run_gradcam 失敗: {exc}')
+        raise self.retry(exc=exc)
+
+
+# ── 影像轉換輔助函式 ──────────────────────────────────────────
+def _array_to_png(arr_2d):
+    """灰階 ndarray → PNG bytes。"""
+    import io
+    import numpy as np
+    from PIL import Image
+    img = Image.fromarray((arr_2d * 255).astype('uint8'), mode='L')
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return buf.getvalue()
+
+
+def _heatmap_to_png(viz, x_tensor, heatmap):
+    """熱力圖疊圖 → PNG bytes。"""
+    import io
+    import numpy as np
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots(1, 1, figsize=(3, 3), dpi=72)
+    fig.patch.set_facecolor('#0d1117')
+    ax.set_facecolor('#0d1117')
+
+    orig = x_tensor.cpu().numpy()[0, 0]
+    heat = heatmap[0]
+
+    ax.imshow(orig, cmap='gray', vmin=0, vmax=1)
+    ax.imshow(heat, cmap='jet', alpha=0.5, vmin=0, vmax=1)
+    ax.axis('off')
+    plt.tight_layout(pad=0)
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format='PNG', bbox_inches='tight', pad_inches=0)
+    plt.close(fig)
+    return buf.getvalue()
+
+
+def _comparison_png(viz, x_tensor, heatmap):
+    """原圖 + 熱力圖並排 → PNG bytes。"""
+    import io
+    import numpy as np
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6, 3), dpi=72)
+    fig.patch.set_facecolor('#0d1117')
+
+    orig = x_tensor.cpu().numpy()[0, 0]
+    heat = heatmap[0]
+
+    for ax in (ax1, ax2):
+        ax.set_facecolor('#0d1117')
+        ax.axis('off')
+
+    ax1.imshow(orig, cmap='gray', vmin=0, vmax=1)
+    ax1.set_title('原始封包', color='white', fontsize=8)
+
+    ax2.imshow(orig, cmap='gray', vmin=0, vmax=1)
+    ax2.imshow(heat, cmap='jet', alpha=0.5, vmin=0, vmax=1)
+    ax2.set_title('Grad-CAM', color='white', fontsize=8)
+
+    plt.tight_layout(pad=0.2)
+    buf = io.BytesIO()
+    plt.savefig(buf, format='PNG', bbox_inches='tight', pad_inches=0.1,
+                facecolor='#0d1117')
+    plt.close(fig)
+    return buf.getvalue()
+
+
 ========================================================================
 
-from django.test import TestCase
-
-# Create your tests here.
-
-
-========================================================================
-  FILE: analyzer/urls.py
-========================================================================
-
+// FILE: analyzer\urls.py
+----------------------------------------
 # analyzer/urls.py
 from django.urls import path
 from . import views
@@ -126,498 +1225,1583 @@ from . import views
 app_name = 'analyzer'
 
 urlpatterns = [
-    path('',            views.dashboard,      name='dashboard'),    # 首頁儀表板
-    path('upload/',     views.upload_pcap,    name='upload'),       # 上傳 PCAP
-    path('sessions/',   views.session_list,   name='sessions'),     # 歷史紀錄
-    path('sessions/<int:pk>/', views.session_detail, name='session_detail'),
-    path('live/',       views.live_monitor,   name='live'),         # 即時監控
-    path('ai-chat/',    views.ai_chat,        name='ai_chat'),      # AI Agent 對話
+    path('',                                    views.dashboard,          name='dashboard'),
+    path('upload/',                             views.upload_pcap,        name='upload'),
+    path('sessions/',                           views.session_list,       name='sessions'),
+    path('sessions/<int:pk>/',                  views.session_detail,     name='session_detail'),
+    path('sessions/<int:pk>/status/',           views.session_status_api, name='session_status'),
+    path('sessions/<int:pk>/gradcam/',          views.trigger_gradcam,    name='trigger_gradcam'),
+    path('sessions/<int:pk>/gradcam/gallery/',  views.gradcam_gallery,    name='gradcam_gallery'),
+    path('sessions/<int:pk>/heatmap/',          views.heatmap_analysis,   name='heatmap_analysis'),
+    path('sessions/<int:pk>/delete/',           views.session_delete,     name='session_delete'),
+    path('simulation/',                         views.simulation,         name='simulation'),
+    path('simulation/api/',                     views.simulation_api,     name='simulation_api'),
+    path('ablation/',                           views.ablation_dashboard, name='ablation'),
+    path('ablation/api/run/',                   views.ablation_run_api,   name='ablation_run'),
+    path('ablation/api/status/',                views.ablation_status_api,name='ablation_status'),
+    path('live/',                               views.live_monitor,       name='live'),
+    path('ai-chat/',                            views.ai_chat,            name='ai_chat'),
 ]
 
 
 ========================================================================
-  FILE: analyzer/views.py
-========================================================================
 
+// FILE: analyzer\views.py
+----------------------------------------
+# ============================================================
 # analyzer/views.py
-# 前端頁面的 View 函式
-import os
-import json
+# ============================================================
+import os, json
 from django.shortcuts import render, get_object_or_404, redirect
-from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
+from django.conf import settings
+from django.db.models import Q, Count
+from django.views.decorators.http import require_POST
 
-from .models import AnalysisSession, Alert, CNNResult
-
-# ── 核心引擎匯入（來自 core/ 目錄）────────────────────────
-import sys
-sys.path.insert(0, str(settings.BASE_DIR / 'core'))
-
-from pcap_analyzer import PcapAnalyzer
-from anomaly_detector import AnomalyDetector
-from packet_visualizer import PacketVisualizer
+from .models import AnalysisSession, Alert, CNNResult, GradCAMImage, AnalysisReport
+from projects.models import Project
 
 
+# ── Dashboard ────────────────────────────────────────────────
+@login_required
 def dashboard(request):
-    """首頁儀表板：顯示最近 Session 與統計摘要"""
-    recent_sessions = AnalysisSession.objects.all()[:10]
-    total_alerts    = Alert.objects.count()
-    total_sessions  = AnalysisSession.objects.count()
+    user = request.user
+    if user.profile.is_admin:
+        sessions = AnalysisSession.objects.all()
+        alerts   = Alert.objects.all()
+    else:
+        sessions = AnalysisSession.objects.filter(
+            Q(created_by=user)|Q(project__owner=user)|Q(project__members=user)
+        ).distinct()
+        alerts = Alert.objects.filter(session__in=sessions)
 
-    # 告警嚴重程度分布（供 Chart.js 圓餅圖使用）
+    recent_sessions = sessions.order_by('-created_at')[:8]
+    recent_alerts   = alerts.select_related('session').order_by('-timestamp')[:10]
+
     severity_data = {
-        'CRITICAL': Alert.objects.filter(severity='CRITICAL').count(),
-        'HIGH':     Alert.objects.filter(severity='HIGH').count(),
-        'MEDIUM':   Alert.objects.filter(severity='MEDIUM').count(),
-        'LOW':      Alert.objects.filter(severity='LOW').count(),
+        'CRITICAL': alerts.filter(severity='CRITICAL').count(),
+        'HIGH':     alerts.filter(severity='HIGH').count(),
+        'MEDIUM':   alerts.filter(severity='MEDIUM').count(),
+        'LOW':      alerts.filter(severity='LOW').count(),
     }
 
+    from django.utils import timezone
+    from datetime import timedelta
+    daily_data = {}
+    today = timezone.now().date()
+    for i in range(6, -1, -1):
+        day = today - timedelta(days=i)
+        daily_data[str(day)] = sessions.filter(created_at__date=day).count()
+
+    top_attacks = (alerts.values('attack_type')
+                         .annotate(count=Count('id'))
+                         .order_by('-count')[:5])
+
+    from projects.models import Project
+    proj_qs = Project.objects.filter(
+        Q(owner=user)|Q(members=user)).exclude(status='deleted').distinct() \
+        if not user.profile.is_admin else Project.objects.exclude(status='deleted')
+
+    # CNN stats
+    total_anomalies = sum(
+        getattr(s, 'cnn_result', None) and s.cnn_result.anomaly_count or 0
+        for s in sessions[:50]
+    )
+
     return render(request, 'analyzer/dashboard.html', {
-        'recent_sessions': recent_sessions,
-        'total_alerts':    total_alerts,
-        'total_sessions':  total_sessions,
-        'severity_data':   json.dumps(severity_data),
+        'recent_sessions':     recent_sessions,
+        'recent_alerts':       recent_alerts,
+        'total_alerts':        alerts.count(),
+        'total_sessions':      sessions.count(),
+        'crit_count':          severity_data['CRITICAL'],
+        'high_count':          severity_data['HIGH'],
+        'med_count':           severity_data['MEDIUM'],
+        'severity_data':       json.dumps(severity_data),
+        'daily_data':          json.dumps(daily_data),
+        'done_count':          sessions.filter(task_status='done').count(),
+        'running_count':       sessions.filter(task_status='running').count(),
+        'top_attacks':         top_attacks,
+        'project_count':       proj_qs.count(),
+        'active_project_count':proj_qs.filter(status='active').count(),
+        'cnn_threshold':       settings.CNN_THRESHOLD,
+        'cnn_latent_dim':      settings.CNN_LATENT_DIM,
+        'total_anomalies':     total_anomalies,
     })
 
 
-def upload_pcap(request):
-    """
-    PCAP 上傳與分析頁面
+def _pipeline_steps():
+    return [
+        ('1', 'PCAP Upload',   '解析封包結構，計算 SHA-256 校驗',             'rgba(34,197,94,1)'),
+        ('2', 'Rule Detection','Port Scan / DoS / SQLi 特徵比對',              'rgba(59,130,246,1)'),
+        ('3', 'CNN Inference', '重建誤差計算，閾值比對',                       'rgba(249,115,22,1)'),
+        ('4', 'Grad-CAM',      '異常封包熱力圖視覺化（可選）',                 'rgba(239,68,68,1)'),
+        ('5', 'Report Export', 'PDF / JSON / CSV 分析報告',                    'rgba(168,85,247,1)'),
+    ]
 
-    GET ：顯示上傳表單
-    POST：接收 PCAP 檔案，執行分析，跳轉到結果頁面
-    """
+
+# ── Upload PCAP ──────────────────────────────────────────────
+@login_required
+def upload_pcap(request):
+    user_projects = Project.objects.filter(
+        Q(owner=request.user)|Q(members=request.user)
+    ).filter(status='active').distinct()
+
     if request.method == 'POST':
-        pcap_file = request.FILES.get('pcap_file')
-        label     = request.POST.get('label', '')
+        pcap_file  = request.FILES.get('pcap_file')
+        label      = request.POST.get('label', '')
+        project_id = request.POST.get('project_id')
 
         if not pcap_file:
-            return render(request, 'analyzer/upload.html',
-                          {'error': '請選擇 PCAP 檔案'})
+            messages.error(request, '請選擇 PCAP 檔案。')
+            return render(request, 'analyzer/upload.html', {
+                'projects': user_projects,
+                'pipeline_steps': _pipeline_steps(),
+            })
 
-        # 建立 Session 紀錄
+        project = None
+        if project_id:
+            try:
+                project = Project.objects.get(pk=project_id)
+            except Project.DoesNotExist:
+                pass
+
         session = AnalysisSession.objects.create(
-            mode      = 'pcap',
-            label     = label or pcap_file.name,
-            pcap_file = pcap_file,
+            mode='pcap', label=label or pcap_file.name,
+            pcap_file=pcap_file, project=project,
+            created_by=request.user, task_status='pending',
         )
 
-        # 執行封包分析
-        pcap_path = str(settings.MEDIA_ROOT / session.pcap_file.name)
-        analyzer  = PcapAnalyzer(pcap_path)
-        analyzer.load()
-        analyzer.summary()
+        try:
+            from .tasks import run_pcap_analysis
+            task = run_pcap_analysis.delay(session.pk)
+            session.celery_task_id = task.id
+            session.save(update_fields=['celery_task_id'])
+        except Exception:
+            _sync_run_analysis(session)
 
-        # 規則式攻擊偵測
-        alerts_raw = analyzer.detect_attacks()
-
-        # 儲存告警到資料庫
-        for a in (alerts_raw or []):
-            Alert.objects.create(
-                session     = session,
-                attack_type = a.get('attack_type', ''),
-                severity    = a.get('severity', 'LOW'),
-                src_ip      = a.get('src_ip', ''),
-                detail      = a.get('detail', ''),
-                suggestion  = a.get('suggestion', ''),
-            )
-
-        # 更新統計
-        session.alert_count = session.alerts.count()
-        session.save()
-
+        from accounts.views import _log_action
+        _log_action(request, 'upload_pcap', f'上傳: {pcap_file.name} → Session {session.pk}')
+        messages.success(request, f'「{session.label}」已上傳，背景分析中...')
         return redirect('analyzer:session_detail', pk=session.pk)
 
-    return render(request, 'analyzer/upload.html')
+    pipeline_steps = [
+        ('1', 'PCAP 上傳', '解析封包結構，計算 SHA-256 校驗', 'rgba(34,197,94,1)'),
+        ('2', '規則式偵測', 'Port Scan / DoS / SQL Injection 等特徵比對', 'rgba(59,130,246,1)'),
+        ('3', 'CNN 推論',  '重建誤差計算，閾值比對', 'rgba(249,115,22,1)'),
+        ('4', 'Grad-CAM', '異常封包熱力圖視覺化（可選）', 'rgba(239,68,68,1)'),
+        ('5', '報告匯出', 'PDF / JSON / CSV 分析報告', 'rgba(168,85,247,1)'),
+    ]
+    pipeline_steps = _pipeline_steps()
+    return render(request, 'analyzer/upload.html', {'projects': user_projects, 'pipeline_steps': pipeline_steps})
 
 
+def _sync_run_analysis(session):
+    try:
+        from django.utils import timezone
+        session.task_status = 'running'
+        session.save(update_fields=['task_status'])
+        from analyzer.tasks import _run_cnn_analysis
+        cnn_metrics = _run_cnn_analysis(session, str(settings.MEDIA_ROOT / session.pcap_file.name))
+        if cnn_metrics:
+            CNNResult.objects.update_or_create(session=session, defaults=cnn_metrics)
+        session.task_status = 'done'
+        session.finished_at = timezone.now()
+        session.save(update_fields=['task_status','finished_at'])
+    except Exception as e:
+        from django.utils import timezone
+        session.task_status   = 'failed'
+        session.error_message = str(e)[:1000]
+        session.finished_at   = timezone.now()
+        session.save(update_fields=['task_status','error_message','finished_at'])
+
+
+# ── Session List ─────────────────────────────────────────────
+@login_required
 def session_list(request):
-    """歷史 Session 列表"""
-    sessions = AnalysisSession.objects.all()
-    return render(request, 'analyzer/sessions.html', {'sessions': sessions})
+    user = request.user
+    if user.profile.is_admin:
+        sessions = AnalysisSession.objects.all()
+    else:
+        sessions = AnalysisSession.objects.filter(
+            Q(created_by=user)|Q(project__owner=user)|Q(project__members=user)
+        ).distinct()
 
+    q       = request.GET.get('q','').strip()
+    status  = request.GET.get('status','')
+    proj    = request.GET.get('project','')
+    if q:
+        sessions = sessions.filter(Q(label__icontains=q)|Q(pcap_file__icontains=q))
+    if status:
+        sessions = sessions.filter(task_status=status)
+    if proj:
+        sessions = sessions.filter(project_id=proj)
 
-def session_detail(request, pk):
-    """單一 Session 的詳細分析結果"""
-    session = get_object_or_404(AnalysisSession, pk=pk)
-    alerts  = session.alerts.all()
-    return render(request, 'analyzer/session_detail.html', {
-        'session': session,
-        'alerts':  alerts,
+    sessions = sessions.order_by('-created_at')
+    user_projects = Project.objects.filter(
+        Q(owner=user)|Q(members=user)).distinct()
+
+    return render(request, 'analyzer/sessions.html', {
+        'sessions':      sessions,
+        'projects':      user_projects,
+        'q':             q,
+        'status_filter': status,
+        'proj_filter':   proj,
     })
 
 
+# ── Session Detail ───────────────────────────────────────────
+@login_required
+def session_detail(request, pk):
+    session = get_object_or_404(AnalysisSession, pk=pk)
+    _check_session_access(request, session)
+
+    cnn_result   = getattr(session, 'cnn_result', None)
+    alerts       = session.alerts.order_by('-timestamp')
+    gradcam_imgs = session.gradcam_images.order_by('packet_index')[:20]
+    reports      = session.reports.order_by('-created_at')
+
+    sev_data = {
+        'CRITICAL': alerts.filter(severity='CRITICAL').count(),
+        'HIGH':     alerts.filter(severity='HIGH').count(),
+        'MEDIUM':   alerts.filter(severity='MEDIUM').count(),
+        'LOW':      alerts.filter(severity='LOW').count(),
+    }
+    return render(request, 'analyzer/session_detail.html', {
+        'session':      session,
+        'cnn_result':   cnn_result,
+        'alerts':       alerts,
+        'gradcam_imgs': gradcam_imgs,
+        'reports':      reports,
+        'sev_data':     json.dumps(sev_data),
+        'can_gradcam':  request.user.profile.can_run_ai_analysis,
+        'can_export':   request.user.profile.can_export_report,
+    })
+
+
+# ── Session Status (JSON polling) ────────────────────────────
+@login_required
+def session_status_api(request, pk):
+    session = get_object_or_404(AnalysisSession, pk=pk)
+    _check_session_access(request, session)
+    return JsonResponse({
+        'task_status':   session.task_status,
+        'packet_count':  session.packet_count,
+        'alert_count':   session.alert_count,
+        'error_message': session.error_message,
+        'finished_at':   session.finished_at.isoformat() if session.finished_at else None,
+        'has_cnn':       hasattr(session, 'cnn_result'),
+        'gradcam_count': session.gradcam_images.count(),
+    })
+
+
+# ── Trigger Grad-CAM ─────────────────────────────────────────
+@login_required
+@require_POST
+def trigger_gradcam(request, pk):
+    session = get_object_or_404(AnalysisSession, pk=pk)
+    _check_session_access(request, session)
+    if not request.user.profile.can_run_ai_analysis:
+        return JsonResponse({'error': '權限不足'}, status=403)
+
+    variant      = request.POST.get('variant', 'gradcam')
+    max_images   = int(request.POST.get('max_images', 20))
+    anomaly_only = request.POST.get('anomaly_only', 'true') == 'true'
+
+    try:
+        from .tasks import run_gradcam
+        task = run_gradcam.delay(session.pk, max_images=max_images,
+                                  variant=variant, anomaly_only=anomaly_only)
+        from accounts.views import _log_action
+        _log_action(request, 'run_gradcam', f'Session {session.pk} variant={variant}')
+        return JsonResponse({'status':'queued','task_id':task.id,
+                             'message':f'Grad-CAM 已派發（{variant}，最多 {max_images} 張）'})
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+# ── GradCAM Gallery ──────────────────────────────────────────
+@login_required
+def gradcam_gallery(request, pk):
+    session = get_object_or_404(AnalysisSession, pk=pk)
+    _check_session_access(request, session)
+    variant = request.GET.get('variant','')
+    images  = session.gradcam_images.order_by('packet_index')
+    if variant:
+        images = images.filter(variant=variant)
+    if request.GET.get('anomaly_only') == '1':
+        images = images.filter(is_anomaly=True)
+    return render(request, 'analyzer/gradcam_gallery.html', {
+        'session': session, 'images': images, 'variant': variant,
+    })
+
+
+# ── Session Delete ───────────────────────────────────────────
+@login_required
+@require_POST
+def session_delete(request, pk):
+    session = get_object_or_404(AnalysisSession, pk=pk)
+    from django.core.exceptions import PermissionDenied
+    try:
+        _check_session_access(request, session)
+    except PermissionDenied:
+        messages.error(request, '您沒有刪除此 Session 的權限。')
+        return redirect('analyzer:session_detail', pk=pk)
+    from accounts.views import _log_action
+    _log_action(request, 'delete_session', f'Session {session.pk}')
+    project_pk = session.project_id
+    session.delete()
+    messages.success(request, 'Session 已刪除。')
+    if project_pk:
+        return redirect('projects:detail', pk=project_pk)
+    return redirect('analyzer:sessions')
+
+
+# ── Live Monitor ─────────────────────────────────────────────
+@login_required
 def live_monitor(request):
-    """即時監控頁面（前端透過 WebSocket 或輪詢 API 取得資料）"""
-    return render(request, 'analyzer/live.html')
+    user = request.user
+    if user.profile.is_admin:
+        active_sessions = AnalysisSession.objects.filter(
+            task_status__in=['running','pending']).order_by('-created_at')[:20]
+        recent_done = AnalysisSession.objects.filter(
+            task_status='done').order_by('-finished_at')[:5]
+    else:
+        qs = AnalysisSession.objects.filter(
+            Q(created_by=user)|Q(project__owner=user)|Q(project__members=user)
+        ).distinct()
+        active_sessions = qs.filter(task_status__in=['running','pending']).order_by('-created_at')[:20]
+        recent_done     = qs.filter(task_status='done').order_by('-finished_at')[:5]
+    return render(request, 'analyzer/live.html', {
+        'active_sessions': active_sessions,
+        'recent_done':     recent_done,
+    })
 
 
+# ── AI Chat ──────────────────────────────────────────────────
+@login_required
 def ai_chat(request):
-    """AI Agent 對話頁面（串接 n8n Webhook）"""
-    return render(request, 'analyzer/ai_chat.html')
+    user = request.user
+    if user.profile.is_admin:
+        sessions = AnalysisSession.objects.filter(
+            task_status='done').order_by('-finished_at')[:10]
+    else:
+        sessions = AnalysisSession.objects.filter(
+            Q(created_by=user)|Q(project__owner=user)|Q(project__members=user),
+            task_status='done',
+        ).distinct().order_by('-finished_at')[:10]
+    return render(request, 'analyzer/ai_chat.html', {'sessions': sessions})
+
+
+# ── Access control helper ────────────────────────────────────
+def _check_session_access(request, session):
+    user = request.user
+    if user.profile.is_admin or session.created_by == user:
+        return
+    if session.project:
+        if session.project.owner == user:
+            return
+        if session.project.members.filter(pk=user.pk).exists():
+            return
+    from django.core.exceptions import PermissionDenied
+    raise PermissionDenied('您沒有存取此 Session 的權限。')
+
+
+# ── 異常封包模擬檢測 ─────────────────────────────────────────
+@login_required
+def simulation(request):
+    """異常封包模擬檢測頁面 — 支援預設攻擊場景和自訂封包。"""
+    # 載入 CNN 模型資訊
+    model_ready = False
+    model_path = getattr(settings, 'CNN_MODEL_PATH', '')
+    if model_path:
+        model_ready = os.path.exists(model_path)
+
+    return render(request, 'analyzer/simulation.html', {
+        'model_ready':   model_ready,
+        'cnn_threshold': settings.CNN_THRESHOLD,
+        'cnn_latent_dim': settings.CNN_LATENT_DIM,
+    })
+
+
+@login_required
+def simulation_api(request):
+    """模擬檢測 AJAX 端點 — 接收封包資料，回傳 CNN 異常分數。"""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': '僅接受 POST'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError) as e:
+        return JsonResponse({'ok': False, 'error': f'JSON 解析失敗：{e}'}, status=400)
+
+    attack_type = data.get('attack_type', 'syn_flood')
+    packet_count = min(int(data.get('packet_count', 10)), 100)
+
+    # 使用 core 引擎生成模擬封包
+    try:
+        import sys
+        core_path = os.path.join(settings.BASE_DIR, 'core')
+        if core_path not in sys.path:
+            sys.path.insert(0, core_path)
+
+        from generate_attack_pcap import generate_attack_packets
+        from scapy.all import raw as scapy_raw
+
+        # 產生 Scapy 封包物件
+        scapy_packets = generate_attack_packets(attack_type, packet_count)
+
+        # 統一轉換為 raw bytes（核心修正：Scapy 封包物件不能直接當 bytes 使用）
+        raw_packets = []
+        for pkt in scapy_packets:
+            try:
+                raw_packets.append(scapy_raw(pkt))
+            except Exception:
+                raw_packets.append(bytes(pkt))
+
+        results = []
+        model_path = getattr(settings, 'CNN_MODEL_PATH', '')
+
+        if model_path and os.path.exists(str(model_path)):
+            # ── 真實模型推論模式 ──
+            from cnn_autoencoder import CNNAutoencoder
+            from anomaly_scorer import AnomalyScorer
+            from packet_visualizer import PacketVisualizer
+            import torch
+            import numpy as np
+
+            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
+            model.load_state_dict(torch.load(
+                str(model_path), map_location='cpu', weights_only=True
+            ))
+            model.eval()
+
+            visualizer = PacketVisualizer("medium", apply_mask=True)
+
+            # [v3.0 核心優化] 比較式判定策略
+            # 問題：合成封包的位元組分布與訓練集不同，
+            #        導致固定閾值 (CNN_THRESHOLD) 失效。
+            # 解法：先產生 baseline 正常流量，動態計算分離度。
+            #
+            # 策略：
+            #   1. 生成一組正常封包，計算 baseline MSE 分布
+            #   2. 計算目標封包的 MSE
+            #   3. 用 baseline 的 95th percentile 作為動態閾值
+            #   4. 同時回傳原始的 settings 閾值，供前端參考
+
+            # 生成 baseline 正常流量
+            baseline_pkts = generate_attack_packets('normal_traffic', 20)
+            baseline_raw = []
+            for pkt in baseline_pkts:
+                try:
+                    baseline_raw.append(scapy_raw(pkt))
+                except Exception:
+                    baseline_raw.append(bytes(pkt))
+
+            # 計算 baseline 的 MSE 分布
+            baseline_arrs = np.array([
+                visualizer.bytes_to_image(b) for b in baseline_raw
+            ], dtype=np.float32)
+            baseline_tensor = torch.from_numpy(baseline_arrs[:, np.newaxis])
+
+            with torch.no_grad():
+                baseline_errors = model.reconstruction_error(baseline_tensor).numpy()
+
+            baseline_mean = float(baseline_errors.mean())
+            baseline_std = float(baseline_errors.std())
+            # 動態閾值 = baseline 平均值 + 2 倍標準差
+            dynamic_threshold = baseline_mean + 2.0 * baseline_std
+
+            # 計算目標封包的 MSE
+            target_arrs = np.array([
+                visualizer.bytes_to_image(b) for b in raw_packets
+            ], dtype=np.float32)
+            target_tensor = torch.from_numpy(target_arrs[:, np.newaxis])
+
+            with torch.no_grad():
+                target_errors = model.reconstruction_error(target_tensor).numpy()
+
+            for i, score in enumerate(target_errors):
+                score_val = float(score)
+                is_anomaly = score_val > dynamic_threshold
+                results.append({
+                    'index': i,
+                    'score': round(score_val, 8),
+                    'is_anomaly': is_anomaly,
+                    'size': len(raw_packets[i]),
+                })
+
+            # 回傳時附上動態閾值資訊
+            effective_threshold = dynamic_threshold
+        else:
+            # ── 模型未就緒 — 使用模擬分數 ──
+            import random
+            threshold = settings.CNN_THRESHOLD
+            is_normal = (attack_type == 'normal_traffic')
+
+            for i, pkt_bytes in enumerate(raw_packets):
+                if is_normal:
+                    sim_score = random.uniform(threshold * 0.05, threshold * 0.85)
+                else:
+                    sim_score = random.uniform(threshold * 2.0, threshold * 15.0)
+
+                results.append({
+                    'index': i,
+                    'score': round(sim_score, 8),
+                    'is_anomaly': sim_score > threshold,
+                    'size': len(pkt_bytes),
+                })
+            effective_threshold = threshold
+
+        anomaly_count = sum(1 for r in results if r['is_anomaly'])
+        total = len(results)
+
+        return JsonResponse({
+            'ok': True,
+            'attack_type': attack_type,
+            'packet_count': total,
+            'threshold': effective_threshold,
+            'static_threshold': settings.CNN_THRESHOLD,
+            'results': results,
+            'avg_score': round(
+                sum(r['score'] for r in results) / max(total, 1), 8
+            ),
+            'anomaly_count': anomaly_count,
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'ok': False,
+            'error': f'{type(e).__name__}: {str(e)}'
+        }, status=500)
+
+
+# ── 熱力圖分析 ───────────────────────────────────────────────
+@login_required
+def heatmap_analysis(request, pk):
+    """熱力圖深度分析頁面 — Grad-CAM 影像詳細檢視。"""
+    session = get_object_or_404(AnalysisSession, pk=pk)
+    _check_session_access(request, session)
+
+    images = session.gradcam_images.order_by('packet_index')
+    anomaly_images = images.filter(is_anomaly=True)
+    normal_images = images.filter(is_anomaly=False)
+
+    cnn_result = getattr(session, 'cnn_result', None)
+
+    return render(request, 'analyzer/heatmap_analysis.html', {
+        'session':        session,
+        'images':         images,
+        'anomaly_images': anomaly_images,
+        'normal_images':  normal_images,
+        'cnn_result':     cnn_result,
+        'total_count':    images.count(),
+        'anomaly_count':  anomaly_images.count(),
+        'normal_count':   normal_images.count(),
+    })
+
+
+# ── 消融實驗 (Ablation Study) ──────────────────────────────────
+import subprocess
+import threading
+import time
+
+# 用於追蹤當前正在執行的背景消融實驗行程（簡單的全域變數實作）
+# 鍵: dataset_name, 值: {'process': Popen_object, 'log_file': path_to_log, 'status': 'running'|'done'|'error'}
+ablation_tasks = {}
+
+@login_required
+def ablation_dashboard(request):
+    """消融實驗主頁面"""
+    return render(request, 'analyzer/ablation.html', {
+        'page_title': '消融實驗分析',
+    })
+
+@require_POST
+@login_required
+def ablation_run_api(request):
+    """啟動背景消融實驗"""
+    try:
+        data = json.loads(request.body)
+        dataset = data.get('dataset', 'simulate')
+        experiments = data.get('experiments', ['all'])
+        repeats = data.get('repeats', 1)
+        
+        # 建立輸出目錄與 Log 檔案
+        output_dir = os.path.join(settings.BASE_DIR, 'output', dataset, 'ablation')
+        os.makedirs(output_dir, exist_ok=True)
+        log_path = os.path.join(output_dir, 'ablation.log')
+        
+        script_path = os.path.join(settings.BASE_DIR, 'core', 'run_threshold_tuning.py')
+        
+        # 準備命令列參數
+        # 由於原始腳本 run_threshold_tuning.py 中目前尚未把 n_repeats 拉成命令列參數，
+        # 這裡主要是呼叫 --ablation 和 --ablation-exp。
+        # 如果需要 n_repeats，腳本需要被微調，或者我們就依賴預設的 3 次。
+        cmd = ['python', script_path, '--dataset', dataset, '--ablation']
+        if 'all' not in experiments:
+            cmd.extend(['--ablation-exp'] + experiments)
+            
+        # 清空舊的 Log
+        with open(log_path, 'w', encoding='utf-8') as f:
+            f.write(f"--- 啟動消融實驗 (資料集: {dataset}) ---\n")
+            f.write(f"執行指令: {' '.join(cmd)}\n\n")
+
+        # 啟動子行程，將 stdout 與 stderr 導向至 Log 檔
+        log_file = open(log_path, 'a', encoding='utf-8')
+        process = subprocess.Popen(
+            cmd,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            cwd=settings.BASE_DIR,
+            shell=False
+        )
+        
+        # 紀錄至全域追蹤變數
+        ablation_tasks[dataset] = {
+            'process': process,
+            'log_path': log_path,
+            'log_file_obj': log_file,
+            'status': 'running'
+        }
+        
+        # 建立一個背景執行緒來等待行程結束並關閉檔案
+        def wait_process(task_dict):
+            p = task_dict['process']
+            p.wait()
+            task_dict['log_file_obj'].close()
+            if p.returncode == 0:
+                task_dict['status'] = 'done'
+            else:
+                task_dict['status'] = 'error'
+
+        threading.Thread(target=wait_process, args=(ablation_tasks[dataset],)).start()
+        
+        return JsonResponse({'ok': True, 'message': '消融實驗已在背景啟動', 'dataset': dataset})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+
+@login_required
+def ablation_status_api(request):
+    """查詢實驗進度與取得結果"""
+    dataset = request.GET.get('dataset', 'simulate')
+    
+    task = ablation_tasks.get(dataset)
+    log_path = os.path.join(settings.BASE_DIR, 'output', dataset, 'ablation', 'ablation.log')
+    
+    status = task['status'] if task else 'idle'
+    
+    # 讀取最後幾行 Log 作為進度提示
+    logs = ""
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, 'r', encoding='utf-8') as f:
+                # 讀取最後 100 行
+                lines = f.readlines()
+                logs = "".join(lines[-100:])
+        except Exception:
+            logs = "無法讀取日誌檔案..."
+            
+    # 如果已完成或原本就沒有在跑，嘗試回傳結果
+    report_data = None
+    images = {}
+    
+    if status in ['done', 'idle']:
+        report_path = os.path.join(settings.BASE_DIR, 'output', dataset, 'ablation', 'ablation_report.json')
+        if os.path.exists(report_path):
+            try:
+                with open(report_path, 'r', encoding='utf-8') as f:
+                    report_data = json.load(f)
+                    
+                # 尋找所有生成的圖表
+                output_dir = os.path.dirname(report_path)
+                for file in os.listdir(output_dir):
+                    if file.endswith('.png'):
+                        # 提供可以供前端載入的路徑 (這裡暫時使用相對路徑，前提是 output 資料夾可以透過 static 或 media 服務，
+                        # 但如果 Django 沒開的話，我們可能要寫個 view 來 serve，或者將它複製到 media 裡面)
+                        pass
+                        
+                # 簡單做法：將圖表複製到 media/ablation/{dataset}/ 供前端存取
+                media_ablation_dir = os.path.join(settings.MEDIA_ROOT, 'ablation', dataset)
+                os.makedirs(media_ablation_dir, exist_ok=True)
+                
+                import shutil
+                for file in os.listdir(output_dir):
+                    if file.endswith('.png'):
+                        src = os.path.join(output_dir, file)
+                        dst = os.path.join(media_ablation_dir, file)
+                        shutil.copy2(src, dst)
+                        images[file] = f"{settings.MEDIA_URL}ablation/{dataset}/{file}"
+            except Exception as e:
+                print("讀取消融實驗報告失敗:", e)
+    
+    return JsonResponse({
+        'ok': True,
+        'status': status,
+        'logs': logs,
+        'report': report_data,
+        'images': images
+    })
 
 
 ========================================================================
-  FILE: api/admin.py
-========================================================================
 
-from django.contrib import admin
-
-# Register your models here.
-
-
-========================================================================
-  FILE: api/apps.py
-========================================================================
-
+// FILE: api\apps.py
+----------------------------------------
 from django.apps import AppConfig
-
 
 class ApiConfig(AppConfig):
     name = 'api'
+    verbose_name = 'REST API'
 
 
 ========================================================================
-  FILE: api/models.py
+
+// FILE: api\permissions.py
+----------------------------------------
+"""API 共用權限檢查工具"""
+from rest_framework.response import Response
+from analyzer.models import AnalysisSession
+
+
+def get_session_or_403(request, pk):
+    """
+    共用的 Session 存取檢查（比照 analyzer/views.py 的 _check_session_access）。
+    回傳 (session, None) 或 (None, error_response)。
+    """
+    try:
+        s = AnalysisSession.objects.get(pk=pk)
+    except AnalysisSession.DoesNotExist:
+        return None, Response({'error': 'Session 不存在'}, status=404)
+
+    user = request.user
+    has_access = (
+        user.profile.is_admin
+        or s.created_by == user
+        or (s.project and (
+            s.project.owner == user
+            or s.project.members.filter(pk=user.pk).exists()
+        ))
+    )
+    if not has_access:
+        return None, Response({'error': '權限不足'}, status=403)
+    return s, None
+
+
 ========================================================================
 
-from django.db import models
+// FILE: api\serializers.py
+----------------------------------------
+# ============================================================
+# api/serializers.py
+# ============================================================
+from django.contrib.auth.models import User
+from rest_framework import serializers
 
-# Create your models here.
+from accounts.models import UserProfile
+from projects.models import Project, ProjectMembership, PacketFile
+from analyzer.models import (AnalysisSession, Alert, CNNResult,
+                              GradCAMImage, AnalysisReport)
+
+
+# ── 使用者 / 帳號 ─────────────────────────────────────────────
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = UserProfile
+        fields = ('role', 'organization', 'phone', 'bio',
+                  'can_upload_pcap', 'can_run_ai_analysis',
+                  'can_export_report', 'can_manage_projects')
+
+
+class UserSerializer(serializers.ModelSerializer):
+    profile = UserProfileSerializer(read_only=True)
+
+    class Meta:
+        model  = User
+        fields = ('id', 'username', 'email', 'first_name', 'last_name',
+                  'is_staff', 'date_joined', 'profile')
+        read_only_fields = ('id', 'date_joined', 'is_staff')
+
+
+# ── 專案 ──────────────────────────────────────────────────────
+class ProjectMembershipSerializer(serializers.ModelSerializer):
+    username = serializers.ReadOnlyField(source='user.username')
+
+    class Meta:
+        model  = ProjectMembership
+        fields = ('id', 'user', 'username', 'role', 'joined_at')
+        read_only_fields = ('joined_at',)
+
+
+class PacketFileSerializer(serializers.ModelSerializer):
+    file_url     = serializers.SerializerMethodField()
+    uploaded_by_name = serializers.ReadOnlyField(source='uploaded_by.username')
+
+    class Meta:
+        model  = PacketFile
+        fields = ('id', 'original_name', 'file_url', 'file_size',
+                  'packet_count', 'sha256', 'status', 'network_tag',
+                  'description', 'capture_time', 'uploaded_by_name', 'uploaded_at')
+        read_only_fields = ('id', 'file_size', 'packet_count', 'sha256',
+                            'status', 'uploaded_at')
+
+    def get_file_url(self, obj):
+        req = self.context.get('request')
+        if obj.file and req:
+            return req.build_absolute_uri(obj.file.url)
+        return None
+
+
+class ProjectListSerializer(serializers.ModelSerializer):
+    owner_name    = serializers.ReadOnlyField(source='owner.username')
+    session_count = serializers.ReadOnlyField()
+    total_alerts  = serializers.ReadOnlyField()
+
+    class Meta:
+        model  = Project
+        fields = ('id', 'name', 'description', 'network_segment', 'status',
+                  'owner_name', 'session_count', 'total_alerts',
+                  'created_at', 'updated_at')
+
+
+class ProjectDetailSerializer(ProjectListSerializer):
+    memberships  = ProjectMembershipSerializer(many=True, read_only=True)
+    packet_files = PacketFileSerializer(many=True, read_only=True)
+
+    class Meta(ProjectListSerializer.Meta):
+        fields = ProjectListSerializer.Meta.fields + ('memberships', 'packet_files')
+
+
+# ── 分析 Session ──────────────────────────────────────────────
+class AlertSerializer(serializers.ModelSerializer):
+    class Meta:
+        model  = Alert
+        fields = ('id', 'attack_type', 'severity', 'src_ip', 'dst_ip',
+                  'dst_port', 'detail', 'suggestion', 'timestamp')
+
+
+class CNNResultSerializer(serializers.ModelSerializer):
+    error_histogram_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = CNNResult
+        fields = ('threshold', 'normal_count', 'anomaly_count',
+                  'avg_normal_error', 'avg_attack_error', 'detection_rate',
+                  'error_histogram_url', 'created_at')
+
+    def get_error_histogram_url(self, obj):
+        req = self.context.get('request')
+        if obj.error_histogram and req:
+            return req.build_absolute_uri(obj.error_histogram.url)
+        return None
+
+
+class GradCAMImageSerializer(serializers.ModelSerializer):
+    original_url   = serializers.SerializerMethodField()
+    heatmap_url    = serializers.SerializerMethodField()
+    comparison_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = GradCAMImage
+        fields = ('id', 'packet_index', 'variant', 'is_anomaly',
+                  'recon_error', 'original_url', 'heatmap_url',
+                  'comparison_url', 'created_at')
+
+    def _url(self, obj, field):
+        req = self.context.get('request')
+        f   = getattr(obj, field)
+        if f and req:
+            return req.build_absolute_uri(f.url)
+        return None
+
+    def get_original_url(self, obj):   return self._url(obj, 'original_image')
+    def get_heatmap_url(self, obj):    return self._url(obj, 'heatmap_image')
+    def get_comparison_url(self, obj): return self._url(obj, 'comparison_image')
+
+
+class AnalysisSessionListSerializer(serializers.ModelSerializer):
+    project_name    = serializers.ReadOnlyField(source='project.name')
+    created_by_name = serializers.ReadOnlyField(source='created_by.username')
+
+    class Meta:
+        model  = AnalysisSession
+        fields = ('id', 'label', 'mode', 'task_status', 'packet_count',
+                  'alert_count', 'project_name', 'created_by_name',
+                  'created_at', 'finished_at')
+
+
+class AnalysisSessionDetailSerializer(AnalysisSessionListSerializer):
+    alerts       = AlertSerializer(many=True, read_only=True)
+    cnn_result   = CNNResultSerializer(read_only=True)
+    gradcam_images = GradCAMImageSerializer(many=True, read_only=True,
+                                             source='gradcam_images.all')
+    pcap_url     = serializers.SerializerMethodField()
+
+    class Meta(AnalysisSessionListSerializer.Meta):
+        fields = AnalysisSessionListSerializer.Meta.fields + (
+            'pcap_url', 'celery_task_id', 'error_message',
+            'alerts', 'cnn_result', 'gradcam_images',
+        )
+
+    def get_pcap_url(self, obj):
+        req = self.context.get('request')
+        if obj.pcap_file and req:
+            return req.build_absolute_uri(obj.pcap_file.url)
+        return None
+
+
+class AnalysisReportSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model  = AnalysisReport
+        fields = ('id', 'format', 'file_url', 'file_size', 'created_at')
+
+    def get_file_url(self, obj):
+        req = self.context.get('request')
+        if obj.file and req:
+            return req.build_absolute_uri(obj.file.url)
+        return None
 
 
 ========================================================================
-  FILE: api/tests.py
-========================================================================
 
-from django.test import TestCase
-
-# Create your tests here.
-
-
-========================================================================
-  FILE: api/urls.py
-========================================================================
-
-# api/urls.py - REST API 端點
+// FILE: api\urls.py
+----------------------------------------
+# api/urls.py
 from django.urls import path
 from . import views
 
 app_name = 'api'
 
 urlpatterns = [
-    # Session
+    # ── 認證 ────────────────────────────────────────────────
+    path('auth/login/',    views.LoginAPI.as_view(),    name='login'),
+    path('auth/logout/',   views.LogoutAPI.as_view(),   name='logout'),
+    path('auth/me/',       views.MeAPI.as_view(),       name='me'),
+    path('auth/register/', views.RegisterAPI.as_view(), name='register'),
+
+    # ── 專案 ────────────────────────────────────────────────
+    path('projects/',         views.ProjectListAPI.as_view(),   name='project_list'),
+    path('projects/<int:pk>/',views.ProjectDetailAPI.as_view(), name='project_detail'),
+    path('projects/<int:pk>/upload/', views.PacketFileUploadAPI.as_view(), name='packet_upload'),
+
+    # ── Session ──────────────────────────────────────────────
     path('sessions/',              views.SessionListAPI.as_view(),   name='session_list'),
     path('sessions/<int:pk>/',     views.SessionDetailAPI.as_view(), name='session_detail'),
+    path('sessions/<int:pk>/status/', views.SessionStatusAPI.as_view(), name='session_status'),
 
-    # 告警
-    path('alerts/',                views.AlertListAPI.as_view(),     name='alert_list'),
+    # ── CNN ──────────────────────────────────────────────────
+    path('sessions/<int:pk>/cnn/',       views.CNNResultAPI.as_view(), name='cnn_result'),
+    path('sessions/<int:pk>/cnn/run/',   views.CNNRunAPI.as_view(),    name='cnn_run'),
 
-    # 即時統計（即時監控頁面輪詢用）
-    path('live/stats/',            views.LiveStatsAPI.as_view(),     name='live_stats'),
-    path('live/start/',            views.LiveStartAPI.as_view(),     name='live_start'),
-    path('live/stop/',             views.LiveStopAPI.as_view(),      name='live_stop'),
+    # ── Grad-CAM ─────────────────────────────────────────────
+    path('sessions/<int:pk>/gradcam/',      views.GradCAMListAPI.as_view(), name='gradcam_list'),
+    path('sessions/<int:pk>/gradcam/run/',  views.GradCAMRunAPI.as_view(),  name='gradcam_run'),
 
-    # CNN 分析
-    path('cnn/analyze/',           views.CNNAnalyzeAPI.as_view(),    name='cnn_analyze'),
-    path('cnn/result/<int:pk>/',   views.CNNResultAPI.as_view(),     name='cnn_result'),
+    # ── 告警 ─────────────────────────────────────────────────
+    path('sessions/<int:pk>/alerts/',  views.AlertListAPI.as_view(), name='alert_list'),
 
-    # AI Agent（n8n Webhook 中繼）
-    path('ai/chat/',               views.AIChatAPI.as_view(),        name='ai_chat'),
+    # ── 報告匯出 ─────────────────────────────────────────────
+    path('sessions/<int:pk>/reports/',         views.ReportListAPI.as_view(),   name='report_list'),
+    path('sessions/<int:pk>/reports/export/',  views.ReportExportAPI.as_view(), name='report_export'),
+
+    # ── AI Chat ──────────────────────────────────────────────
+    path('ai/chat/', views.AIChatAPI.as_view(), name='ai_chat'),
+
+    # ── 系統統計（管理員）────────────────────────────────────
+    path('admin/stats/', views.SystemStatsAPI.as_view(), name='system_stats'),
 ]
 
 
 ========================================================================
-  FILE: api/views.py
-========================================================================
 
-# api/views.py - REST API View 類別
+// FILE: api\views.py
+----------------------------------------
+# ============================================================
+# api/views.py
+# REST API：Token 認證、專案、Session、CNN、Grad-CAM、AI Chat
+# ============================================================
 import os
-import json
-import threading
 import requests
 from django.conf import settings
+from django.contrib.auth.models import User
+from django.db.models import Q
+from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.parsers import MultiPartParser
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
+from rest_framework.authtoken.models import Token
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-import sys
-sys.path.insert(0, str(settings.BASE_DIR / 'core'))
+from accounts.models import UserActivityLog
+from projects.models import Project, PacketFile
+from analyzer.models import AnalysisSession, Alert, CNNResult, GradCAMImage
 
-from analyzer.models import AnalysisSession, Alert, CNNResult
-
-# 全域即時擷取狀態（實際部署建議改用 Redis）
-_live_capture_thread = None
-_live_stats = {
-    'running': False,
-    'packet_count': 0,
-    'pps': 0,
-    'alerts': [],
-    'protocols': {},
-}
+from .serializers import (
+    UserSerializer, ProjectListSerializer, ProjectDetailSerializer,
+    PacketFileSerializer, AnalysisSessionListSerializer,
+    AnalysisSessionDetailSerializer, AlertSerializer,
+    CNNResultSerializer, GradCAMImageSerializer, AnalysisReportSerializer,
+)
+from .permissions import get_session_or_403
 
 
-class SessionListAPI(APIView):
-    """GET /api/sessions/ - 列出所有 Session"""
-    def get(self, request):
-        sessions = AnalysisSession.objects.all().values(
-            'id', 'mode', 'label', 'created_at',
-            'packet_count', 'alert_count'
-        )
-        return Response(list(sessions))
 
+# ─────────────────────────────────────────────────────────────
+# 認證 API
+# ─────────────────────────────────────────────────────────────
+class LoginAPI(APIView):
+    """POST /api/v1/auth/login/ → Token"""
+    permission_classes = [AllowAny]
 
-class SessionDetailAPI(APIView):
-    """GET /api/sessions/<pk>/ - 單一 Session 詳情"""
-    def get(self, request, pk):
-        try:
-            session = AnalysisSession.objects.get(pk=pk)
-        except AnalysisSession.DoesNotExist:
-            return Response({'error': 'Not found'}, status=404)
-
-        alerts = list(session.alerts.values(
-            'attack_type', 'severity', 'src_ip', 'detail', 'timestamp'
-        ))
+    def post(self, request):
+        from django.contrib.auth import authenticate
+        username = request.data.get('username', '').strip()
+        password = request.data.get('password', '')
+        user = authenticate(username=username, password=password)
+        if not user:
+            return Response({'error': '帳號或密碼錯誤'}, status=400)
+        token, _ = Token.objects.get_or_create(user=user)
+        # 稽核日誌
+        ip = request.META.get('REMOTE_ADDR', '')
+        UserActivityLog.objects.create(
+            user=user, action='login',
+            detail='API 登入', ip_address=ip or None)
         return Response({
-            'id':           session.id,
-            'mode':         session.mode,
-            'label':        session.label,
-            'created_at':   session.created_at,
-            'packet_count': session.packet_count,
-            'alert_count':  session.alert_count,
-            'alerts':       alerts,
+            'token':    token.key,
+            'user_id':  user.pk,
+            'username': user.username,
+            'role':     user.profile.role,
         })
 
 
-class AlertListAPI(APIView):
-    """GET /api/alerts/ - 列出所有告警（可用 ?severity=HIGH 過濾）"""
+class LogoutAPI(APIView):
+    """POST /api/v1/auth/logout/ → 銷毀 Token"""
+
+    def post(self, request):
+        request.user.auth_token.delete()
+        UserActivityLog.objects.create(
+            user=request.user, action='logout', detail='API 登出')
+        return Response({'message': '已登出'})
+
+
+class MeAPI(APIView):
+    """GET /api/v1/auth/me/ → 當前使用者資訊"""
+
     def get(self, request):
-        qs = Alert.objects.all()
-        severity = request.query_params.get('severity')
-        if severity:
-            qs = qs.filter(severity=severity.upper())
-        return Response(list(qs.values(
-            'id', 'session_id', 'attack_type', 'severity',
-            'src_ip', 'detail', 'timestamp'
-        )))
+        return Response(UserSerializer(request.user, context={'request': request}).data)
 
 
-class LiveStatsAPI(APIView):
-    """GET /api/live/stats/ - 即時監控統計（前端每秒輪詢）"""
-    def get(self, request):
-        return Response(_live_stats)
-
-
-class LiveStartAPI(APIView):
-    """POST /api/live/start/ - 啟動即時擷取"""
-    def post(self, request):
-        global _live_capture_thread, _live_stats
-
-        if _live_stats['running']:
-            return Response({'message': '已在擷取中'})
-
-        interface = request.data.get('interface', '')
-
-        # 啟動背景擷取執行緒
-        _live_stats['running']      = True
-        _live_stats['packet_count'] = 0
-        _live_stats['alerts']       = []
-        _live_stats['protocols']    = {}
-
-        def capture_worker():
-            from capture import LiveCapture
-            cap = LiveCapture(
-                interface    = interface,
-                count        = 0,
-                stats_interval = 5,
-            )
-            cap.start()
-
-        _live_capture_thread = threading.Thread(
-            target=capture_worker, daemon=True
-        )
-        _live_capture_thread.start()
-
-        return Response({'message': f'已啟動擷取：{interface}'})
-
-
-class LiveStopAPI(APIView):
-    """POST /api/live/stop/ - 停止即時擷取"""
-    def post(self, request):
-        _live_stats['running'] = False
-        return Response({'message': '已停止擷取'})
-
-
-class CNNAnalyzeAPI(APIView):
-    """
-    POST /api/cnn/analyze/
-    上傳 PCAP 或使用現有 Session，執行 CNN Autoencoder 異常分析
-    """
-    parser_classes = [MultiPartParser]
+class RegisterAPI(APIView):
+    """POST /api/v1/auth/register/ → 建立帳號並回傳 Token"""
+    permission_classes = [AllowAny]
 
     def post(self, request):
-        session_id = request.data.get('session_id')
-        if not session_id:
-            return Response({'error': '請提供 session_id'}, status=400)
-
-        try:
-            session = AnalysisSession.objects.get(pk=session_id)
-        except AnalysisSession.DoesNotExist:
-            return Response({'error': 'Session 不存在'}, status=404)
-
-        model_path = str(settings.CNN_MODEL_PATH)
-        if not os.path.exists(model_path):
-            return Response({'error': 'CNN 模型尚未訓練，請先執行 run_training.py'}, status=400)
-
-        try:
-            import torch
-            from cnn_autoencoder import CNNAutoencoder
-            from packet_visualizer import PacketVisualizer
-            from scapy.all import rdpcap
-
-            # 載入模型
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-            model  = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
-            model.load_state_dict(torch.load(model_path, map_location=device))
-            model.eval()
-
-            # 讀取 PCAP 並影像化
-            pcap_path = str(settings.MEDIA_ROOT / session.pcap_file.name)
-            packets   = rdpcap(pcap_path)
-            vis       = PacketVisualizer('medium', apply_mask=True, skip_ethernet=True)
-
-            import numpy as np
-            images = []
-            for pkt in packets:
-                try:
-                    img = vis.bytes_to_image(bytes(pkt))
-                    images.append(img)
-                except Exception:
-                    continue
-
-            if not images:
-                return Response({'error': '無法從 PCAP 提取影像'}, status=400)
-
-            X = np.array(images, dtype=np.float32)
-            X_tensor = torch.from_numpy(X[:, np.newaxis, :, :]).to(device)
-
-            with torch.no_grad():
-                errors = model.reconstruction_error(X_tensor).cpu().numpy()
-
-            threshold    = float(settings.CNN_THRESHOLD)
-            anomaly_mask = errors > threshold
-            n_normal  = int((~anomaly_mask).sum())
-            n_anomaly = int(anomaly_mask.sum())
-
-            # 儲存結果
-            cnn_result, _ = CNNResult.objects.update_or_create(
-                session=session,
-                defaults={
-                    'threshold':        threshold,
-                    'normal_count':     n_normal,
-                    'anomaly_count':    n_anomaly,
-                    'avg_normal_error': float(errors[~anomaly_mask].mean()) if n_normal > 0 else 0,
-                    'avg_attack_error': float(errors[anomaly_mask].mean())  if n_anomaly > 0 else 0,
-                }
-            )
-
+        from accounts.forms import RegisterForm
+        form = RegisterForm(request.data)
+        if form.is_valid():
+            user = form.save()
+            token, _ = Token.objects.get_or_create(user=user)
             return Response({
-                'session_id':     session.id,
-                'threshold':      threshold,
-                'total_packets':  len(errors),
-                'normal_count':   n_normal,
-                'anomaly_count':  n_anomaly,
-                'detection_rate': n_anomaly / (len(errors) + 1e-9),
-            })
-
-        except Exception as e:
-            return Response({'error': str(e)}, status=500)
+                'token':    token.key,
+                'user_id':  user.pk,
+                'username': user.username,
+            }, status=201)
+        return Response(form.errors, status=400)
 
 
-class CNNResultAPI(APIView):
-    """GET /api/cnn/result/<pk>/ - 取得 CNN 分析結果"""
+# ─────────────────────────────────────────────────────────────
+# 專案 API
+# ─────────────────────────────────────────────────────────────
+class ProjectListAPI(APIView):
+    """GET /api/v1/projects/  POST /api/v1/projects/"""
+
+    def get(self, request):
+        qs = Project.objects.filter(
+            Q(owner=request.user) | Q(members=request.user)
+        ).exclude(status='deleted').distinct()
+        return Response(ProjectListSerializer(qs, many=True).data)
+
+    def post(self, request):
+        if not request.user.profile.can_manage_projects:
+            return Response({'error': '權限不足'}, status=403)
+        serializer = ProjectListSerializer(data=request.data)
+        if serializer.is_valid():
+            from projects.models import ProjectMembership
+            project = serializer.save(owner=request.user)
+            ProjectMembership.objects.create(
+                project=project, user=request.user, role='owner')
+            return Response(ProjectDetailSerializer(
+                project, context={'request': request}).data, status=201)
+        return Response(serializer.errors, status=400)
+
+
+class ProjectDetailAPI(APIView):
+    """GET/PUT/DELETE /api/v1/projects/<pk>/"""
+
+    def _get_project(self, request, pk):
+        try:
+            p = Project.objects.get(pk=pk)
+        except Project.DoesNotExist:
+            return None, Response({'error': '專案不存在'}, status=404)
+        if p.owner != request.user and \
+           not p.members.filter(pk=request.user.pk).exists():
+            return None, Response({'error': '權限不足'}, status=403)
+        return p, None
+
     def get(self, request, pk):
+        p, err = self._get_project(request, pk)
+        if err:
+            return err
+        return Response(ProjectDetailSerializer(p, context={'request': request}).data)
+
+    def put(self, request, pk):
+        p, err = self._get_project(request, pk)
+        if err:
+            return err
+        if p.owner != request.user:
+            return Response({'error': '只有擁有者可編輯'}, status=403)
+        serializer = ProjectListSerializer(p, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
+
+    def delete(self, request, pk):
+        p, err = self._get_project(request, pk)
+        if err:
+            return err
+        if p.owner != request.user and not request.user.profile.is_admin:
+            return Response({'error': '只有擁有者可刪除'}, status=403)
+        p.status = 'deleted'
+        p.save()
+        return Response(status=204)
+
+
+# ─────────────────────────────────────────────────────────────
+# 封包上傳 API
+# ─────────────────────────────────────────────────────────────
+class PacketFileUploadAPI(APIView):
+    """POST /api/v1/projects/<pk>/upload/ — 非同步封包上傳"""
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request, pk):
+        if not request.user.profile.can_upload_pcap:
+            return Response({'error': '您無上傳權限'}, status=403)
+        try:
+            project = Project.objects.get(pk=pk)
+        except Project.DoesNotExist:
+            return Response({'error': '專案不存在'}, status=404)
+
+        if project.owner != request.user and not project.members.filter(pk=request.user.pk).exists():
+            return Response({'error': '權限不足'}, status=403)
+
+
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'error': '請提供 PCAP 檔案'}, status=400)
+
+        pf = PacketFile.objects.create(
+            project       = project,
+            uploaded_by   = request.user,
+            file          = file,
+            original_name = file.name,
+            file_size     = file.size,
+            description   = request.data.get('description', ''),
+            network_tag   = request.data.get('network_tag', ''),
+        )
+
+        # 非同步前處理
+        try:
+            from analyzer.tasks import process_packet_file
+            task = process_packet_file.delay(pf.pk)
+        except Exception:
+            pass
+
+        UserActivityLog.objects.create(
+            user=request.user, action='upload_pcap',
+            detail=f'API 上傳: {pf.original_name}',
+            ip_address=request.META.get('REMOTE_ADDR'))
+
+        return Response(PacketFileSerializer(pf, context={'request': request}).data,
+                        status=201)
+
+
+# ─────────────────────────────────────────────────────────────
+# 分析 Session API
+# ─────────────────────────────────────────────────────────────
+class SessionListAPI(APIView):
+    """GET /api/v1/sessions/   POST /api/v1/sessions/（建立分析任務）"""
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def get(self, request):
+        user = request.user
+        if user.profile.is_admin:
+            qs = AnalysisSession.objects.all()
+        else:
+            qs = AnalysisSession.objects.filter(
+                Q(created_by=user) |
+                Q(project__owner=user) |
+                Q(project__members=user)
+            ).distinct()
+
+        project_id = request.query_params.get('project')
+        status_f   = request.query_params.get('status')
+        if project_id:
+            qs = qs.filter(project_id=project_id)
+        if status_f:
+            qs = qs.filter(task_status=status_f)
+
+        return Response(AnalysisSessionListSerializer(
+            qs.order_by('-created_at'), many=True).data)
+
+    def post(self, request):
+        if not request.user.profile.can_upload_pcap:
+            return Response({'error': '您無上傳權限'}, status=403)
+
+        pcap_file  = request.FILES.get('pcap_file')
+        project_id = request.data.get('project_id')
+        label      = request.data.get('label', '')
+
+        if not pcap_file:
+            return Response({'error': '請提供 pcap_file'}, status=400)
+
+        project = None
+        if project_id:
+            try:
+                project = Project.objects.get(pk=project_id)
+            except Project.DoesNotExist:
+                return Response({'error': '專案不存在'}, status=404)
+
+        session = AnalysisSession.objects.create(
+            mode       = 'pcap',
+            label      = label or pcap_file.name,
+            pcap_file  = pcap_file,
+            project    = project,
+            created_by = request.user,
+            task_status = 'pending',
+        )
+
+        try:
+            from analyzer.tasks import run_pcap_analysis
+            task = run_pcap_analysis.delay(session.pk)
+            session.celery_task_id = task.id
+            session.save(update_fields=['celery_task_id'])
+        except Exception:
+            pass
+
+        UserActivityLog.objects.create(
+            user=request.user, action='run_analysis',
+            detail=f'API 建立 Session {session.pk}',
+            ip_address=request.META.get('REMOTE_ADDR'))
+
+        return Response(AnalysisSessionDetailSerializer(
+            session, context={'request': request}).data, status=201)
+
+
+class SessionDetailAPI(APIView):
+    """GET/DELETE /api/v1/sessions/<pk>/"""
+
+    def _get_session(self, request, pk):
+        try:
+            s = AnalysisSession.objects.get(pk=pk)
+        except AnalysisSession.DoesNotExist:
+            return None, Response({'error': 'Session 不存在'}, status=404)
+        user = request.user
+        if not (user.profile.is_admin or s.created_by == user or
+                (s.project and (s.project.owner == user or
+                                s.project.members.filter(pk=user.pk).exists()))):
+            return None, Response({'error': '權限不足'}, status=403)
+        return s, None
+
+    def get(self, request, pk):
+        s, err = self._get_session(request, pk)
+        if err:
+            return err
+        return Response(AnalysisSessionDetailSerializer(
+            s, context={'request': request}).data)
+
+    def delete(self, request, pk):
+        s, err = self._get_session(request, pk)
+        if err:
+            return err
+        if s.created_by != request.user and not request.user.profile.is_admin:
+            return Response({'error': '只有建立者或管理員可刪除'}, status=403)
+        s.delete()
+        return Response(status=204)
+
+
+class SessionStatusAPI(APIView):
+    """GET /api/v1/sessions/<pk>/status/ — 輪詢任務進度"""
+
+    def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
+
+        return Response({
+            'task_status':   s.task_status,
+            'packet_count':  s.packet_count,
+            'alert_count':   s.alert_count,
+            'error_message': s.error_message,
+            'finished_at':   s.finished_at,
+            'has_cnn':       hasattr(s, 'cnn_result'),
+            'gradcam_count': s.gradcam_images.count(),
+        })
+
+
+# ─────────────────────────────────────────────────────────────
+# CNN 結果 API
+# ─────────────────────────────────────────────────────────────
+class CNNResultAPI(APIView):
+    """GET /api/v1/sessions/<pk>/cnn/"""
+
+    def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
         try:
             result = CNNResult.objects.get(session_id=pk)
         except CNNResult.DoesNotExist:
             return Response({'error': 'CNN 結果不存在'}, status=404)
-
-        return Response({
-            'threshold':        result.threshold,
-            'normal_count':     result.normal_count,
-            'anomaly_count':    result.anomaly_count,
-            'avg_normal_error': result.avg_normal_error,
-            'avg_attack_error': result.avg_attack_error,
-        })
+        return Response(CNNResultSerializer(result, context={'request': request}).data)
 
 
-class AIChatAPI(APIView):
-    """
-    POST /api/ai/chat/
-    轉發使用者訊息到 n8n Webhook，n8n 呼叫 Gemini API 後回傳答案
+class CNNRunAPI(APIView):
+    """POST /api/v1/sessions/<pk>/cnn/run/ — 重新執行 CNN 分析"""
 
-    n8n 設定方式：
-      1. 在 n8n 建立 Webhook 節點，取得 Webhook URL
-      2. 將 URL 填入 settings.py 的 N8N_WEBHOOK_URL
-      3. n8n 工作流程：Webhook → HTTP Request（Gemini API）→ Respond to Webhook
-    """
-    N8N_WEBHOOK_URL = 'http://localhost:5678/webhook/ai-chat'  # 替換為實際 URL
-
-    def post(self, request):
-        message    = request.data.get('message', '').strip()
-        session_id = request.data.get('session_id')
-        context    = ''
-
-        if not message:
-            return Response({'error': '請輸入訊息'}, status=400)
-
-        # 若有 Session，附帶分析結果作為 context
-        if session_id:
-            try:
-                session = AnalysisSession.objects.get(pk=session_id)
-                alerts  = session.alerts.all()[:5]
-                context = (
-                    f"當前分析 Session：{session.label}，"
-                    f"共 {session.packet_count} 個封包，"
-                    f"發現 {session.alert_count} 個告警。"
-                    f"告警類型：{', '.join(a.attack_type for a in alerts)}"
-                )
-            except AnalysisSession.DoesNotExist:
-                pass
-
-        # 轉發到 n8n
+    def post(self, request, pk):
+        if not request.user.profile.can_run_ai_analysis:
+            return Response({'error': '權限不足'}, status=403)
+        session, err = get_session_or_403(request, pk)
+        if err:
+            return err
         try:
-            resp = requests.post(
-                self.N8N_WEBHOOK_URL,
-                json={'message': message, 'context': context},
-                timeout=30
-            )
-            data = resp.json()
-            return Response({'reply': data.get('reply', data.get('text', ''))})
-        except requests.exceptions.ConnectionError:
-            return Response({
-                'reply': 'AI 服務暫時無法連線，請確認 n8n 是否已啟動。'
-            })
+            from analyzer.tasks import run_pcap_analysis
+            task = run_pcap_analysis.delay(session.pk)
+            session.task_status    = 'pending'
+            session.celery_task_id = task.id
+            session.save(update_fields=['task_status', 'celery_task_id'])
+            return Response({'task_id': task.id, 'status': 'queued'})
         except Exception as e:
             return Response({'error': str(e)}, status=500)
 
 
-========================================================================
-  FILE: network_platform/settings.py
+# ─────────────────────────────────────────────────────────────
+# Grad-CAM API
+# ─────────────────────────────────────────────────────────────
+class GradCAMRunAPI(APIView):
+    """POST /api/v1/sessions/<pk>/gradcam/run/ — 派發 Grad-CAM 任務"""
+
+    def post(self, request, pk):
+        if not request.user.profile.can_run_ai_analysis:
+            return Response({'error': '您無執行 AI 分析的權限'}, status=403)
+        session, err = get_session_or_403(request, pk)
+        if err:
+            return err
+
+        variant      = request.data.get('variant', 'gradcam')
+        max_images   = int(request.data.get('max_images', 20))
+        anomaly_only = bool(request.data.get('anomaly_only', True))
+
+        try:
+            from analyzer.tasks import run_gradcam
+            task = run_gradcam.delay(session.pk,
+                                     max_images=max_images,
+                                     variant=variant,
+                                     anomaly_only=anomaly_only)
+            UserActivityLog.objects.create(
+                user=request.user, action='run_gradcam',
+                detail=f'Session {pk} variant={variant}',
+                ip_address=request.META.get('REMOTE_ADDR'))
+            return Response({'task_id': task.id, 'status': 'queued',
+                             'variant': variant, 'max_images': max_images})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class GradCAMListAPI(APIView):
+    """GET /api/v1/sessions/<pk>/gradcam/ — 取得 Grad-CAM 影像列表"""
+
+    def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
+        qs = GradCAMImage.objects.filter(session_id=pk)
+        variant = request.query_params.get('variant')
+        anomaly = request.query_params.get('anomaly_only')
+        if variant:
+            qs = qs.filter(variant=variant)
+        if anomaly == '1':
+            qs = qs.filter(is_anomaly=True)
+        return Response(GradCAMImageSerializer(
+            qs.order_by('packet_index'), many=True,
+            context={'request': request}).data)
+
+
+# ─────────────────────────────────────────────────────────────
+# 告警 API
+# ─────────────────────────────────────────────────────────────
+class AlertListAPI(APIView):
+    """GET /api/v1/sessions/<pk>/alerts/"""
+
+    def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
+        qs = Alert.objects.filter(session_id=pk).order_by('-timestamp')
+        severity = request.query_params.get('severity')
+        if severity:
+            qs = qs.filter(severity=severity.upper())
+        return Response(AlertSerializer(qs, many=True).data)
+
+
+# ─────────────────────────────────────────────────────────────
+# 報告匯出 API
+# ─────────────────────────────────────────────────────────────
+class ReportExportAPI(APIView):
+    """POST /api/v1/sessions/<pk>/reports/export/"""
+
+    def post(self, request, pk):
+        if not request.user.profile.can_export_report:
+            return Response({'error': '您無匯出報告的權限'}, status=403)
+        session, err = get_session_or_403(request, pk)
+        if err:
+            return err
+
+        fmt = request.data.get('format', 'pdf').lower()
+        if fmt not in ('pdf', 'json', 'csv'):
+            return Response({'error': 'format 需為 pdf / json / csv'}, status=400)
+
+        try:
+            from reports.generators import ReportGenerator
+            gen    = ReportGenerator(session, request.user)
+            report = gen.generate(fmt)
+            UserActivityLog.objects.create(
+                user=request.user, action='export_report',
+                detail=f'Session {pk} format={fmt}',
+                ip_address=request.META.get('REMOTE_ADDR'))
+            return Response(AnalysisReportSerializer(
+                report, context={'request': request}).data, status=201)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class ReportListAPI(APIView):
+    """GET /api/v1/sessions/<pk>/reports/"""
+
+    def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
+        qs = __import__('analyzer.models', fromlist=['AnalysisReport']
+                         ).AnalysisReport.objects.filter(session_id=pk)
+        return Response(AnalysisReportSerializer(
+            qs, many=True, context={'request': request}).data)
+
+
+# ─────────────────────────────────────────────────────────────
+# AI Chat API（轉發至 n8n / Gemini）
+# ─────────────────────────────────────────────────────────────
+class AIChatAPI(APIView):
+    """POST /api/v1/ai/chat/"""
+
+    def post(self, request):
+        message    = request.data.get('message', '').strip()
+        session_id = request.data.get('session_id')
+        if not message:
+            return Response({'error': '請輸入訊息'}, status=400)
+
+        context = ''
+        if session_id:
+            session, err = get_session_or_403(request, session_id)
+            if not err:
+                alerts  = session.alerts.all()[:5]
+                cnn     = getattr(session, 'cnn_result', None)
+                context = (
+                    f'Session: {session.label}，'
+                    f'封包數: {session.packet_count}，'
+                    f'告警數: {session.alert_count}，'
+                    f'告警類型: {", ".join(a.attack_type for a in alerts)}。'
+                )
+                if cnn:
+                    context += (f' CNN 偵測率: {cnn.detection_rate*100:.1f}%，'
+                                f'異常封包: {cnn.anomaly_count}。')
+
+        webhook_url = getattr(settings, 'N8N_WEBHOOK_URL',
+                              'http://localhost:5678/webhook/ai-chat')
+        try:
+            resp = requests.post(webhook_url,
+                                 json={'message': message, 'context': context},
+                                 timeout=30)
+            data = resp.json()
+            return Response({'reply': data.get('reply', data.get('text', ''))})
+        except requests.exceptions.ConnectionError:
+            return Response({'reply': 'AI 服務暫時無法連線，請確認 n8n 是否已啟動。'})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+# ─────────────────────────────────────────────────────────────
+# 系統統計 API（管理員專用）
+# ─────────────────────────────────────────────────────────────
+class SystemStatsAPI(APIView):
+    """GET /api/v1/admin/stats/"""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request):
+        from accounts.models import UserActivityLog
+        return Response({
+            'users':    User.objects.count(),
+            'projects': Project.objects.exclude(status='deleted').count(),
+            'sessions': AnalysisSession.objects.count(),
+            'alerts':   Alert.objects.count(),
+            'recent_actions': [
+                {'user': l.user.username, 'action': l.action,
+                 'timestamp': l.timestamp}
+                for l in UserActivityLog.objects.order_by('-timestamp')[:20]
+            ],
+        })
+
+
 ========================================================================
 
+// FILE: network_platform\celery.py
+----------------------------------------
 # ============================================================
-# network_platform/settings.py
+# network_platform/celery.py
 # ============================================================
+import os
+from celery import Celery
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
+
+app = Celery('network_platform')
+app.config_from_object('django.conf:settings', namespace='CELERY')
+app.autodiscover_tasks()
+
+
+@app.task(bind=True)
+def debug_task(self):
+    print(f'Request: {self.request!r}')
+
+
+========================================================================
+
+// FILE: network_platform\settings.py
+----------------------------------------
 from pathlib import Path
 import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = 'django-dev-key-請在正式環境替換成隨機字串'
-DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-dev-key-請在正式環境替換成隨機字串')
+DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() == 'true'
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,*').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -627,12 +2811,18 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'rest_framework.authtoken',
+    'corsheaders',
+    'accounts',
+    'projects',
     'analyzer',
     'api',
+    'reports',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -664,6 +2854,15 @@ DATABASES = {
     }
 }
 
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
 LANGUAGE_CODE = 'zh-hant'
 TIME_ZONE     = 'Asia/Taipei'
 USE_I18N = True
@@ -676,6 +2875,13 @@ MEDIA_URL        = '/media/'
 MEDIA_ROOT       = BASE_DIR / 'media'
 
 REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
@@ -683,35 +2889,1168 @@ REST_FRAMEWORK = {
     'DEFAULT_PARSER_CLASSES': [
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.MultiPartParser',
+        'rest_framework.parsers.FormParser',
     ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
 }
 
-# CNN 模型設定（閾值調校後填入）
-CNN_MODEL_PATH = BASE_DIR / 'media' / 'model' / 'best_model.pt'
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+CELERY_BROKER_URL         = os.getenv('CELERY_BROKER', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND     = os.getenv('CELERY_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT     = ['json']
+CELERY_TASK_SERIALIZER    = 'json'
+CELERY_RESULT_SERIALIZER  = 'json'
+CELERY_TIMEZONE           = 'Asia/Taipei'
+CELERY_TASK_ALWAYS_EAGER  = os.getenv('CELERY_EAGER', 'false').lower() == 'true'
+
+CNN_MODEL_PATH  = BASE_DIR / 'media' / 'model' / 'best_model.pt'
 CNN_LATENT_DIM  = 32
-CNN_THRESHOLD  = 0.000822
+# ── [P1-2 修正] 支援環境變數覆蓋 ──
+CNN_THRESHOLD = float(os.getenv('CNN_THRESHOLD', '0.000069'))
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
+
+REPORT_OUTPUT_DIR = BASE_DIR / 'media' / 'reports'
+N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+LOGIN_URL           = '/accounts/login/'
+LOGIN_REDIRECT_URL  = '/analyzer/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
 
 
 ========================================================================
-  FILE: network_platform/urls.py
-========================================================================
 
+// FILE: network_platform\urls.py
+----------------------------------------
+# ============================================================
 # network_platform/urls.py
+# ============================================================
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import RedirectView
+
+# 客製化後台標題
+admin.site.site_header  = '網路攻擊分析平台 管理後台'
+admin.site.site_title   = 'NetGuard Admin'
+admin.site.index_title  = '系統管理'
 
 urlpatterns = [
-    path('admin/',     admin.site.urls),
-    path('',           include('analyzer.urls')),   # 前端頁面
-    path('api/',       include('api.urls')),         # REST API
+    # ── 後台管理 ──────────────────────────────────────────────
+    path('admin/', admin.site.urls),
+
+    # ── 使用者系統（登入/登出/註冊/個人資料）────────────────
+    path('accounts/', include('accounts.urls', namespace='accounts')),
+
+    # ── 專案管理（前端頁面）──────────────────────────────────
+    path('projects/', include('projects.urls', namespace='projects')),
+
+    # ── 分析模組（前端頁面）──────────────────────────────────
+    path('analyzer/', include('analyzer.urls', namespace='analyzer')),
+
+    # ── 報告匯出 ──────────────────────────────────────────────
+    path('reports/', include('reports.urls', namespace='reports')),
+
+    # ── REST API（/api/v1/...）────────────────────────────────
+    path('api/v1/', include('api.urls', namespace='api')),
+
+    # ── 根路由導向首頁 ────────────────────────────────────────
+    path('', RedirectView.as_view(url='/analyzer/', permanent=False)),
 ]
 
-# 開發環境提供 media 檔案（PCAP / 圖表）
+# 開發環境 media / static 提供
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL,  document_root=settings.MEDIA_ROOT)
     urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+
+========================================================================
+
+// FILE: network_platform\wsgi.py
+----------------------------------------
+import os
+from django.core.wsgi import get_wsgi_application
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
+application = get_wsgi_application()
+
+
+========================================================================
+
+// FILE: projects\admin.py
+----------------------------------------
+# ============================================================
+# projects/admin.py
+# ============================================================
+from django.contrib import admin
+from .models import Project, ProjectMembership, PacketFile
+
+
+class ProjectMembershipInline(admin.TabularInline):
+    model  = ProjectMembership
+    extra  = 1
+    fields = ('user', 'role', 'joined_at')
+    readonly_fields = ('joined_at',)
+
+
+class PacketFileInline(admin.TabularInline):
+    model  = PacketFile
+    extra  = 0
+    fields = ('original_name', 'file_size', 'status', 'network_tag', 'uploaded_at')
+    readonly_fields = ('file_size', 'uploaded_at')
+    show_change_link = True
+
+
+@admin.register(Project)
+class ProjectAdmin(admin.ModelAdmin):
+    list_display  = ('name', 'owner', 'network_segment', 'status',
+                     'session_count', 'created_at')
+    list_filter   = ('status',)
+    search_fields = ('name', 'network_segment', 'owner__username')
+    inlines       = [ProjectMembershipInline, PacketFileInline]
+    readonly_fields = ('created_at', 'updated_at')
+
+    @admin.display(description='Session 數')
+    def session_count(self, obj):
+        return obj.sessions.count()
+
+
+@admin.register(PacketFile)
+class PacketFileAdmin(admin.ModelAdmin):
+    list_display  = ('original_name', 'project', 'uploaded_by', 'file_size_mb',
+                     'packet_count', 'status', 'uploaded_at')
+    list_filter   = ('status', 'project')
+    search_fields = ('original_name', 'network_tag', 'sha256')
+    readonly_fields = ('sha256', 'uploaded_at', 'file_size')
+
+    @admin.display(description='大小 (MB)')
+    def file_size_mb(self, obj):
+        return f'{obj.file_size_mb} MB'
+
+
+========================================================================
+
+// FILE: projects\apps.py
+----------------------------------------
+from django.apps import AppConfig
+
+class ProjectsConfig(AppConfig):
+    name = 'projects'
+    verbose_name = '專案管理'
+
+
+========================================================================
+
+// FILE: projects\forms.py
+----------------------------------------
+# ============================================================
+# projects/forms.py
+# ============================================================
+from django import forms
+from django.core.exceptions import ValidationError
+from .models import Project, PacketFile
+
+ALLOWED_EXTENSIONS = ('.pcap', '.pcapng', '.cap')
+MAX_UPLOAD_SIZE = 200 * 1024 * 1024  # 200MB
+
+
+class ProjectForm(forms.ModelForm):
+    class Meta:
+        model  = Project
+        fields = ('name', 'description', 'network_segment', 'status')
+        labels = {
+            'name':            '專案名稱',
+            'description':     '說明',
+            'network_segment': '網段',
+            'status':          '狀態',
+        }
+        widgets = {
+            'description':     forms.Textarea(attrs={'rows': 3}),
+            'network_segment': forms.TextInput(attrs={
+                'placeholder': '例：192.168.1.0/24'}),
+        }
+
+
+class PacketFileUploadForm(forms.ModelForm):
+    class Meta:
+        model  = PacketFile
+        fields = ('file', 'description', 'network_tag', 'capture_time')
+        labels = {
+            'file':         'PCAP / PCAPNG 檔案',
+            'description':  '備註說明',
+            'network_tag':  '網段標籤',
+            'capture_time': '擷取時間',
+        }
+        widgets = {
+            'capture_time': forms.DateTimeInput(
+                attrs={'type': 'datetime-local'}, format='%Y-%m-%dT%H:%M'),
+            'description': forms.Textarea(attrs={'rows': 2}),
+        }
+
+    def clean_file(self):
+        f = self.cleaned_data['file']
+        name_lower = f.name.lower()
+        if not name_lower.endswith(ALLOWED_EXTENSIONS):
+            raise ValidationError(
+                f'不支援的檔案格式，僅接受 {", ".join(ALLOWED_EXTENSIONS)}。')
+        if f.size > MAX_UPLOAD_SIZE:
+            raise ValidationError(
+                f'檔案過大（{f.size/1024/1024:.1f}MB），上限為 '
+                f'{MAX_UPLOAD_SIZE/1024/1024:.0f}MB。')
+        head = f.read(4)
+        f.seek(0)
+        valid_magic = head in (
+            b'\xa1\xb2\xc3\xd4', b'\xd4\xc3\xb2\xa1',
+            b'\x0a\x0d\x0d\x0a',
+        )
+        if not valid_magic:
+            raise ValidationError('檔案內容不像是合法的 PCAP/PCAPNG 檔案。')
+        return f
+
+
+========================================================================
+
+// FILE: projects\models.py
+----------------------------------------
+# ============================================================
+# projects/models.py
+# 專案管理：讓使用者將不同時間點、不同網段的封包分門別類
+# ============================================================
+import os
+from django.db import models
+from django.contrib.auth.models import User
+
+
+def pcap_upload_path(instance, filename):
+    """依 project_id / session_id 分目錄儲存 PCAP。"""
+    return f'pcap/project_{instance.project.id}/{filename}'
+
+
+class Project(models.Model):
+    """
+    一個專案代表一個分析任務群，可對應單一網段、攻防演練或合規稽核等情境。
+    擁有者（owner）有完整控制權；成員（members）依角色限制操作。
+    """
+    STATUS_CHOICES = [
+        ('active',   '進行中'),
+        ('archived', '已封存'),
+        ('deleted',  '已刪除'),
+    ]
+
+    name        = models.CharField(max_length=200, verbose_name='專案名稱')
+    description = models.TextField(blank=True, verbose_name='專案說明')
+    network_segment = models.CharField(max_length=100, blank=True,
+                                       verbose_name='網段（如 192.168.1.0/24）')
+    status      = models.CharField(max_length=20, choices=STATUS_CHOICES,
+                                   default='active')
+    owner       = models.ForeignKey(User, on_delete=models.CASCADE,
+                                    related_name='owned_projects',
+                                    verbose_name='擁有者')
+    members     = models.ManyToManyField(User, through='ProjectMembership',
+                                         related_name='joined_projects',
+                                         blank=True)
+    created_at  = models.DateTimeField(auto_now_add=True)
+    updated_at  = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name      = '專案'
+        verbose_name_plural = '專案'
+
+    def __str__(self):
+        return f'[{self.get_status_display()}] {self.name}'
+
+    def get_member_role(self, user):
+        """回傳指定使用者在本專案的角色（或 None）。"""
+        try:
+            return self.memberships.get(user=user).role
+        except ProjectMembership.DoesNotExist:
+            return None
+
+    @property
+    def session_count(self):
+        return self.sessions.count()
+
+    @property
+    def total_alerts(self):
+        from analyzer.models import Alert
+        return Alert.objects.filter(session__project=self).count()
+
+
+class ProjectMembership(models.Model):
+    """中介表：使用者在專案中的角色。"""
+    ROLE_CHOICES = [
+        ('owner',    '擁有者'),
+        ('editor',   '編輯者'),
+        ('viewer',   '檢視者'),
+    ]
+
+    project    = models.ForeignKey(Project, on_delete=models.CASCADE,
+                                   related_name='memberships')
+    user       = models.ForeignKey(User, on_delete=models.CASCADE,
+                                   related_name='project_memberships')
+    role       = models.CharField(max_length=20, choices=ROLE_CHOICES,
+                                  default='editor')
+    joined_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('project', 'user')
+        verbose_name      = '專案成員'
+        verbose_name_plural = '專案成員'
+
+    def __str__(self):
+        return f'{self.user.username} @ {self.project.name} ({self.role})'
+
+
+class PacketFile(models.Model):
+    """
+    封包檔案管理：每個 PacketFile 代表一個上傳的 PCAP / PCAPNG 檔案。
+    與 Project 關聯，並追蹤處理狀態。
+    """
+    STATUS_CHOICES = [
+        ('pending',    '等待處理'),
+        ('processing', '處理中'),
+        ('done',       '已完成'),
+        ('failed',     '處理失敗'),
+    ]
+
+    project      = models.ForeignKey(Project, on_delete=models.CASCADE,
+                                     related_name='packet_files',
+                                     verbose_name='所屬專案')
+    uploaded_by  = models.ForeignKey(User, on_delete=models.SET_NULL,
+                                     null=True, related_name='uploaded_files',
+                                     verbose_name='上傳者')
+    file         = models.FileField(upload_to=pcap_upload_path,
+                                    verbose_name='PCAP 檔案')
+    original_name = models.CharField(max_length=255, verbose_name='原始檔名')
+    file_size    = models.BigIntegerField(default=0, verbose_name='檔案大小 (bytes)')
+    capture_time = models.DateTimeField(null=True, blank=True,
+                                        verbose_name='擷取時間')
+    description  = models.TextField(blank=True, verbose_name='檔案備註')
+    network_tag  = models.CharField(max_length=100, blank=True,
+                                    verbose_name='網段標籤')
+    status       = models.CharField(max_length=20, choices=STATUS_CHOICES,
+                                    default='pending')
+    packet_count = models.IntegerField(default=0, verbose_name='封包數量')
+    sha256       = models.CharField(max_length=64, blank=True,
+                                    verbose_name='SHA-256 校驗碼')
+    uploaded_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-uploaded_at']
+        verbose_name      = '封包檔案'
+        verbose_name_plural = '封包檔案'
+
+    def __str__(self):
+        return f'{self.original_name} ({self.project.name})'
+
+    @property
+    def file_size_mb(self):
+        return round(self.file_size / (1024 * 1024), 2)
+
+    def compute_sha256(self):
+        """計算並儲存 SHA-256 校驗碼。"""
+        import hashlib
+        h = hashlib.sha256()
+        with open(self.file.path, 'rb') as f:
+            for chunk in iter(lambda: f.read(8192), b''):
+                h.update(chunk)
+        self.sha256 = h.hexdigest()
+        self.save(update_fields=['sha256'])
+        return self.sha256
+
+
+========================================================================
+
+// FILE: projects\urls.py
+----------------------------------------
+# projects/urls.py
+from django.urls import path
+from . import views
+
+app_name = 'projects'
+
+urlpatterns = [
+    path('',                              views.project_list,        name='list'),
+    path('create/',                       views.project_create,      name='create'),
+    path('<int:pk>/',                     views.project_detail,      name='detail'),
+    path('<int:pk>/edit/',                views.project_edit,        name='edit'),
+    path('<int:pk>/archive/',             views.project_archive,     name='archive'),
+    path('<int:pk>/members/add/',         views.member_add,          name='member_add'),
+    path('<int:pk>/members/<int:user_pk>/remove/', views.member_remove, name='member_remove'),
+    path('<int:pk>/upload/',              views.packet_file_upload,  name='upload'),
+    path('<int:pk>/files/<int:file_pk>/delete/', views.packet_file_delete, name='file_delete'),
+]
+
+
+========================================================================
+
+// FILE: projects\views.py
+----------------------------------------
+# ============================================================
+# projects/views.py
+# ============================================================
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db.models import Q
+from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+
+from .models import Project, ProjectMembership, PacketFile
+from .forms import ProjectForm, PacketFileUploadForm
+
+
+def _user_projects(user):
+    """回傳使用者可見的所有專案（擁有或成員）。"""
+    return Project.objects.filter(
+        Q(owner=user) | Q(members=user)
+    ).exclude(status='deleted').distinct()
+
+
+@login_required
+def project_list(request):
+    """專案列表頁。"""
+    projects = _user_projects(request.user).order_by('-updated_at')
+    return render(request, 'projects/project_list.html', {
+        'projects': projects,
+    })
+
+
+@login_required
+def project_create(request):
+    """建立新專案。"""
+    if not request.user.profile.can_manage_projects:
+        messages.error(request, '您沒有建立專案的權限。')
+        return redirect('projects:list')
+
+    if request.method == 'POST':
+        form = ProjectForm(request.POST)
+        if form.is_valid():
+            project = form.save(commit=False)
+            project.owner = request.user
+            project.save()
+            # 建立者自動成為 owner 成員
+            ProjectMembership.objects.create(
+                project=project, user=request.user, role='owner'
+            )
+            from accounts.views import _log_action
+            _log_action(request, 'create_project', f'建立專案: {project.name}')
+            messages.success(request, f'專案「{project.name}」已建立。')
+            return redirect('projects:detail', pk=project.pk)
+    else:
+        form = ProjectForm()
+    return render(request, 'projects/project_form.html', {
+        'form': form, 'action': '建立',
+    })
+
+
+@login_required
+def project_detail(request, pk):
+    """專案詳情頁：列出所有 PacketFile 與 Session。"""
+    project = get_object_or_404(Project, pk=pk)
+    # 確認使用者有存取權
+    if project.owner != request.user and not project.members.filter(pk=request.user.pk).exists():
+        messages.error(request, '您沒有存取此專案的權限。')
+        return redirect('projects:list')
+
+    packet_files = project.packet_files.order_by('-uploaded_at')
+    sessions     = project.sessions.order_by('-created_at')[:20]
+    user_role    = project.get_member_role(request.user) or 'owner'
+
+    return render(request, 'projects/project_detail.html', {
+        'project':      project,
+        'packet_files': packet_files,
+        'sessions':     sessions,
+        'user_role':    user_role,
+    })
+
+
+@login_required
+def project_edit(request, pk):
+    """編輯專案基本資料。"""
+    project = get_object_or_404(Project, pk=pk)
+    if project.owner != request.user:
+        messages.error(request, '只有專案擁有者可以編輯設定。')
+        return redirect('projects:detail', pk=pk)
+
+    if request.method == 'POST':
+        form = ProjectForm(request.POST, instance=project)
+        if form.is_valid():
+            form.save()
+            messages.success(request, '專案資料已更新。')
+            return redirect('projects:detail', pk=pk)
+    else:
+        form = ProjectForm(instance=project)
+    return render(request, 'projects/project_form.html', {
+        'form': form, 'project': project, 'action': '編輯',
+    })
+
+
+@login_required
+def project_archive(request, pk):
+    """封存專案（POST）。"""
+    project = get_object_or_404(Project, pk=pk)
+    if project.owner != request.user:
+        messages.error(request, '只有專案擁有者可以封存專案。')
+        return redirect('projects:detail', pk=pk)
+
+    if request.method == 'POST':
+        project.status = 'archived'
+        project.save()
+        messages.info(request, f'專案「{project.name}」已封存。')
+    return redirect('projects:list')
+
+
+@require_POST
+@login_required
+def member_add(request, pk):
+    """新增專案成員（POST JSON）。"""
+    project = get_object_or_404(Project, pk=pk)
+    if project.owner != request.user:
+        return JsonResponse({'error': '權限不足'}, status=403)
+
+    from django.contrib.auth.models import User
+    username = request.POST.get('username', '').strip()
+    role     = request.POST.get('role', 'editor')
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        messages.error(request, f'找不到使用者 {username}。')
+        return redirect('projects:detail', pk=pk)
+
+    membership, created = ProjectMembership.objects.get_or_create(
+        project=project, user=user,
+        defaults={'role': role},
+    )
+    if not created:
+        membership.role = role
+        membership.save()
+    messages.success(request, f'已將 {username} 加入專案（{role}）。')
+    return redirect('projects:detail', pk=pk)
+
+
+@require_POST
+@login_required
+def member_remove(request, pk, user_pk):
+    """移除專案成員（POST）。"""
+    project = get_object_or_404(Project, pk=pk)
+    if project.owner != request.user:
+        messages.error(request, '只有擁有者可移除成員。')
+        return redirect('projects:detail', pk=pk)
+    ProjectMembership.objects.filter(project=project, user_id=user_pk).delete()
+    messages.success(request, '已移除成員。')
+    return redirect('projects:detail', pk=pk)
+
+
+@login_required
+def packet_file_upload(request, pk):
+    """
+    非同步封包上傳入口（支援大檔案）。
+    上傳成功後，派發 Celery 非同步任務計算 SHA-256 並更新封包數量。
+    """
+    project = get_object_or_404(Project, pk=pk)
+    if project.owner != request.user and \
+       not ProjectMembership.objects.filter(
+           project=project, user=request.user, role__in=['owner', 'editor']).exists():
+        messages.error(request, '您沒有上傳封包的權限。')
+        return redirect('projects:detail', pk=pk)
+
+    if request.method == 'POST':
+        form = PacketFileUploadForm(request.POST, request.FILES)
+        if form.is_valid():
+            packet_file = form.save(commit=False)
+            packet_file.project     = project
+            packet_file.uploaded_by = request.user
+            packet_file.original_name = request.FILES['file'].name
+            packet_file.file_size   = request.FILES['file'].size
+            packet_file.save()
+
+            # 派發非同步前處理任務
+            try:
+                from analyzer.tasks import process_packet_file
+                process_packet_file.delay(packet_file.pk)
+            except Exception:
+                # Celery 未啟動時，同步執行
+                _sync_process_packet_file(packet_file)
+
+            from accounts.views import _log_action
+            _log_action(request, 'upload_pcap',
+                        f'上傳: {packet_file.original_name} → 專案 {project.name}')
+            messages.success(request, f'檔案「{packet_file.original_name}」上傳成功，正在背景處理中。')
+            return redirect('projects:detail', pk=pk)
+    else:
+        form = PacketFileUploadForm()
+    return render(request, 'projects/packet_upload.html', {
+        'form': form, 'project': project,
+    })
+
+
+def _sync_process_packet_file(packet_file):
+    """同步版封包前處理（Celery 不可用時的 fallback）。"""
+    try:
+        packet_file.status = 'processing'
+        packet_file.save(update_fields=['status'])
+        packet_file.compute_sha256()
+        # 嘗試用 scapy 取得封包數
+        try:
+            from scapy.all import rdpcap
+            pkts = rdpcap(packet_file.file.path)
+            packet_file.packet_count = len(pkts)
+        except Exception:
+            pass
+        packet_file.status = 'done'
+        packet_file.save(update_fields=['status', 'packet_count'])
+    except Exception as e:
+        packet_file.status = 'failed'
+        packet_file.save(update_fields=['status'])
+
+
+@login_required
+def packet_file_delete(request, pk, file_pk):
+    """刪除封包檔案（POST）。"""
+    project     = get_object_or_404(Project, pk=pk)
+    packet_file = get_object_or_404(PacketFile, pk=file_pk, project=project)
+    if project.owner != request.user:
+        messages.error(request, '只有擁有者可刪除檔案。')
+        return redirect('projects:detail', pk=pk)
+
+    if request.method == 'POST':
+        name = packet_file.original_name
+        try:
+            packet_file.file.delete(save=False)
+        except Exception:
+            pass
+        packet_file.delete()
+        messages.success(request, f'已刪除「{name}」。')
+    return redirect('projects:detail', pk=pk)
+
+
+========================================================================
+
+// FILE: reports\apps.py
+----------------------------------------
+from django.apps import AppConfig
+
+class ReportsConfig(AppConfig):
+    name = 'reports'
+    verbose_name = '報告匯出'
+
+
+========================================================================
+
+// FILE: reports\generators.py
+----------------------------------------
+# ============================================================
+# reports/generators.py
+# 分析報告匯出系統：PDF（ReportLab）/ JSON / CSV
+# ============================================================
+import os
+import io
+import json
+import csv
+from datetime import datetime
+
+from django.conf import settings
+from django.utils import timezone
+from django.core.files.base import ContentFile
+
+from analyzer.models import AnalysisSession, Alert, CNNResult, AnalysisReport
+
+
+class ReportGenerator:
+    """
+    統一報告生成介面。
+
+    使用方式：
+        gen    = ReportGenerator(session, user)
+        report = gen.generate('pdf')   # 回傳 AnalysisReport 物件
+        report = gen.generate('json')
+        report = gen.generate('csv')
+    """
+
+    def __init__(self, session: AnalysisSession, user):
+        self.session = session
+        self.user    = user
+        self.alerts  = list(session.alerts.order_by('-timestamp'))
+        self.cnn     = getattr(session, 'cnn_result', None)
+        self.gcam_imgs = list(session.gradcam_images.filter(is_anomaly=True)[:5])
+
+    def generate(self, fmt: str) -> AnalysisReport:
+        fmt = fmt.lower()
+        if fmt == 'pdf':
+            return self._generate_pdf()
+        elif fmt == 'json':
+            return self._generate_json()
+        elif fmt == 'csv':
+            return self._generate_csv()
+        else:
+            raise ValueError(f'不支援的格式: {fmt}')
+
+    # ── PDF ──────────────────────────────────────────────────
+    def _generate_pdf(self) -> AnalysisReport:
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib import colors
+            from reportlab.lib.units import cm
+            from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                            Table, TableStyle, Image as RLImage,
+                                            HRFlowable, PageBreak)
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        except ImportError:
+            raise ImportError('請安裝 reportlab：pip install reportlab')
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buf, pagesize=A4,
+            leftMargin=2*cm, rightMargin=2*cm,
+            topMargin=2*cm, bottomMargin=2*cm,
+        )
+
+        styles = getSampleStyleSheet()
+        # 自定義樣式
+        title_style = ParagraphStyle(
+            'CustomTitle', parent=styles['Title'],
+            fontSize=20, spaceAfter=12, textColor=colors.HexColor('#1f6feb'),
+        )
+        h1_style = ParagraphStyle(
+            'H1', parent=styles['Heading1'],
+            fontSize=14, textColor=colors.HexColor('#0d1117'),
+            borderPad=4, backColor=colors.HexColor('#e6f0ff'),
+            leftIndent=6, spaceAfter=8,
+        )
+        h2_style = ParagraphStyle(
+            'H2', parent=styles['Heading2'],
+            fontSize=12, textColor=colors.HexColor('#1f6feb'),
+        )
+        body_style = styles['Normal']
+        body_style.fontSize = 10
+
+        severity_colors = {
+            'CRITICAL': colors.HexColor('#f85149'),
+            'HIGH':     colors.HexColor('#ff7b72'),
+            'MEDIUM':   colors.HexColor('#d29922'),
+            'LOW':      colors.HexColor('#3fb950'),
+        }
+
+        story = []
+
+        # ── 封面 ──────────────────────────────────────────────
+        story.append(Spacer(1, 1*cm))
+        story.append(Paragraph('網路攻擊分析報告', title_style))
+        story.append(Paragraph(
+            f'<font color="#8b949e">Network Security Analysis Report</font>',
+            ParagraphStyle('sub', parent=styles['Normal'],
+                           fontSize=12, alignment=TA_LEFT)))
+        story.append(HRFlowable(width='100%', thickness=2,
+                                color=colors.HexColor('#1f6feb')))
+        story.append(Spacer(1, 0.5*cm))
+
+        meta_data = [
+            ['Session 名稱', self.session.label],
+            ['分析模式',    self.session.get_mode_display()],
+            ['分析狀態',    self.session.get_task_status_display()],
+            ['封包數量',    str(self.session.packet_count)],
+            ['告警總數',    str(self.session.alert_count)],
+            ['產生時間',    datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
+            ['產生者',      self.user.get_full_name() or self.user.username],
+        ]
+        if self.session.project:
+            meta_data.insert(1, ['所屬專案', self.session.project.name])
+
+        meta_table = Table(meta_data, colWidths=[4*cm, 12*cm])
+        meta_table.setStyle(TableStyle([
+            ('FONTSIZE',  (0, 0), (-1, -1), 10),
+            ('BACKGROUND',(0, 0), (0, -1), colors.HexColor('#f0f6ff')),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#1f6feb')),
+            ('FONTNAME',  (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('GRID',      (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d7de')),
+            ('ROWBACKGROUNDS', (0, 0), (-1, -1),
+             [colors.white, colors.HexColor('#f6f8fa')]),
+            ('PADDING',   (0, 0), (-1, -1), 6),
+        ]))
+        story.append(meta_table)
+        story.append(Spacer(1, 0.8*cm))
+
+        # ── CNN 分析結果 ──────────────────────────────────────
+        if self.cnn:
+            story.append(Paragraph('1. CNN Autoencoder 異常偵測結果', h1_style))
+            cnn_data = [
+                ['指標', '數值'],
+                ['重建誤差閾值',   f'{self.cnn.threshold:.6f}'],
+                ['正常封包數量',   str(self.cnn.normal_count)],
+                ['異常封包數量',   str(self.cnn.anomaly_count)],
+                ['平均正常誤差',   f'{self.cnn.avg_normal_error:.6f}'],
+                ['平均異常誤差',   f'{self.cnn.avg_attack_error:.6f}'],
+                ['偵測率',         f'{self.cnn.detection_rate*100:.2f}%'],
+            ]
+            cnn_table = Table(cnn_data, colWidths=[6*cm, 10*cm])
+            cnn_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f6feb')),
+                ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
+                ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE',   (0, 0), (-1, -1), 10),
+                ('GRID',       (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d7de')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+                 [colors.white, colors.HexColor('#f6f8fa')]),
+                ('PADDING',    (0, 0), (-1, -1), 6),
+            ]))
+            story.append(cnn_table)
+            story.append(Spacer(1, 0.6*cm))
+
+            # Grad-CAM 影像（最多 3 張）
+            if self.gcam_imgs:
+                story.append(Paragraph('Grad-CAM 熱力圖（異常封包）', h2_style))
+                img_row = []
+                for gcam in self.gcam_imgs[:3]:
+                    if gcam.comparison_image:
+                        try:
+                            img_path = gcam.comparison_image.path
+                            rl_img = RLImage(img_path, width=5*cm, height=2.5*cm)
+                            img_row.append(rl_img)
+                        except Exception:
+                            pass
+                if img_row:
+                    while len(img_row) < 3:
+                        img_row.append('')
+                    img_table = Table([img_row], colWidths=[5.5*cm]*3)
+                    img_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ]))
+                    story.append(img_table)
+                story.append(Spacer(1, 0.6*cm))
+
+        # ── 告警摘要 ──────────────────────────────────────────
+        story.append(Paragraph('2. 告警偵測摘要', h1_style))
+
+        # 嚴重程度統計
+        sev_counts = {}
+        for a in self.alerts:
+            sev_counts[a.severity] = sev_counts.get(a.severity, 0) + 1
+
+        if sev_counts:
+            sev_data = [['嚴重程度', '數量']] + [
+                [k, str(v)] for k, v in sorted(
+                    sev_counts.items(),
+                    key=lambda x: ['CRITICAL','HIGH','MEDIUM','LOW'].index(x[0])
+                    if x[0] in ['CRITICAL','HIGH','MEDIUM','LOW'] else 99
+                )
+            ]
+            sev_table = Table(sev_data, colWidths=[4*cm, 4*cm])
+            sev_ts = [
+                ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f6feb')),
+                ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
+                ('GRID',       (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d7de')),
+                ('PADDING',    (0, 0), (-1, -1), 6),
+            ]
+            for i, row in enumerate(sev_data[1:], 1):
+                sev = row[0]
+                c   = severity_colors.get(sev, colors.gray)
+                sev_ts.append(('TEXTCOLOR', (0, i), (0, i), c))
+                sev_ts.append(('FONTNAME',  (0, i), (0, i), 'Helvetica-Bold'))
+            sev_table.setStyle(TableStyle(sev_ts))
+            story.append(sev_table)
+            story.append(Spacer(1, 0.4*cm))
+
+        # 詳細告警清單（前 30 筆）
+        if self.alerts:
+            story.append(Paragraph('告警詳情（前 30 筆）', h2_style))
+            alert_data = [['#', '類型', '嚴重程度', '來源 IP', '說明']]
+            for i, a in enumerate(self.alerts[:30], 1):
+                detail_short = (a.detail[:60] + '...') if len(a.detail) > 60 else a.detail
+                alert_data.append([
+                    str(i), a.attack_type, a.severity,
+                    a.src_ip, detail_short,
+                ])
+            alert_table = Table(alert_data,
+                                colWidths=[0.8*cm, 3.5*cm, 2.5*cm, 3*cm, 6.2*cm])
+            a_ts = [
+                ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f6feb')),
+                ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
+                ('FONTSIZE',   (0, 0), (-1, -1), 8),
+                ('GRID',       (0, 0), (-1, -1), 0.3, colors.HexColor('#d0d7de')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+                 [colors.white, colors.HexColor('#f6f8fa')]),
+                ('PADDING',    (0, 0), (-1, -1), 4),
+                ('VALIGN',     (0, 0), (-1, -1), 'TOP'),
+            ]
+            for i, a in enumerate(self.alerts[:30], 1):
+                c = severity_colors.get(a.severity, colors.gray)
+                a_ts.append(('TEXTCOLOR', (2, i), (2, i), c))
+                a_ts.append(('FONTNAME',  (2, i), (2, i), 'Helvetica-Bold'))
+            alert_table.setStyle(TableStyle(a_ts))
+            story.append(alert_table)
+
+        # ── 頁尾 ──────────────────────────────────────────────
+        story.append(PageBreak())
+        story.append(Spacer(1, 5*cm))
+        story.append(HRFlowable(width='100%', thickness=1,
+                                color=colors.HexColor('#d0d7de')))
+        story.append(Paragraph(
+            f'本報告由網路攻擊分析平台自動產生｜{datetime.now().strftime("%Y-%m-%d")}',
+            ParagraphStyle('footer', parent=styles['Normal'],
+                           fontSize=8, textColor=colors.gray,
+                           alignment=TA_CENTER)))
+
+        doc.build(story)
+        pdf_bytes = buf.getvalue()
+
+        report = AnalysisReport(
+            session=self.session, generated_by=self.user, format='pdf',
+            file_size=len(pdf_bytes),
+        )
+        filename = (f'report_{self.session.pk}_'
+                    f'{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
+        report.file.save(filename, ContentFile(pdf_bytes), save=False)
+        report.save()
+        return report
+
+    # ── JSON ─────────────────────────────────────────────────
+    def _generate_json(self) -> AnalysisReport:
+        data = {
+            'meta': {
+                'session_id':    self.session.pk,
+                'label':         self.session.label,
+                'mode':          self.session.mode,
+                'task_status':   self.session.task_status,
+                'packet_count':  self.session.packet_count,
+                'alert_count':   self.session.alert_count,
+                'project':       self.session.project.name if self.session.project else None,
+                'created_at':    self.session.created_at.isoformat(),
+                'finished_at':   self.session.finished_at.isoformat() if self.session.finished_at else None,
+                'generated_at':  datetime.now().isoformat(),
+                'generated_by':  self.user.username,
+            },
+            'cnn_result': None,
+            'alerts':     [],
+            'gradcam_summary': {
+                'total_images':   self.session.gradcam_images.count(),
+                'anomaly_images': self.session.gradcam_images.filter(is_anomaly=True).count(),
+            },
+        }
+
+        if self.cnn:
+            data['cnn_result'] = {
+                'threshold':        self.cnn.threshold,
+                'normal_count':     self.cnn.normal_count,
+                'anomaly_count':    self.cnn.anomaly_count,
+                'avg_normal_error': self.cnn.avg_normal_error,
+                'avg_attack_error': self.cnn.avg_attack_error,
+                'detection_rate':   self.cnn.detection_rate,
+            }
+
+        for a in self.alerts:
+            data['alerts'].append({
+                'attack_type': a.attack_type,
+                'severity':    a.severity,
+                'src_ip':      a.src_ip,
+                'dst_ip':      a.dst_ip,
+                'dst_port':    a.dst_port,
+                'detail':      a.detail,
+                'suggestion':  a.suggestion,
+                'timestamp':   a.timestamp.isoformat(),
+            })
+
+        json_bytes = json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8')
+        report = AnalysisReport(
+            session=self.session, generated_by=self.user, format='json',
+            file_size=len(json_bytes),
+        )
+        filename = (f'report_{self.session.pk}_'
+                    f'{datetime.now().strftime("%Y%m%d_%H%M%S")}.json')
+        report.file.save(filename, ContentFile(json_bytes), save=False)
+        report.save()
+        return report
+
+    # ── CSV ──────────────────────────────────────────────────
+    def _generate_csv(self) -> AnalysisReport:
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+
+        # Session 摘要區塊
+        writer.writerow(['=== Session 摘要 ==='])
+        writer.writerow(['Session ID', self.session.pk])
+        writer.writerow(['標籤',        self.session.label])
+        writer.writerow(['模式',        self.session.get_mode_display()])
+        writer.writerow(['封包數',      self.session.packet_count])
+        writer.writerow(['告警數',      self.session.alert_count])
+        writer.writerow(['產生時間',    datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+        writer.writerow([])
+
+        # CNN 結果
+        if self.cnn:
+            writer.writerow(['=== CNN 分析結果 ==='])
+            writer.writerow(['閾值', '正常封包', '異常封包',
+                             '平均正常誤差', '平均異常誤差', '偵測率'])
+            writer.writerow([
+                self.cnn.threshold,
+                self.cnn.normal_count,
+                self.cnn.anomaly_count,
+                self.cnn.avg_normal_error,
+                self.cnn.avg_attack_error,
+                f'{self.cnn.detection_rate*100:.2f}%',
+            ])
+            writer.writerow([])
+
+        # 告警清單
+        writer.writerow(['=== 告警清單 ==='])
+        writer.writerow(['#', '攻擊類型', '嚴重程度', '來源 IP',
+                         '目標 IP', '目標 Port', '說明', '建議', '時間'])
+        for i, a in enumerate(self.alerts, 1):
+            writer.writerow([
+                i, a.attack_type, a.severity,
+                a.src_ip, a.dst_ip, a.dst_port or '',
+                a.detail, a.suggestion,
+                a.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            ])
+
+        csv_bytes = buf.getvalue().encode('utf-8-sig')  # BOM for Excel
+        report = AnalysisReport(
+            session=self.session, generated_by=self.user, format='csv',
+            file_size=len(csv_bytes),
+        )
+        filename = (f'report_{self.session.pk}_'
+                    f'{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv')
+        report.file.save(filename, ContentFile(csv_bytes), save=False)
+        report.save()
+        return report
+
+
+========================================================================
+
+// FILE: reports\urls.py
+----------------------------------------
+# reports/urls.py
+from django.urls import path
+from . import views
+
+app_name = 'reports'
+
+urlpatterns = [
+    path('export/<int:session_pk>/',   views.export_report,  name='export'),
+    path('download/<int:pk>/',         views.download_report, name='download'),
+    path('session/<int:session_pk>/',  views.report_list,    name='list'),
+]
+
+
+========================================================================
+
+// FILE: reports\views.py
+----------------------------------------
+# ============================================================
+# reports/views.py
+# 報告匯出：前端觸發與下載
+# ============================================================
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import FileResponse, Http404
+from django.views.decorators.http import require_POST
+
+from analyzer.models import AnalysisSession, AnalysisReport
+
+
+@login_required
+@require_POST
+def export_report(request, session_pk):
+    """
+    POST /reports/export/<session_pk>/
+    觸發報告匯出並導向下載。
+    """
+    session = get_object_or_404(AnalysisSession, pk=session_pk)
+
+    if not request.user.profile.can_export_report:
+        messages.error(request, '您沒有匯出報告的權限。')
+        return redirect('analyzer:session_detail', pk=session_pk)
+
+    fmt = request.POST.get('format', 'pdf').lower()
+    if fmt not in ('pdf', 'json', 'csv'):
+        messages.error(request, '不支援的格式。')
+        return redirect('analyzer:session_detail', pk=session_pk)
+
+    try:
+        from .generators import ReportGenerator
+        gen    = ReportGenerator(session, request.user)
+        report = gen.generate(fmt)
+
+        from accounts.views import _log_action
+        _log_action(request, 'export_report',
+                    f'Session {session_pk} format={fmt}')
+        messages.success(request, f'報告已產生（{fmt.upper()}）。')
+        return redirect('reports:download', pk=report.pk)
+
+    except ImportError as e:
+        messages.error(request, f'缺少必要套件：{e}')
+    except Exception as e:
+        messages.error(request, f'報告產生失敗：{e}')
+
+    return redirect('analyzer:session_detail', pk=session_pk)
+
+
+@login_required
+def download_report(request, pk):
+    """
+    GET /reports/download/<pk>/
+    下載指定報告檔案（串流輸出）。
+    """
+    report = get_object_or_404(AnalysisReport, pk=pk)
+    session = report.session
+
+    # 存取控制
+    user = request.user
+    allowed = (
+        user.profile.is_admin
+        or report.generated_by == user
+        or session.created_by == user
+        or (session.project and (
+            session.project.owner == user or
+            session.project.members.filter(pk=user.pk).exists()
+        ))
+    )
+    if not allowed:
+        raise Http404
+
+    content_types = {
+        'pdf':  'application/pdf',
+        'json': 'application/json',
+        'csv':  'text/csv; charset=utf-8-sig',
+    }
+    content_type = content_types.get(report.format, 'application/octet-stream')
+
+    try:
+        response = FileResponse(
+            report.file.open('rb'),
+            content_type=content_type,
+        )
+        response['Content-Disposition'] = (
+            f'attachment; filename="{report.file.name.split("/")[-1]}"'
+        )
+        return response
+    except FileNotFoundError:
+        raise Http404('報告檔案不存在，請重新產生。')
+
+
+@login_required
+def report_list(request, session_pk):
+    """
+    GET /reports/session/<session_pk>/
+    列出 Session 的所有報告。
+    """
+    session = get_object_or_404(AnalysisSession, pk=session_pk)
+    reports = session.reports.order_by('-created_at')
+    return render(request, 'reports/report_list.html', {
+        'session': session,
+        'reports': reports,
+    })
+
+
+========================================================================
 

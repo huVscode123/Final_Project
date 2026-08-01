@@ -39,6 +39,7 @@ class PacketParser:
             "src_port":      None, "dst_port":     None, "service":      None,
             "flags":         None, "seq":          None, "ack":          None,
             "window":        None, "checksum":     None,
+            "ip_checksum":   None, "transport_checksum": None,
             "icmp_type":     None, "icmp_code":    None, "icmp_desc":    None,
             "arp_op":        None, "arp_src_ip":   None, "arp_dst_ip":   None,
             "arp_src_mac":   None,
@@ -92,7 +93,7 @@ class PacketParser:
         record["protocol"]     = PROTOCOL_MAP.get(ip.proto, str(ip.proto))
         record["ip_flags"]     = str(ip.flags)
         record["ip_fragment"]  = ip.frag
-        record["checksum"]     = hex(ip.chksum) if ip.chksum else None
+        record["ip_checksum"]  = hex(ip.chksum) if ip.chksum is not None else None
 
     # ── 第三層：IPv6 ─────────────────────────────────────
     def _parse_ipv6(self, pkt, record):
@@ -131,7 +132,8 @@ class PacketParser:
         record["seq"]      = tcp.seq
         record["ack"]      = tcp.ack
         record["window"]   = tcp.window
-        record["checksum"] = hex(tcp.chksum) if tcp.chksum else None
+        record["transport_checksum"] = hex(tcp.chksum) if tcp.chksum is not None else None
+        record["checksum"] = record["transport_checksum"]
         record["flags"]    = self._parse_tcp_flags(tcp.flags)
 
         # [Bug 9 修正] 必須同時有 DNS layer 才判定為 DNS，
@@ -145,9 +147,13 @@ class PacketParser:
         udp = pkt[UDP]
         record["src_port"] = udp.sport
         record["dst_port"] = udp.dport
-        record["checksum"] = hex(udp.chksum) if udp.chksum else None
+        record["transport_checksum"] = hex(udp.chksum) if udp.chksum is not None else None
+        record["checksum"] = record["transport_checksum"]
 
-        if udp.dport in (53, 5353):
+        # [修正] dport 也必須同時有 DNS layer 才判定為 DNS，
+        # 避免普通 UDP 封包因 port=53 被誤標為 DNS。
+        # 與 _parse_tcp() 的 Bug 9 修正保持一致。
+        if udp.dport in (53, 5353) and pkt.haslayer(DNS):
             record["protocol"] = "DNS"
         elif udp.sport in (53, 5353) and pkt.haslayer(DNS):
             record["protocol"] = "DNS"
@@ -159,6 +165,9 @@ class PacketParser:
             record["protocol"] = "SSDP"
         elif udp.dport == 123:
             record["protocol"] = "NTP"
+        elif udp.dport == 443 or udp.sport == 443:
+            # QUIC / HTTP3 使用 UDP 443 埠
+            record["protocol"] = "QUIC"
 
     def _parse_icmp(self, pkt, record):
         icmp = pkt[ICMP]
@@ -255,9 +264,11 @@ class PacketParser:
     # ── 靜態工具 ──────────────────────────────────────────
     @staticmethod
     def _parse_tcp_flags(flags) -> str:
+        """解析 TCP 旗標位元，包含 NS (Nonce Sum) 支援"""
         flag_map = {
             0x001: "FIN", 0x002: "SYN", 0x004: "RST", 0x008: "PSH",
             0x010: "ACK", 0x020: "URG", 0x040: "ECE", 0x080: "CWR",
+            0x100: "NS",
         }
         active = [name for bit, name in flag_map.items() if int(flags) & bit]
         return "+".join(active) if active else "NONE"

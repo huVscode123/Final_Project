@@ -28,168 +28,21 @@ from typing import Optional, Tuple
 # 工具函式
 # ──────────────────────────────────────────────────────────
 
-def features_to_image(X: np.ndarray, image_size: int = 32) -> np.ndarray:
-    """
-    將 2D 特徵矩陣 (N, F) 轉換為 CNN 可接受的 (N, 1, image_size, image_size)。
-    若特徵數 F > image_size^2，截取前 image_size^2 個特徵。
-    若特徵數 F < image_size^2，補零至 image_size^2。
-    """
-    n_samples = X.shape[0]
-    n_pixels  = image_size * image_size
+# [修正 #3] 從根目錄共用版本引入模型定義（避免循環 import）
+import importlib.util as _ilu
+_root_cnn_path = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "cnn_autoencoder.py"
+)
+_spec = _ilu.spec_from_file_location("cnn_autoencoder_root", _root_cnn_path)
+_mod  = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_mod)
+Encoder         = _mod.Encoder
+Decoder         = _mod.Decoder
+CNNAutoencoder  = _mod.CNNAutoencoder
+features_to_image = _mod.features_to_image
+evaluate        = _mod.evaluate
 
-    if X.ndim == 4:          # 已是 (N,1,H,W) 格式
-        return X.astype(np.float32)
-    if X.ndim == 3:          # 已是 (N,H,W) 格式
-        return X[:, np.newaxis, :, :].astype(np.float32)
-
-    # 1D/2D → 補零 or 截取 → reshape
-    flat = X.reshape(n_samples, -1).astype(np.float32)
-    if flat.shape[1] < n_pixels:
-        pad = np.zeros((n_samples, n_pixels - flat.shape[1]), dtype=np.float32)
-        flat = np.concatenate([flat, pad], axis=1)
-    elif flat.shape[1] > n_pixels:
-        flat = flat[:, :n_pixels]
-
-    return flat.reshape(n_samples, 1, image_size, image_size)
-
-
-# ──────────────────────────────────────────────────────────
-# 模型本體：Encoder / Decoder / CNNAutoencoder
-# ──────────────────────────────────────────────────────────
-
-class Encoder(nn.Module):
-    """CNN 編碼器：影像 → 潛在向量"""
-
-    def __init__(self, latent_dim: int = 32, image_size: int = 32):
-        super().__init__()
-        self.latent_dim = latent_dim
-        self.image_size = image_size
-
-        self.conv = nn.Sequential(
-            # Block 1
-            nn.Conv2d(1, 16, kernel_size=3, padding=1),
-            nn.BatchNorm2d(16),
-            nn.ReLU(inplace=True),
-            # Block 2
-            nn.Conv2d(16, 32, kernel_size=3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            # Block 3
-            nn.Conv2d(32, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            # Block 4
-            nn.Conv2d(64, 64, kernel_size=3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            # 自適應池化 → 固定輸出 4×4
-            nn.AdaptiveMaxPool2d((4, 4)),
-        )
-
-        self.fc = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(64 * 4 * 4, 128),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.3),
-            nn.Linear(128, latent_dim),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.fc(self.conv(x))
-
-
-class Decoder(nn.Module):
-    """CNN 解碼器：潛在向量 → 重建影像"""
-
-    def __init__(self, latent_dim: int = 32, image_size: int = 32):
-        super().__init__()
-        self.latent_dim = latent_dim
-        self.image_size = image_size
-
-        self.fc = nn.Sequential(
-            nn.Linear(latent_dim, 128),
-            nn.ReLU(inplace=True),
-            nn.Linear(128, 64 * 4 * 4),
-            nn.ReLU(inplace=True),
-        )
-
-        self.deconv = nn.Sequential(
-            nn.ConvTranspose2d(64, 64, kernel_size=2, stride=2),   # 4→8
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(64, 32, kernel_size=2, stride=2),   # 8→16
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),   # 16→32
-            nn.BatchNorm2d(16),
-            nn.ReLU(inplace=True),
-            nn.Upsample(size=(image_size, image_size),
-                        mode="bilinear", align_corners=False),
-            nn.Conv2d(16, 1, kernel_size=3, padding=1),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, z: torch.Tensor) -> torch.Tensor:
-        x = self.fc(z).view(-1, 64, 4, 4)
-        return self.deconv(x)
-
-
-class CNNAutoencoder(nn.Module):
-    """
-    非監督式 CNN Autoencoder 主體
-
-    用法：
-        model = CNNAutoencoder(latent_dim=32)
-        x_hat, z = model(x)              # x: (B,1,32,32)
-        err = model.reconstruction_error(x)   # (B,) MSE 逐樣本
-    """
-
-    def __init__(self, latent_dim: int = 32, image_size: int = 32):
-        super().__init__()
-        self.latent_dim = latent_dim
-        self.image_size = image_size
-        self.encoder = Encoder(latent_dim, image_size)
-        self.decoder = Decoder(latent_dim, image_size)
-
-    def encode(self, x: torch.Tensor) -> torch.Tensor:
-        return self.encoder(x)
-
-    def decode(self, z: torch.Tensor) -> torch.Tensor:
-        return self.decoder(z)
-
-    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        z     = self.encode(x)
-        x_hat = self.decode(z)
-        return x_hat, z
-
-    @torch.no_grad()
-    def reconstruction_error(self, x: torch.Tensor) -> torch.Tensor:
-        """逐樣本重建均方誤差 (B,)"""
-        self.eval()
-        x_hat, _ = self.forward(x)
-        return torch.mean((x - x_hat) ** 2, dim=[1, 2, 3])
-
-    def predict(self,
-                X: np.ndarray,
-                threshold: float,
-                device: Optional[torch.device] = None) -> np.ndarray:
-        """
-        二元分類預測 (分批處理，避免 GPU OOM)。
-        Returns: np.ndarray of int  (0=正常, 1=攻擊)
-        """
-        if device is None:
-            device = next(self.parameters()).device
-        
-        batch_size = 256
-        all_errs = []
-        for i in range(0, len(X), batch_size):
-            chunk = features_to_image(X[i:i + batch_size], self.image_size)
-            imgs  = torch.from_numpy(chunk).to(device)
-            with torch.no_grad():
-                all_errs.append(self.reconstruction_error(imgs).cpu().numpy())
-        
-        errs = np.concatenate(all_errs)
-        return (errs > threshold).astype(int)
 
 
 # ──────────────────────────────────────────────────────────

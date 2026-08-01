@@ -47,27 +47,46 @@ class ThresholdTuner:
         return np.concatenate(all_errors)
 
     @staticmethod
-    def _evaluate_at_threshold(errors_normal: np.ndarray, errors_attack: np.ndarray, threshold: float) -> dict:
+    def _evaluate_at_threshold(errors_normal: np.ndarray, errors_attack: np.ndarray,
+                               threshold: float, pr_auc: float = None) -> dict:
+        """在指定閾值下計算評估指標
+
+        Args:
+            errors_normal: 正常流量的重建誤差
+            errors_attack: 攻擊流量的重建誤差
+            threshold    : 判定閾值
+            pr_auc       : 預先計算的 PR-AUC（避免重複計算）
+        """
         fp = int((errors_normal > threshold).sum()); tn = len(errors_normal) - fp
         tp = int((errors_attack > threshold).sum()); fn = len(errors_attack) - tp
         precision = tp / (tp + fp + 1e-9); recall = tp / (tp + fn + 1e-9)
         f1 = 2 * precision * recall / (precision + recall + 1e-9)
         fpr = fp / (fp + tn + 1e-9); accuracy = (tp + tn) / (len(errors_normal) + len(errors_attack))
-        
-        all_errors = np.concatenate([errors_normal, errors_attack])
-        all_labels = np.concatenate([np.zeros(len(errors_normal)), np.ones(len(errors_attack))])
-        pr_pre, pr_rec, _ = precision_recall_curve(all_labels, all_errors)
-        pr_auc = float(sk_auc(pr_rec, pr_pre))
-        
+
+        # [修正] PR-AUC 與 threshold 無關（只取決於 errors 和 labels），
+        #        若已從外部傳入則直接使用，不重複計算。
+        if pr_auc is None:
+            all_errors = np.concatenate([errors_normal, errors_attack])
+            all_labels = np.concatenate([np.zeros(len(errors_normal)), np.ones(len(errors_attack))])
+            pr_pre, pr_rec, _ = precision_recall_curve(all_labels, all_errors)
+            pr_auc = float(sk_auc(pr_rec, pr_pre))
+
         return {"threshold": threshold, "tp": tp, "tn": tn, "fp": fp, "fn": fn, "precision": precision, "recall": recall, "f1": f1, "fpr": fpr, "accuracy": accuracy, "pr_auc": pr_auc}
 
     def scan_percentiles(self, X_normal, X_attack, percentiles=None) -> list:
         if percentiles is None: percentiles = [80, 85, 90, 92, 95, 97, 99, 99.5]
         en = self._compute_errors(X_normal); ea = self._compute_errors(X_attack)
+
+        # [修正] PR-AUC 只需計算一次（與 threshold 無關）
+        all_errors = np.concatenate([en, ea])
+        all_labels = np.concatenate([np.zeros(len(en)), np.ones(len(ea))])
+        pr_pre, pr_rec, _ = precision_recall_curve(all_labels, all_errors)
+        pr_auc = float(sk_auc(pr_rec, pr_pre))
+
         results = []
         for pct in percentiles:
             thr = float(np.percentile(en, pct))
-            res = self._evaluate_at_threshold(en, ea, thr)
+            res = self._evaluate_at_threshold(en, ea, thr, pr_auc=pr_auc)
             res["percentile"] = pct; results.append(res)
         return results
 

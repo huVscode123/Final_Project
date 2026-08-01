@@ -2,24 +2,26 @@ import os
 from datetime import datetime
 
 # ── 配置 ─────────────────────────────────────────────────
-BACKEND_DIRS = ['analyzer', 'api', 'network_platform']
+BACKEND_DIRS = ['accounts', 'analyzer', 'api', 'network_platform', 'projects', 'reports']
 BACKEND_FILES = ['manage.py', 'requirements.txt']
 BACKEND_OUTPUT = 'django_backend_system.txt'
+LOGIC_OUTPUT = 'django_logic.txt'
 
 FRONTEND_DIRS = ['templates']
 FRONTEND_OUTPUT = 'django_frontend_templates.txt'
 
-def collect_backend_files():
+def collect_backend_files(include_root_files=True):
     collected = []
     for d in BACKEND_DIRS:
         if not os.path.exists(d): continue
         for root, dirs, files in os.walk(d):
             if 'migrations' in root or '__pycache__' in root: continue
-            for f in files:
+            for f in sorted(files):
                 if f.endswith('.py') and f != '__init__.py':
                     collected.append(os.path.join(root, f))
-    for f in BACKEND_FILES:
-        if os.path.exists(f): collected.append(f)
+    if include_root_files:
+        for f in BACKEND_FILES:
+            if os.path.exists(f): collected.append(f)
     return sorted(collected)
 
 def collect_frontend_files():
@@ -28,7 +30,7 @@ def collect_frontend_files():
         if not os.path.exists(d): continue
         for root, dirs, files in os.walk(d):
             if '__pycache__' in root: continue
-            for f in files:
+            for f in sorted(files):
                 if f.endswith('.html'):
                     collected.append(os.path.join(root, f))
     return sorted(collected)
@@ -59,10 +61,14 @@ def export_to_file(file_list, output_path, title):
     print(f"成功匯出: {output_path}")
 
 if __name__ == "__main__":
-    # 執行後端匯出
-    backend_files = collect_backend_files()
-    export_to_file(backend_files, BACKEND_OUTPUT, "Django 後端系統程式碼彙整 (Python/Logic)")
+    # 執行後端匯出 (包含 manage.py, requirements.txt)
+    backend_files = collect_backend_files(include_root_files=True)
+    export_to_file(backend_files, BACKEND_OUTPUT, "Django 後端系統程式碼彙整 (Python/System)")
     
+    # 執行邏輯匯出 (純 Python 業務邏輯模組)
+    logic_files = collect_backend_files(include_root_files=False)
+    export_to_file(logic_files, LOGIC_OUTPUT, "Django 核心業務邏輯彙整 (Python/Logic)")
+
     # 執行前端匯出
     frontend_files = collect_frontend_files()
     export_to_file(frontend_files, FRONTEND_OUTPUT, "Django 前端模板與佈局彙整 (HTML/Templates)")

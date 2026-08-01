@@ -60,19 +60,19 @@
 {% block content %}
 <div class="page-bar">
   <div>
-    <div class="page-title">Security Overview</div>
+    <div class="page-title">安全總覽</div>
     <div class="page-sub" id="pageDateTime"></div>
   </div>
   <div class="page-controls">
     {% if total_alerts > 0 %}
     <div class="threat-badge">
       <span class="threat-dot"></span>
-      <span class="threat-text">THREAT LEVEL: {% if crit_count > 0 %}CRITICAL{% elif high_count > 0 %}HIGH{% else %}ELEVATED{% endif %}</span>
+      <span class="threat-text">威脅等級：{% if crit_count > 0 %}嚴重{% elif high_count > 0 %}高{% else %}警戒{% endif %}</span>
     </div>
     {% else %}
     <div class="threat-badge" style="background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.25)">
       <span class="threat-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);animation:none"></span>
-      <span class="threat-text" style="color:var(--green)">ALL SYSTEMS NORMAL</span>
+      <span class="threat-text" style="color:var(--green)">系統正常運作</span>
     </div>
     {% endif %}
     <a href="{% url 'analyzer:upload' %}" class="btn-primary">
@@ -87,7 +87,7 @@
   <div class="kpi-card" style="border:1px solid rgba(34,197,94,.2);box-shadow:0 0 28px rgba(34,197,94,.05)">
     <div class="kpi-glow" style="background:var(--green)"></div>
     <div class="kpi-top">
-      <div><div class="kpi-title">Total Sessions</div><div class="kpi-sub">累積分析次數</div></div>
+      <div><div class="kpi-title">分析任務</div><div class="kpi-sub">累積分析次數</div></div>
       <div class="kpi-icon" style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2)">
         <svg fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       </div>
@@ -101,7 +101,7 @@
   <div class="kpi-card" style="border:1px solid rgba(239,68,68,.2);box-shadow:0 0 28px rgba(239,68,68,.05)">
     <div class="kpi-glow" style="background:var(--red)"></div>
     <div class="kpi-top">
-      <div><div class="kpi-title">Active Alerts</div><div class="kpi-sub">告警總數</div></div>
+      <div><div class="kpi-title">安全告警</div><div class="kpi-sub">告警總數</div></div>
       <div class="kpi-icon" style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2)">
         <svg fill="none" viewBox="0 0 24 24" stroke="#ef4444" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
       </div>
@@ -116,7 +116,7 @@
   <div class="kpi-card" style="border:1px solid rgba(59,130,246,.2);box-shadow:0 0 28px rgba(59,130,246,.05)">
     <div class="kpi-glow" style="background:var(--blue)"></div>
     <div class="kpi-top">
-      <div><div class="kpi-title">CNN Threshold</div><div class="kpi-sub">重建誤差閾值</div></div>
+      <div><div class="kpi-title">CNN 閾值</div><div class="kpi-sub">重建誤差閾值</div></div>
       <div class="kpi-icon" style="background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2)">
         <svg fill="none" viewBox="0 0 24 24" stroke="#3b82f6" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </div>
@@ -130,7 +130,7 @@
   <div class="kpi-card" style="border:1px solid rgba(168,85,247,.2);box-shadow:0 0 28px rgba(168,85,247,.05)">
     <div class="kpi-glow" style="background:var(--purple)"></div>
     <div class="kpi-top">
-      <div><div class="kpi-title">Projects</div><div class="kpi-sub">專案管理</div></div>
+      <div><div class="kpi-title">專案</div><div class="kpi-sub">專案管理</div></div>
       <div class="kpi-icon" style="background:rgba(168,85,247,.07);border:1px solid rgba(168,85,247,.2)">
         <svg fill="none" viewBox="0 0 24 24" stroke="#a855f7" stroke-width="2"><path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7l9 6 9-6"/></svg>
       </div>
@@ -146,8 +146,8 @@
 <div class="chart-panel">
   <div class="chart-header">
     <div>
-      <div class="chart-title">Network Traffic Analysis · Alerts × Session Trend</div>
-      <div class="chart-sub">Semi-supervised CNN Autoencoder · 即時資料</div>
+      <div class="chart-title">網路流量分析 · 告警 × 任務趨勢</div>
+      <div class="chart-sub">半監督式 CNN Autoencoder · 即時資料</div>
     </div>
     <div class="chart-controls">
       <div class="legend-pill"><span class="legend-dot" style="background:#22c55e"></span>Sessions</div>
@@ -180,14 +180,14 @@
 <div class="bottom-row">
   <div class="alerts-panel">
     <div class="panel-header">
-      <div><div class="panel-title">Recent Alerts</div><div class="panel-sub">{{ total_alerts }} total · 最新 {{ recent_alerts|length }} 筆</div></div>
+      <div><div class="panel-title">最近告警</div><div class="panel-sub">共 {{ total_alerts }} 筆 · 顯示最新 {{ recent_alerts|length }} 筆</div></div>
       <div style="display:flex;gap:8px">
         <a href="{% url 'analyzer:sessions' %}?status=done" class="btn-ghost btn-sm">All Sessions</a>
       </div>
     </div>
     <div class="alerts-table-wrap">
       <table>
-        <thead><tr><th>Severity</th><th>Type</th><th>Source IP</th><th>Session</th><th>Time</th></tr></thead>
+        <thead><tr><th>嚴重度</th><th>類型</th><th>來源 IP</th><th>Session</th><th>時間</th></tr></thead>
         <tbody>
           {% for a in recent_alerts %}
           <tr>
@@ -198,7 +198,7 @@
             <td style="color:var(--text-muted);font-size:.7rem">{{ a.timestamp|date:"m/d H:i" }}</td>
           </tr>
           {% empty %}
-          <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--green);font-size:.8rem">✓ No alerts detected</td></tr>
+          <tr><td colspan="5" style="text-align:center;padding:20px;color:var(--green);font-size:.8rem">✓ 尚無告警記錄</td></tr>
           {% endfor %}
         </tbody>
       </table>
@@ -211,29 +211,29 @@
 
   <div class="model-panel">
     <div class="panel-header">
-      <div><div class="panel-title">Model Status</div><div class="panel-sub">CNN Autoencoder</div></div>
-      <div class="training-badge"><span class="dot"></span>Online</div>
+      <div><div class="panel-title">模型狀態</div><div class="panel-sub">CNN Autoencoder</div></div>
+      <div class="training-badge"><span class="dot"></span>上線中</div>
     </div>
     <div class="model-body">
       <div class="metric-row">
         <svg fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="2"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/></svg>
-        <span class="metric-label">Model Type</span><span class="metric-val">CNN Autoencoder</span>
+        <span class="metric-label">模型類型</span><span class="metric-val">CNN Autoencoder</span>
       </div>
       <div class="metric-row">
         <svg fill="none" viewBox="0 0 24 24" stroke="#3b82f6" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        <span class="metric-label">Latent Dim</span><span class="metric-val">{{ cnn_latent_dim }}</span>
+        <span class="metric-label">潛在維度</span><span class="metric-val">{{ cnn_latent_dim }}</span>
       </div>
       <div class="metric-row">
         <svg fill="none" viewBox="0 0 24 24" stroke="#f97316" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-        <span class="metric-label">Threshold</span><span class="metric-val" style="color:var(--yellow)">{{ cnn_threshold }}</span>
+        <span class="metric-label">異常閾值</span><span class="metric-val" style="color:var(--yellow)">{{ cnn_threshold }}</span>
       </div>
       <div class="metric-row">
         <svg fill="none" viewBox="0 0 24 24" stroke="#ef4444" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-        <span class="metric-label">Total Anomalies</span><span class="metric-val" style="color:var(--red)">{{ total_anomalies }}</span>
+        <span class="metric-label">總異常數</span><span class="metric-val" style="color:var(--red)">{{ total_anomalies }}</span>
       </div>
       <div class="metric-row">
         <svg fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-        <span class="metric-label">Completed</span><span class="metric-val" style="color:var(--green)">{{ done_count }} sessions</span>
+        <span class="metric-label">已完成</span><span class="metric-val" style="color:var(--green)">{{ done_count }} 個任務</span>
       </div>
     </div>
   </div>
@@ -241,10 +241,10 @@
 
 <!-- Recent Sessions Table -->
 <div class="card">
-  <div class="card-title"><span class="dot"></span>Recent Sessions</div>
+  <div class="card-title"><span class="dot"></span>近期分析任務</div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>ID</th><th>Label</th><th>Status</th><th>Packets</th><th>Alerts</th><th>CNN</th><th>Project</th><th>Time</th><th></th></tr></thead>
+      <thead><tr><th>ID</th><th>標籤</th><th>狀態</th><th>封包數</th><th>告警</th><th>CNN</th><th>專案</th><th>時間</th><th></th></tr></thead>
       <tbody>
         {% for s in recent_sessions %}
         <tr>
@@ -269,7 +269,7 @@
   </div>
 </div>
 
-<div class="dash-footer">VNAAP v2.5.0 · CNN Autoencoder Anomaly Detection Engine · © 2026</div>
+<div class="dash-footer">VNAAP v3.0.0 · CNN Autoencoder 異常偵測引擎 · © 2026</div>
 {% endblock %}
 
 {% block extra_js %}

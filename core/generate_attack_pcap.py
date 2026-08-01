@@ -347,6 +347,109 @@ def gen_mixed_attacks():
     ok("mixed_attacks.pcap", len(pkts))
 
 
+# ─── 9. API 即時生成 (供網頁前端模擬使用) ─────────────────
+def generate_attack_packets(attack_type, count):
+    """
+    根據攻擊類型與數量即時產生 Scapy 封包陣列，不寫入檔案。
+
+    支援的攻擊類型：
+      - syn_flood       : TCP SYN 洪水攻擊
+      - port_scan       : 端口掃描探測
+      - icmp_flood      : ICMP Ping 洪水
+      - udp_flood       : UDP 洪水攻擊
+      - arp_spoof       : ARP 欺騙攻擊
+      - dns_amplification: DNS 放大反射攻擊
+      - normal_traffic / normal : 正常混合流量
+    """
+    pkts = []
+    attacker = "10.10.10.10"
+    victim = "192.168.1.100"
+
+    if attack_type == 'syn_flood':
+        for i in range(count):
+            spoofed_src = f"172.16.{i // 256}.{i % 256}"
+            pkts.append(
+                IP(src=spoofed_src, dst=victim)
+                / TCP(sport=10000 + (i % 50000), dport=80, flags="S", seq=1000 + i)
+            )
+
+    elif attack_type == 'port_scan':
+        for i in range(count):
+            pkts.append(
+                IP(src=attacker, dst=victim)
+                / TCP(dport=20 + (i % 1000), flags="S")
+            )
+
+    elif attack_type == 'icmp_flood':
+        for i in range(count):
+            pkts.append(
+                IP(src=attacker, dst=victim, id=i)
+                / ICMP(type=8, code=0, id=1, seq=i)
+                / (b"X" * 56)
+            )
+
+    elif attack_type == 'udp_flood':
+        for i in range(count):
+            pkts.append(
+                IP(src=attacker, dst=victim)
+                / UDP(sport=10000 + (i % 50000), dport=80)
+                / (b"\x00" * 512)
+            )
+
+    elif attack_type == 'arp_spoof':
+        atk_mac = "ff:ee:dd:cc:bb:aa"
+        for i in range(count):
+            pkts.append(
+                Ether(src=atk_mac, dst="aa:bb:cc:dd:ee:ff")
+                / ARP(op=2, psrc="192.168.1.1", pdst=victim,
+                      hwsrc=atk_mac, hwdst="aa:bb:cc:dd:ee:ff")
+            )
+
+    elif attack_type == 'dns_amplification':
+        # DNS 放大反射攻擊：偽造來源 IP 向 DNS 伺服器發送大量 ANY 查詢
+        # qtype=255 即 ANY 查詢類型（Scapy 不接受字串 'ANY'）
+        for i in range(count):
+            spoofed_src = f"172.16.{i // 256}.{i % 256}"
+            pkts.append(
+                IP(src=spoofed_src, dst="8.8.8.8")
+                / UDP(sport=10000 + (i % 50000), dport=53)
+                / DNS(rd=1, qd=DNSQR(qname=f"amplify{i}.com", qtype=255))
+            )
+
+    else:
+        # normal_traffic / normal / 其他 → 正常混合流量
+        for i in range(count):
+            variant = i % 4
+            if variant == 0:
+                # 正常 HTTP 請求
+                pkts.append(
+                    IP(src=victim, dst="93.184.216.34")
+                    / TCP(sport=50000 + (i % 5000), dport=80, flags="PA")
+                    / b"GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n"
+                )
+            elif variant == 1:
+                # DNS 查詢
+                pkts.append(
+                    IP(src=victim, dst="8.8.8.8")
+                    / UDP(sport=55000 + (i % 5000), dport=53)
+                    / DNS(rd=1, qd=DNSQR(qname="google.com"))
+                )
+            elif variant == 2:
+                # ICMP Ping
+                pkts.append(
+                    IP(src=victim, dst="8.8.8.8")
+                    / ICMP(type=8, code=0, id=1, seq=i)
+                )
+            else:
+                # HTTPS 連線
+                pkts.append(
+                    IP(src=victim, dst="93.184.216.34")
+                    / TCP(sport=50000 + (i % 5000), dport=443, flags="PA")
+                    / b"\x16\x03\x03\x00\x05\x01\x00\x00\x01\x00"
+                )
+
+    return pkts
+
 # ─── 主程式 ───────────────────────────────────────────────
 if __name__ == "__main__":
     print("\n" + "="*55)

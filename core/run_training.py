@@ -184,11 +184,19 @@ def main():
     # ── Step 6：評估 ──────────────────────────────────────
     if os.path.exists(attack_npy):
         print("\n[Step 6] 模型效能評估")
-        X_test = np.concatenate([X_normal, X_attack])
+
+        # [修正] 分離測試集，避免資料洩漏
+        # 原版使用完整的 X_normal（包含訓練集）進行評估，
+        # 模型在自己見過的資料上被評估，導致指標過度樂觀。
+        # 現在只使用 20% 的正常流量作為測試集（與訓練時的 val_split 一致）。
+        n_test = max(1, int(len(X_normal) * 0.2))
+        X_normal_test = X_normal[-n_test:]    # 取最後 20% 作為測試（不與訓練集重疊）
+        X_test = np.concatenate([X_normal_test, X_attack])
         y_test = np.concatenate([
-            np.zeros(len(X_normal), dtype=int),
-            np.ones(len(X_attack),  dtype=int)
+            np.zeros(len(X_normal_test), dtype=int),
+            np.ones(len(X_attack),       dtype=int)
         ])
+        print(f"  測試集: {len(X_normal_test)} 正常 + {len(X_attack)} 攻擊 = {len(X_test)} 樣本")
         results = scorer.evaluate(X_test, y_test, output_dir=args.output)
  
         errors_normal = scorer.score_npy(normal_npy)

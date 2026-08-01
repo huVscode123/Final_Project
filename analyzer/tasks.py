@@ -150,6 +150,21 @@ def run_pcap_analysis(self, session_id):
         raise self.retry(exc=exc)
 
 
+def _compute_errors_batched(model, X, device, batch_size=256):
+    """[P1-3 修正] 分批推論，避免大型 pcap 造成 GPU OOM"""
+    import numpy as np
+    import torch
+    errs = []
+    with torch.no_grad():
+        for i in range(0, len(X), batch_size):
+            batch = torch.from_numpy(
+                X[i:i+batch_size, np.newaxis, :, :].astype(np.float32)
+            ).to(device)
+            e = model.reconstruction_error(batch)
+            errs.append(e.cpu().numpy())
+    return np.concatenate(errs)
+
+
 def _run_cnn_analysis(session, pcap_path):
     """CNN Autoencoder 推論，回傳指標 dict（失敗回傳 None）。"""
     import numpy as np
@@ -166,8 +181,16 @@ def _run_cnn_analysis(session, pcap_path):
         from scapy.all import rdpcap
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model  = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        # ── [P1-2 修正] 優先從 checkpoint 讀取閾值 ──
+        ckpt = torch.load(model_path, map_location=device, weights_only=True)
+        if isinstance(ckpt, dict) and 'model_state' in ckpt:
+            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
+            model.load_state_dict(ckpt['model_state'])
+            threshold = float(ckpt.get('threshold', settings.CNN_THRESHOLD))
+        else:
+            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
+            model.load_state_dict(ckpt)
+            threshold = float(settings.CNN_THRESHOLD)
         model.eval()
 
         packets = rdpcap(pcap_path)
@@ -184,12 +207,8 @@ def _run_cnn_analysis(session, pcap_path):
             return None
 
         X        = np.array(images, dtype=np.float32)
-        X_tensor = torch.from_numpy(X[:, np.newaxis, :, :]).to(device)
-
-        with torch.no_grad():
-            errors = model.reconstruction_error(X_tensor).cpu().numpy()
-
-        threshold    = float(settings.CNN_THRESHOLD)
+        
+        errors = _compute_errors_batched(model, X, device)
         anomaly_mask = errors > threshold
         n_normal     = int((~anomaly_mask).sum())
         n_anomaly    = int(anomaly_mask.sum())

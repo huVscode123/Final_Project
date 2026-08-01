@@ -96,10 +96,18 @@ class TestTCPPacket:
 class TestUDPPacket:
 
     def test_dns_over_udp(self, parser):
-        """DNS over UDP（Port 53）識別"""
-        pkt = IP(src="192.168.1.1", dst="8.8.8.8") / UDP(sport=55000, dport=53)
+        """DNS over UDP（Port 53）識別 — 必須同時含有 DNS layer"""
+        pkt = (IP(src="192.168.1.1", dst="8.8.8.8")
+               / UDP(sport=55000, dport=53)
+               / DNS(rd=1, qd=DNSQR(qname="example.com")))
         r = parser.parse(pkt)
         assert r["protocol"] == "DNS"
+
+    def test_udp_port53_without_dns_layer(self, parser):
+        """純 UDP dport=53 但無 DNS layer 不應被標為 DNS——這是 Bug 修正驗證"""
+        pkt = IP(src="192.168.1.1", dst="8.8.8.8") / UDP(sport=55000, dport=53)
+        r = parser.parse(pkt)
+        assert r["protocol"] == "UDP"
 
     def test_dhcp_detection(self, parser):
         """DHCP（Port 67/68）識別"""

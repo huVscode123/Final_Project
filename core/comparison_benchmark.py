@@ -389,8 +389,10 @@ class ComparisonBenchmark:
         self.X_normal_test  = X_normal[idx_n[:n_n_test]].astype(np.float32)
 
         # 攻擊流量：全部用於測試（微調只用 attack_ratio 比例的子集，在訓練內部抽取）
-        self.X_attack_train = X_attack.astype(np.float32)   # Phase 2 微調抽樣用
-        self.X_attack_test  = X_attack.astype(np.float32)   # 評估時全部使用
+        idx_a = np.random.default_rng(42).permutation(len(X_attack))
+        split_a = int(len(X_attack) * 0.5)
+        self.X_attack_train = X_attack[idx_a[:split_a]].astype(np.float32)
+        self.X_attack_test  = X_attack[idx_a[split_a:]].astype(np.float32)
 
         print(f"  [ComparisonBenchmark] 資料切分：")
         print(f"    正常流量訓練: {len(self.X_normal_train):,}  "

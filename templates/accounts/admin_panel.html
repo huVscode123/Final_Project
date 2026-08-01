@@ -1,0 +1,161 @@
+{% extends 'base/base.html' %}
+{% block title %}管理員面板 — VNAAP{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <h1 class="page-title">管理員面板</h1>
+    <p class="page-sub">使用者管理 · 系統統計 · 操作稽核</p>
+  </div>
+</div>
+
+<!-- ── KPI 統計 ── -->
+<div class="kpi-grid">
+  <div class="kpi-card kpi-accent">
+    <div class="kpi-icon"><svg fill="none" viewBox="0 0 24 24" stroke="var(--accent)" stroke-width="2"><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197"/></svg></div>
+    <div class="kpi-value" data-animate-count="{{ stats.total_users }}">0</div>
+    <div class="kpi-label">總使用者數</div>
+    <div class="kpi-trend" style="color:var(--text-muted);">
+      管理員 {{ stats.admin_count }} · 分析師 {{ stats.analyst_count }} · 檢視者 {{ stats.viewer_count }}
+    </div>
+  </div>
+  <div class="kpi-card kpi-blue">
+    <div class="kpi-icon"><svg fill="none" viewBox="0 0 24 24" stroke="var(--blue)" stroke-width="2"><path d="M9 17v-2m3 2v-4m3 4v-6m2 10H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2z"/></svg></div>
+    <div class="kpi-value" data-animate-count="{{ stats.total_sessions }}">0</div>
+    <div class="kpi-label">分析任務</div>
+    <div class="kpi-trend" style="color:var(--green);">已完成 {{ stats.done_sessions }}</div>
+  </div>
+  <div class="kpi-card kpi-red">
+    <div class="kpi-icon"><svg fill="none" viewBox="0 0 24 24" stroke="var(--red)" stroke-width="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div>
+    <div class="kpi-value" data-animate-count="{{ stats.total_alerts }}">0</div>
+    <div class="kpi-label">安全告警</div>
+    <div class="kpi-trend down">嚴重 {{ stats.critical_alerts }}</div>
+  </div>
+  <div class="kpi-card kpi-green">
+    <div class="kpi-icon"><svg fill="none" viewBox="0 0 24 24" stroke="var(--green)" stroke-width="2"><path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7l9 6 9-6"/></svg></div>
+    <div class="kpi-value" data-animate-count="{{ stats.total_projects }}">0</div>
+    <div class="kpi-label">活躍專案</div>
+  </div>
+</div>
+
+<!-- ── Tabs 區域 ── -->
+<div class="card" data-tabs>
+  <div class="tab-nav">
+    <div class="tab-item active" data-tab="tab-users">👤 使用者管理</div>
+    <div class="tab-item" data-tab="tab-logs">📋 操作稽核日誌</div>
+  </div>
+  <div class="tab-content">
+    <!-- 使用者管理 Tab -->
+    <div class="tab-pane active" id="tab-users">
+      <div class="table-wrap">
+        <table data-sortable>
+          <thead>
+            <tr>
+              <th data-sort="text">帳號</th>
+              <th data-sort="text">姓名</th>
+              <th data-sort="text">角色</th>
+              <th data-sort="text">組織</th>
+              <th data-sort="date">加入日期</th>
+              <th>狀態</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in users %}
+            <tr id="user-row-{{ u.id }}">
+              <td><code>{{ u.username }}</code></td>
+              <td>{{ u.get_full_name|default:"-" }}</td>
+              <td>
+                <select class="form-input btn-sm" style="width:auto;padding:4px 8px;font-size:0.72rem;"
+                        onchange="changeRole({{ u.id }}, this.value)"
+                        {% if u.id == request.user.id %}disabled{% endif %}>
+                  <option value="admin" {% if u.profile.role == 'admin' %}selected{% endif %}>管理員</option>
+                  <option value="analyst" {% if u.profile.role == 'analyst' %}selected{% endif %}>分析師</option>
+                  <option value="viewer" {% if u.profile.role == 'viewer' %}selected{% endif %}>檢視者</option>
+                </select>
+              </td>
+              <td class="text-sec">{{ u.profile.organization|default:"-" }}</td>
+              <td class="mono" style="font-size:0.72rem;">{{ u.date_joined|date:"Y-m-d" }}</td>
+              <td>
+                {% if u.is_active %}
+                <span class="badge badge-success">啟用</span>
+                {% else %}
+                <span class="badge badge-danger">停用</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if u.id != request.user.id %}
+                <button class="btn-ghost btn-sm" onclick="toggleActive({{ u.id }})">
+                  {% if u.is_active %}停用{% else %}啟用{% endif %}
+                </button>
+                {% else %}
+                <span class="text-muted" style="font-size:0.72rem;">目前帳號</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="7" class="text-center text-muted">無使用者資料</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 操作稽核日誌 Tab -->
+    <div class="tab-pane" id="tab-logs">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>時間</th>
+              <th>使用者</th>
+              <th>操作</th>
+              <th>詳情</th>
+              <th>IP 位址</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for log in logs %}
+            <tr>
+              <td class="mono" style="font-size:0.72rem;">{{ log.timestamp|date:"m/d H:i:s" }}</td>
+              <td><code>{{ log.user.username }}</code></td>
+              <td><span class="badge badge-info">{{ log.action }}</span></td>
+              <td class="text-sec" style="max-width:300px;" title="{{ log.detail }}">{{ log.detail|truncatewords:10 }}</td>
+              <td class="mono text-muted" style="font-size:0.72rem;">{{ log.ip_address|default:"-" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="5" class="text-center text-muted">暫無稽核日誌</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function changeRole(userId, newRole) {
+  if (!await confirmAction(`確定要變更此使用者的角色為「${newRole}」嗎？`, '確認變更', 'primary')) {
+    location.reload(); return;
+  }
+  try {
+    const res = await VNAAP.api(`/accounts/admin/user/${userId}/`, {
+      method: 'POST', body: JSON.stringify({ action: 'change_role', role: newRole })
+    });
+    showToast('角色已更新', 'success');
+  } catch(e) { showToast('操作失敗', 'error'); location.reload(); }
+}
+async function toggleActive(userId) {
+  if (!await confirmAction('確定要切換此使用者的啟用狀態嗎？', '確認', 'danger')) return;
+  try {
+    const res = await VNAAP.api(`/accounts/admin/user/${userId}/`, {
+      method: 'POST', body: JSON.stringify({ action: 'toggle_active' })
+    });
+    showToast('狀態已更新', 'success');
+    location.reload();
+  } catch(e) { showToast('操作失敗', 'error'); }
+}
+</script>
+{% endblock %}

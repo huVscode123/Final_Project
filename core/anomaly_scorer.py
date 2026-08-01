@@ -88,12 +88,15 @@ class AnomalyScorer:
         is_attack = (self.threshold is not None) and (score > self.threshold)
         return score, is_attack
 
-    def score_batch(self, raw_bytes_list: list) -> list:
+    def score_batch(self, raw_bytes_list: list, batch_size: int = 64) -> list:
         """
         批次計分多個封包
 
+        [修正] 改用 DataLoader 分批處理，避免大量封包一次性轉入 GPU 造成 OOM
+
         Args:
             raw_bytes_list: 原始封包 bytes 列表
+            batch_size    : 批次大小（預設 64）
         Returns:
             list of (score, is_attack) tuples
         """
@@ -101,11 +104,18 @@ class AnomalyScorer:
             self.visualizer.bytes_to_image(b) for b in raw_bytes_list
         ], dtype=np.float32)                                           # (N, 32, 32)
 
-        tensor = torch.from_numpy(arrs[:, np.newaxis]).to(self.device) # (N, 1, 32, 32)
-        errors = self.model.reconstruction_error(tensor).cpu().numpy()
+        tensor = torch.from_numpy(arrs[:, np.newaxis])                 # (N, 1, 32, 32)
+        loader = DataLoader(TensorDataset(tensor), batch_size=batch_size, shuffle=False)
 
-        return [(float(e), bool(e > self.threshold) if self.threshold else False)
-                for e in errors]
+        results = []
+        with torch.no_grad():
+            for (batch,) in loader:
+                batch = batch.to(self.device)
+                errors = self.model.reconstruction_error(batch).cpu().numpy()
+                for e in errors:
+                    is_atk = bool(e > self.threshold) if self.threshold is not None else False
+                    results.append((float(e), is_atk))
+        return results
 
     def score_npy(self, npy_path: str) -> np.ndarray:
         """
@@ -155,7 +165,13 @@ class AnomalyScorer:
                 scores.extend(err.cpu().numpy().tolist())
         scores = np.array(scores)
 
-        # 依閾值判定預測標籤
+        # [修正] 前置檢查：threshold 為 None 時無法進行閾值判定
+        if self.threshold is None:
+            raise ValueError(
+                "threshold 未設定，請先呼叫 set_threshold() 或在建構時傳入 threshold 參數"
+            )
+
+        # 計算所有樣本的重建誤差
         y_pred = (scores > self.threshold).astype(int)
 
         # 計算基本指標
@@ -351,20 +367,20 @@ class AnomalyScorer:
         print(f"  [圖表] 分數分布圖已儲存: {path}")
 
     # ── Grad-CAM 異常位元組回映 ───────────────────────────
-    def gradcam_packet(self, raw_bytes: bytes,
+    def saliency_map_packet(self, raw_bytes: bytes,
                        save_path: str = None) -> np.ndarray:
         """
-        對單一封包執行 Grad-CAM，回映異常特徵到影像
+        計算封包的 Saliency Map（輸入梯度重要性圖）
+
+        [修正] 原名為 gradcam_packet，但實際計算的是 Saliency Map（輸入梯度），
+               而非真正的 Grad-CAM（中間層梯度加權）。已正名以避免誤導。
+
+        [修正] 使用 torch.enable_grad() 上下文管理器，保持 eval 模式不變，
+               避免切換到 train 模式後改變 BatchNorm 行為。
 
         原理：
-          1. 計算重建誤差對 Encoder 最後一層 feature map 的梯度
-          2. 對梯度取全域平均池化，得到每個 channel 的權重
-          3. 加權求和 feature map → CAM（Class Activation Map）
-          4. 疊加到原始封包影像，高亮顯示異常區域
-
-        注意：
-          傳統 Grad-CAM 設計給分類任務，這裡改為對「重建誤差」求梯度
-          誤差最高的區域 ≈ 與正常封包差異最大的位元組段
+          對重建誤差反向傳播，取輸入層的梯度作為每個像素的重要性分數。
+          梯度大的像素 = 改變該像素會大幅影響重建誤差 = 異常特徵所在。
 
         Args:
             raw_bytes: 原始封包位元組
@@ -377,32 +393,40 @@ class AnomalyScorer:
         tensor = torch.from_numpy(arr).unsqueeze(0).unsqueeze(0)       # (1,1,32,32)
         tensor = tensor.to(self.device).requires_grad_(True)
 
-        # 前向傳播
-        self.model.train()   # 需要 requires_grad
-        x_hat, _ = self.model(tensor)
-
-        # 目標：重建誤差（對每個像素的誤差求和）
-        recon_error = torch.mean((tensor - x_hat) ** 2)
-
-        # 反向傳播（對 Encoder 最後一層的激活求梯度）
-        self.model.zero_grad()
-        recon_error.backward()
-
-        # 取 Encoder Conv 最後一層的梯度與激活
-        # （這裡簡化：直接用輸入梯度作為重要性圖）
-        grad_map = tensor.grad.squeeze().cpu().numpy()                 # (32, 32)
-
-        # 正規化梯度圖
-        cam = np.abs(grad_map)
-        cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
-
-        # 疊加到封包影像
-        overlay = self.visualizer.create_heatmap_overlay(
-            arr, cam, alpha=0.65, save_path=save_path
-        )
-
+        # [修正] 保持 eval 模式，使用 enable_grad 啟用梯度計算
+        # 原版使用 model.train() 會改變 BatchNorm 行為（用當前 batch 統計量
+        # 而非訓練時累積的移動平均），導致只有 1 個樣本時結果極度不穩定。
         self.model.eval()
+        try:
+            with torch.enable_grad():
+                x_hat, _ = self.model(tensor)
+
+                # 目標：重建誤差（對每個像素的誤差求和）
+                recon_error = torch.mean((tensor - x_hat) ** 2)
+
+                # 反向傳播
+                self.model.zero_grad()
+                recon_error.backward()
+
+            # 取輸入梯度作為重要性圖（Saliency Map）
+            grad_map = tensor.grad.squeeze().cpu().numpy()             # (32, 32)
+
+            # 正規化梯度圖
+            cam = np.abs(grad_map)
+            cam = (cam - cam.min()) / (cam.max() - cam.min() + 1e-8)
+
+            # 疊加到封包影像
+            overlay = self.visualizer.create_heatmap_overlay(
+                arr, cam, alpha=0.65, save_path=save_path
+            )
+        finally:
+            # [修正] 確保無論是否發生例外，模型都維持在 eval 模式
+            self.model.eval()
+
         return overlay
+
+    # 保留舊名稱作為別名，確保向下相容
+    gradcam_packet = saliency_map_packet
 
     def set_threshold(self, threshold: float):
         """手動設定閾值"""

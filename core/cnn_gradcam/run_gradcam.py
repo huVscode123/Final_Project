@@ -41,8 +41,8 @@ import json
 import argparse
 import numpy as np
 
-# 確保 core 目錄在 sys.path 中（與其他 run_*.py 一致）
-_BASE = os.path.dirname(os.path.abspath(__file__))
+# ── [P1-1 修正] 往上一層才是 core/ ──
+_BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _BASE not in sys.path:
     sys.path.insert(0, _BASE)
 

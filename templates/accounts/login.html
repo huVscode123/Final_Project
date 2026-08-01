@@ -2,86 +2,298 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>VNAAP — Login</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--green:#22c55e;--green-dim:rgba(34,197,94,.12);--red:#ef4444;--border:#1f2d40;--border2:#1e293b;--bg:#0f172a;--bg-card:#111827;--text:#e2e8f0;--muted:#94a3b8;--faint:#334155;--mono:'JetBrains Mono',monospace}
-body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:20px;position:relative;overflow:hidden}
-/* Animated background grid */
-.bg-grid{position:fixed;inset:0;background-image:linear-gradient(rgba(34,197,94,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(34,197,94,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
-.bg-glow{position:fixed;top:20%;left:50%;transform:translateX(-50%);width:600px;height:300px;background:radial-gradient(ellipse,rgba(34,197,94,.06),transparent 70%);pointer-events:none}
-.login-box{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:36px;width:100%;max-width:400px;position:relative;z-index:1;box-shadow:0 0 60px rgba(34,197,94,.05)}
-.logo-row{text-align:center;margin-bottom:28px}
-.logo-mark{width:48px;height:48px;background:linear-gradient(135deg,#22c55e,#16a34a);border-radius:12px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1.1rem;font-weight:800;color:#0d1117;box-shadow:0 0 20px rgba(34,197,94,.4);margin:0 auto 12px}
-.logo-name{font-family:var(--mono);font-size:.95rem;font-weight:700;color:var(--text)}
-.logo-sub{font-size:.65rem;color:var(--green);letter-spacing:.12em;margin-top:3px;text-transform:uppercase}
-.page-title{font-size:1.05rem;font-weight:700;margin-bottom:4px}
-.page-sub{font-size:.75rem;color:var(--muted);margin-bottom:22px}
-.form-group{margin-bottom:14px}
-.form-label{display:block;font-size:.76rem;font-weight:500;color:var(--muted);margin-bottom:6px}
-.form-input{width:100%;background:#010409;border:1px solid var(--border2);border-radius:8px;padding:10px 14px;color:var(--text);font-size:.855rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s}
-.form-input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.1)}
-.form-input::placeholder{color:var(--faint)}
-.error-msg{font-size:.75rem;color:var(--red);margin-top:4px;display:flex;align-items:center;gap:4px}
-.error-box{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:10px 14px;font-size:.8rem;color:var(--red);margin-bottom:14px;display:flex;align-items:center;gap:8px}
-.btn-submit{width:100%;background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:11px;font-size:.88rem;font-weight:700;cursor:pointer;transition:all .2s;font-family:'Inter',sans-serif;letter-spacing:.02em}
-.btn-submit:hover{background:var(--green);color:#0d1117}
-.divider{display:flex;align-items:center;gap:10px;margin:18px 0}
-.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border2)}
-.divider span{font-size:.68rem;color:var(--faint)}
-.link-row{text-align:center;font-size:.78rem;color:var(--muted)}
-.link-row a{color:var(--green);text-decoration:none}
-.link-row a:hover{text-decoration:underline}
-.security-note{display:flex;align-items:center;gap:6px;justify-content:center;margin-top:16px;font-size:.67rem;color:var(--faint)}
-.security-note svg{width:11px;height:11px;color:var(--green)}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-</style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>登入 — VNAAP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden; position: relative;
+    }
+
+    /* ── 動態矩陣背景 ── */
+    .matrix-bg {
+      position: fixed; inset: 0; z-index: 0; overflow: hidden; opacity: 0.06;
+    }
+    .matrix-col {
+      position: absolute; top: -100%; font-family: 'JetBrains Mono', monospace;
+      font-size: 14px; color: #22c55e; writing-mode: vertical-rl;
+      animation: matrixFall linear infinite;
+      text-shadow: 0 0 8px rgba(34,197,94,0.5);
+    }
+    @keyframes matrixFall {
+      0% { transform: translateY(-100%); } 100% { transform: translateY(100vh); }
+    }
+
+    /* ── 光暈效果 ── */
+    .glow-orb {
+      position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.15;
+      pointer-events: none; z-index: 0;
+    }
+    .glow-orb.g1 { width: 400px; height: 400px; background: #6366f1; top: -100px; left: -100px; }
+    .glow-orb.g2 { width: 300px; height: 300px; background: #22c55e; bottom: -50px; right: -50px; }
+
+    /* ── 登入卡片 ── */
+    .login-card {
+      position: relative; z-index: 10;
+      background: rgba(17, 24, 39, 0.85);
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 16px; padding: 40px;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+      animation: cardIn 0.6s ease;
+    }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(20px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .login-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0;
+      height: 3px; border-radius: 16px 16px 0 0;
+      background: linear-gradient(90deg, #6366f1, #22c55e, #6366f1);
+      background-size: 200% 100%;
+      animation: gradientShift 3s ease infinite;
+    }
+    @keyframes gradientShift {
+      0%,100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    /* ── Logo ── */
+    .login-logo { text-align: center; margin-bottom: 32px; }
+    .login-logo h1 {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.8rem; font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #22c55e);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .login-logo p { font-size: 0.75rem; color: #64748b; margin-top: 6px; }
+
+    /* ── 表單 ── */
+    .field { margin-bottom: 18px; }
+    .field label {
+      display: block; font-size: 0.78rem; font-weight: 500;
+      color: #94a3b8; margin-bottom: 6px;
+    }
+    .input-wrap {
+      position: relative; display: flex; align-items: center;
+    }
+    .input-wrap svg {
+      position: absolute; left: 12px; width: 16px; height: 16px; color: #475569;
+      pointer-events: none;
+    }
+    .input-wrap input {
+      width: 100%; background: #010409; border: 1px solid #1e293b;
+      border-radius: 8px; padding: 10px 14px 10px 38px;
+      color: #e2e8f0; font-size: 0.88rem; font-family: 'Inter', sans-serif;
+      outline: none; transition: all 0.2s;
+    }
+    .input-wrap input:focus {
+      border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    }
+    .input-wrap input::placeholder { color: #334155; }
+
+    /* 密碼顯示切換 */
+    .toggle-pw {
+      position: absolute; right: 12px; background: none; border: none;
+      cursor: pointer; color: #475569; padding: 4px;
+      transition: color 0.2s;
+    }
+    .toggle-pw:hover { color: #94a3b8; }
+    .toggle-pw svg { width: 16px; height: 16px; }
+
+    /* 記住我 */
+    .remember-row {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 24px;
+    }
+    .remember-row label {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 0.78rem; color: #94a3b8; cursor: pointer;
+    }
+    .remember-row input[type="checkbox"] {
+      width: 16px; height: 16px; accent-color: #6366f1; cursor: pointer;
+    }
+
+    /* 登入按鈕 */
+    .login-btn {
+      width: 100%; padding: 11px 0; border: none; border-radius: 8px;
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      color: #fff; font-size: 0.88rem; font-weight: 600;
+      cursor: pointer; transition: all 0.3s;
+      font-family: 'Inter', sans-serif;
+      position: relative; overflow: hidden;
+    }
+    .login-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 20px rgba(99,102,241,0.35);
+    }
+    .login-btn:active { transform: translateY(0); }
+    .login-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .login-btn .spinner {
+      display: none; width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+      border-radius: 50%; animation: spin 0.6s linear infinite;
+    }
+    .login-btn.loading .btn-text { display: none; }
+    .login-btn.loading .spinner { display: inline-block; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* 底部連結 */
+    .login-footer {
+      text-align: center; margin-top: 24px;
+      font-size: 0.8rem; color: #64748b;
+    }
+    .login-footer a {
+      color: #6366f1; text-decoration: none; font-weight: 600;
+      transition: color 0.2s;
+    }
+    .login-footer a:hover { color: #818cf8; }
+
+    /* 錯誤訊息 */
+    .form-errors {
+      background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25);
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 18px;
+      font-size: 0.78rem; color: #ef4444;
+    }
+    .form-errors ul { list-style: none; }
+    .form-errors li { margin-bottom: 2px; }
+    .form-errors li::before { content: '⚠ '; }
+
+    /* Messages */
+    .msg {
+      padding: 10px 14px; border-radius: 8px; margin-bottom: 14px;
+      font-size: 0.8rem;
+    }
+    .msg-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: #22c55e; }
+    .msg-error   { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; }
+
+    @media (max-width: 480px) {
+      .login-card { margin: 16px; padding: 28px 24px; }
+      .login-logo h1 { font-size: 1.5rem; }
+    }
+  </style>
 </head>
 <body>
-<div class="bg-grid"></div>
-<div class="bg-glow"></div>
-<div class="login-box">
-  <div class="logo-row">
-    <div class="logo-mark">VN</div>
-    <div class="logo-name">VNAAP</div>
-    <div class="logo-sub">Network Attack Analysis Platform</div>
-  </div>
-  <div class="page-title">Welcome back</div>
-  <div class="page-sub">Sign in to your security dashboard</div>
 
-  {% if form.non_field_errors %}
-  <div class="error-box">
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-    {{ form.non_field_errors.0 }}
+<!-- 矩陣背景 -->
+<div class="matrix-bg" id="matrixBg"></div>
+<div class="glow-orb g1"></div>
+<div class="glow-orb g2"></div>
+
+<div class="login-card">
+  <div class="login-logo">
+    <h1>VNAAP</h1>
+    <p>視覺化網路攻擊自動化分析平台</p>
+  </div>
+
+  {% if messages %}
+  {% for message in messages %}
+  <div class="msg msg-{{ message.tags }}">{{ message }}</div>
+  {% endfor %}
+  {% endif %}
+
+  {% if form.errors %}
+  <div class="form-errors">
+    <ul>
+      {% for field in form %}
+        {% for error in field.errors %}
+        <li>{{ error }}</li>
+        {% endfor %}
+      {% endfor %}
+      {% for error in form.non_field_errors %}
+      <li>{{ error }}</li>
+      {% endfor %}
+    </ul>
   </div>
   {% endif %}
 
-  <form method="post">
+  <form method="post" id="loginForm">
     {% csrf_token %}
-    <div class="form-group">
-      <label class="form-label">Username</label>
-      <input type="text" name="username" class="form-input" placeholder="Enter your username" autofocus
-             value="{{ form.username.value|default:'' }}" autocomplete="username">
-      {% for err in form.username.errors %}<div class="error-msg">✗ {{ err }}</div>{% endfor %}
+
+    <div class="field">
+      <label for="id_username">帳號</label>
+      <div class="input-wrap">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+        <input type="text" name="username" id="id_username" placeholder="輸入帳號"
+               value="{{ form.username.value|default:'' }}" autofocus required>
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Password</label>
-      <input type="password" name="password" class="form-input" placeholder="Enter your password" autocomplete="current-password">
-      {% for err in form.password.errors %}<div class="error-msg">✗ {{ err }}</div>{% endfor %}
+
+    <div class="field">
+      <label for="id_password">密碼</label>
+      <div class="input-wrap">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+        <input type="password" name="password" id="id_password" placeholder="輸入密碼" required>
+        <button type="button" class="toggle-pw" onclick="togglePassword()">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" id="eyeIcon">
+            <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+            <path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+          </svg>
+        </button>
+      </div>
     </div>
-    <button type="submit" class="btn-submit">Sign In →</button>
+
+    <div class="remember-row">
+      <label><input type="checkbox" name="remember"> 記住我</label>
+    </div>
+
+    <button type="submit" class="login-btn" id="loginBtn">
+      <span class="btn-text">登入系統</span>
+      <span class="spinner"></span>
+    </button>
   </form>
 
-  <div class="divider"><span>OR</span></div>
-  <div class="link-row">
-    Don't have an account? <a href="{% url 'accounts:register' %}">Create account</a>
-  </div>
-  <div class="security-note">
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    Secured by VNAAP · All traffic encrypted
+  <div class="login-footer">
+    沒有帳號？<a href="{% url 'accounts:register' %}">立即註冊</a>
   </div>
 </div>
+
+<script>
+// 密碼顯示/隱藏切換
+function togglePassword() {
+  const input = document.getElementById('id_password');
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+// 表單提交 loading 狀態
+document.getElementById('loginForm').addEventListener('submit', function() {
+  document.getElementById('loginBtn').classList.add('loading');
+});
+
+// 矩陣雨效果
+(function createMatrix() {
+  const bg = document.getElementById('matrixBg');
+  const chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノ';
+  for (let i = 0; i < 30; i++) {
+    const col = document.createElement('div');
+    col.className = 'matrix-col';
+    col.style.left = (Math.random() * 100) + '%';
+    col.style.animationDuration = (8 + Math.random() * 12) + 's';
+    col.style.animationDelay = (Math.random() * 10) + 's';
+    col.style.fontSize = (10 + Math.random() * 8) + 'px';
+    let text = '';
+    for (let j = 0; j < 30; j++) {
+      text += chars[Math.floor(Math.random() * chars.length)] + ' ';
+    }
+    col.textContent = text;
+    bg.appendChild(col);
+  }
+})();
+</script>
 </body>
 </html>

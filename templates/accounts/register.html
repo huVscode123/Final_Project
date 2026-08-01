@@ -2,116 +2,241 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>VNAAP — Register</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--green:#22c55e;--green-dim:rgba(34,197,94,.12);--red:#ef4444;--border:#1f2d40;--border2:#1e293b;--bg:#0f172a;--bg-card:#111827;--text:#e2e8f0;--muted:#94a3b8;--faint:#334155;--mono:'JetBrains Mono',monospace}
-body{background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;position:relative;overflow:hidden}
-.bg-grid{position:fixed;inset:0;background-image:linear-gradient(rgba(34,197,94,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(34,197,94,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none}
-.bg-glow{position:fixed;top:20%;left:50%;transform:translateX(-50%);width:600px;height:300px;background:radial-gradient(ellipse,rgba(34,197,94,.05),transparent 70%);pointer-events:none}
-.register-box{background:var(--bg-card);border:1px solid var(--border);border-radius:16px;padding:32px;width:100%;max-width:480px;position:relative;z-index:1;box-shadow:0 0 60px rgba(34,197,94,.04)}
-.logo-row{text-align:center;margin-bottom:22px}
-.logo-mark{width:44px;height:44px;background:linear-gradient(135deg,#22c55e,#16a34a);border-radius:10px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1rem;font-weight:800;color:#0d1117;box-shadow:0 0 18px rgba(34,197,94,.35);margin:0 auto 10px}
-.logo-name{font-family:var(--mono);font-size:.9rem;font-weight:700}
-.logo-sub{font-size:.62rem;color:var(--green);letter-spacing:.1em;margin-top:2px;text-transform:uppercase}
-.page-title{font-size:1rem;font-weight:700;margin-bottom:3px}
-.page-sub{font-size:.72rem;color:var(--muted);margin-bottom:20px}
-.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.form-group{margin-bottom:12px}
-.form-label{display:block;font-size:.74rem;font-weight:500;color:var(--muted);margin-bottom:5px}
-.form-input{width:100%;background:#010409;border:1px solid var(--border2);border-radius:8px;padding:9px 13px;color:var(--text);font-size:.845rem;font-family:'Inter',sans-serif;outline:none;transition:border-color .2s}
-.form-input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.1)}
-.form-input::placeholder{color:var(--faint)}
-select.form-input option{background:#111827}
-.help-text{font-size:.68rem;color:var(--faint);margin-top:3px}
-.error-msg{font-size:.72rem;color:var(--red);margin-top:3px}
-.btn-submit{width:100%;background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:11px;font-size:.875rem;font-weight:700;cursor:pointer;transition:all .2s;margin-top:6px;font-family:'Inter',sans-serif}
-.btn-submit:hover{background:var(--green);color:#0d1117}
-.link-row{text-align:center;font-size:.76rem;color:var(--muted);margin-top:14px}
-.link-row a{color:var(--green);text-decoration:none}
-.role-desc{font-size:.67rem;color:var(--faint);margin-top:3px;padding:6px 10px;background:rgba(34,197,94,.04);border-radius:5px;border:1px solid rgba(34,197,94,.1)}
-</style>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>註冊 — VNAAP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif; background: #0f172a; color: #e2e8f0;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      overflow-y: auto; position: relative; padding: 40px 16px;
+    }
+    .glow-orb { position: fixed; border-radius: 50%; filter: blur(80px); opacity: 0.12; pointer-events: none; z-index: 0; }
+    .glow-orb.g1 { width: 400px; height: 400px; background: #6366f1; top: -100px; right: -100px; }
+    .glow-orb.g2 { width: 300px; height: 300px; background: #22c55e; bottom: -50px; left: -50px; }
+
+    .register-card {
+      position: relative; z-index: 10;
+      background: rgba(17,24,39,0.85); backdrop-filter: blur(20px);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 16px; padding: 36px 40px;
+      width: 100%; max-width: 480px;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.4);
+      animation: cardIn 0.6s ease;
+    }
+    @keyframes cardIn { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+    .register-card::before {
+      content:''; position:absolute; top:0; left:0; right:0; height:3px;
+      border-radius:16px 16px 0 0;
+      background:linear-gradient(90deg,#6366f1,#22c55e,#6366f1);
+      background-size:200% 100%; animation:gradShift 3s ease infinite;
+    }
+    @keyframes gradShift { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+
+    .reg-logo { text-align: center; margin-bottom: 28px; }
+    .reg-logo h1 {
+      font-family:'JetBrains Mono',monospace; font-size:1.6rem; font-weight:700;
+      background:linear-gradient(135deg,#6366f1,#22c55e);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .reg-logo p { font-size:0.72rem; color:#64748b; margin-top:4px; }
+
+    .field { margin-bottom: 14px; }
+    .field label { display:block; font-size:0.75rem; font-weight:500; color:#94a3b8; margin-bottom:5px; }
+    .field-row { display:flex; gap:12px; }
+    .field-row > .field { flex:1; }
+    .input-wrap { position:relative; display:flex; align-items:center; }
+    .input-wrap svg { position:absolute; left:12px; width:15px; height:15px; color:#475569; pointer-events:none; }
+    .input-wrap input, .input-wrap select {
+      width:100%; background:#010409; border:1px solid #1e293b; border-radius:8px;
+      padding:9px 14px 9px 36px; color:#e2e8f0; font-size:0.84rem;
+      font-family:'Inter',sans-serif; outline:none; transition:all 0.2s;
+    }
+    .input-wrap select { cursor:pointer; appearance:none; }
+    .input-wrap select option { background:#111827; }
+    .input-wrap input:focus, .input-wrap select:focus {
+      border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,0.15);
+    }
+    .input-wrap input::placeholder { color:#334155; }
+    .toggle-pw {
+      position:absolute; right:12px; background:none; border:none;
+      cursor:pointer; color:#475569; padding:4px; transition:color 0.2s;
+    }
+    .toggle-pw:hover { color:#94a3b8; }
+    .toggle-pw svg { width:16px; height:16px; }
+
+    /* 角色選擇卡片 */
+    .role-selector { display:flex; gap:10px; margin-bottom:18px; }
+    .role-option {
+      flex:1; padding:12px; border-radius:10px; cursor:pointer;
+      border:1px solid #1e293b; background:rgba(255,255,255,0.02);
+      text-align:center; transition:all 0.2s; position:relative;
+    }
+    .role-option:hover { border-color:#475569; background:rgba(255,255,255,0.04); }
+    .role-option.selected { border-color:rgba(99,102,241,0.5); background:rgba(99,102,241,0.08); }
+    .role-option input { position:absolute; opacity:0; pointer-events:none; }
+    .role-option .role-icon { font-size:1.4rem; margin-bottom:4px; }
+    .role-option .role-name { font-size:0.75rem; font-weight:600; color:#e2e8f0; }
+    .role-option .role-desc { font-size:0.62rem; color:#64748b; margin-top:2px; }
+
+    .pw-match { font-size:0.7rem; margin-top:4px; display:none; }
+    .pw-match.show { display:block; }
+    .pw-match.ok { color:#22c55e; }
+    .pw-match.err { color:#ef4444; }
+
+    .submit-btn {
+      width:100%; padding:11px 0; border:none; border-radius:8px;
+      background:linear-gradient(135deg,#6366f1,#818cf8);
+      color:#fff; font-size:0.88rem; font-weight:600; cursor:pointer;
+      transition:all 0.3s; font-family:'Inter',sans-serif; margin-top:8px;
+    }
+    .submit-btn:hover { transform:translateY(-1px); box-shadow:0 8px 20px rgba(99,102,241,0.35); }
+    .submit-btn:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
+
+    .reg-footer { text-align:center; margin-top:20px; font-size:0.8rem; color:#64748b; }
+    .reg-footer a { color:#6366f1; text-decoration:none; font-weight:600; }
+    .reg-footer a:hover { color:#818cf8; }
+
+    .form-errors {
+      background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.25);
+      border-radius:8px; padding:10px 14px; margin-bottom:16px;
+      font-size:0.75rem; color:#ef4444;
+    }
+    .form-errors ul { list-style:none; }
+    .form-errors li { margin-bottom:2px; }
+    .form-errors li::before { content:'⚠ '; }
+
+    @media (max-width:480px) {
+      .register-card { padding:28px 20px; }
+      .field-row { flex-direction:column; gap:0; }
+      .role-selector { flex-direction:column; }
+    }
+  </style>
 </head>
 <body>
-<div class="bg-grid"></div>
-<div class="bg-glow"></div>
-<div class="register-box">
-  <div class="logo-row">
-    <div class="logo-mark">VN</div>
-    <div class="logo-name">VNAAP</div>
-    <div class="logo-sub">Network Attack Analysis Platform</div>
-  </div>
-  <div class="page-title">Create Account</div>
-  <div class="page-sub">Join the VNAAP security analysis platform</div>
+<div class="glow-orb g1"></div>
+<div class="glow-orb g2"></div>
 
-  <form method="post">
+<div class="register-card">
+  <div class="reg-logo">
+    <h1>VNAAP</h1>
+    <p>建立您的分析師帳號</p>
+  </div>
+
+  {% if form.errors %}
+  <div class="form-errors">
+    <ul>
+      {% for field in form %}{% for error in field.errors %}<li>{{ error }}</li>{% endfor %}{% endfor %}
+      {% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <form method="post" id="regForm">
     {% csrf_token %}
-    <div class="grid-2">
-      <div class="form-group">
-        <label class="form-label">First Name</label>
-        <input type="text" name="first_name" class="form-input" placeholder="名字"
-               value="{{ form.first_name.value|default:'' }}">
+
+    <div class="field-row">
+      <div class="field">
+        <label for="id_username">帳號 *</label>
+        <div class="input-wrap">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+          <input type="text" name="username" id="id_username" placeholder="帳號" value="{{ form.username.value|default:'' }}" required>
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Last Name</label>
-        <input type="text" name="last_name" class="form-input" placeholder="姓氏"
-               value="{{ form.last_name.value|default:'' }}">
-      </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Username <span style="color:#ef4444">*</span></label>
-      <input type="text" name="username" class="form-input" placeholder="帳號（唯一識別碼）"
-             value="{{ form.username.value|default:'' }}" required autocomplete="username">
-      {% for err in form.username.errors %}<div class="error-msg">✗ {{ err }}</div>{% endfor %}
-      {% if form.username.help_text %}<div class="help-text">{{ form.username.help_text }}</div>{% endif %}
-    </div>
-    <div class="form-group">
-      <label class="form-label">Email</label>
-      <input type="email" name="email" class="form-input" placeholder="your@email.com"
-             value="{{ form.email.value|default:'' }}">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Organization</label>
-      <input type="text" name="organization" class="form-input" placeholder="所屬組織 / 公司">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Role</label>
-      <select name="role" class="form-input" onchange="updateRoleDesc(this.value)">
-        <option value="analyst">資安分析師 (Analyst)</option>
-        <option value="viewer">唯讀檢視者 (Viewer)</option>
-      </select>
-      <div class="role-desc" id="roleDesc">可上傳 PCAP、執行 AI 分析、匯出報告及管理專案。</div>
-    </div>
-    <div class="grid-2">
-      <div class="form-group">
-        <label class="form-label">Password <span style="color:#ef4444">*</span></label>
-        <input type="password" name="password1" class="form-input" placeholder="密碼" required autocomplete="new-password">
-        {% for err in form.password1.errors %}<div class="error-msg">✗ {{ err }}</div>{% endfor %}
-      </div>
-      <div class="form-group">
-        <label class="form-label">Confirm Password <span style="color:#ef4444">*</span></label>
-        <input type="password" name="password2" class="form-input" placeholder="確認密碼" required autocomplete="new-password">
-        {% for err in form.password2.errors %}<div class="error-msg">✗ {{ err }}</div>{% endfor %}
+      <div class="field">
+        <label for="id_email">電子郵件 *</label>
+        <div class="input-wrap">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          <input type="email" name="email" id="id_email" placeholder="email@example.com" value="{{ form.email.value|default:'' }}" required>
+        </div>
       </div>
     </div>
-    {% if form.non_field_errors %}
-    <div style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-radius:8px;padding:9px 13px;font-size:.78rem;color:#ef4444;margin-bottom:10px">
-      {{ form.non_field_errors.0 }}
+
+    <div class="field-row">
+      <div class="field">
+        <label for="id_last_name">姓氏</label>
+        <div class="input-wrap">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <input type="text" name="last_name" id="id_last_name" placeholder="姓氏" value="{{ form.last_name.value|default:'' }}">
+        </div>
+      </div>
+      <div class="field">
+        <label for="id_first_name">名字</label>
+        <div class="input-wrap">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M5.121 17.804A13.937 13.937 0 0112 16c2.5 0 4.847.655 6.879 1.804M15 10a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <input type="text" name="first_name" id="id_first_name" placeholder="名字" value="{{ form.first_name.value|default:'' }}">
+        </div>
+      </div>
     </div>
-    {% endif %}
-    <button type="submit" class="btn-submit">Create Account →</button>
+
+    <div class="field">
+      <label for="id_organization">所屬組織</label>
+      <div class="input-wrap">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg>
+        <input type="text" name="organization" id="id_organization" placeholder="公司或組織名稱（選填）" value="{{ form.organization.value|default:'' }}">
+      </div>
+    </div>
+
+    <!-- 角色選擇 — 安全修正：不顯示 admin 選項 -->
+    <label style="font-size:0.75rem;font-weight:500;color:#94a3b8;margin-bottom:6px;display:block;">選擇角色</label>
+    <div class="role-selector">
+      <label class="role-option selected" onclick="selectRole(this)">
+        <input type="radio" name="role" value="analyst" checked>
+        <div class="role-icon">🔍</div>
+        <div class="role-name">分析師</div>
+        <div class="role-desc">可上傳分析封包</div>
+      </label>
+      <label class="role-option" onclick="selectRole(this)">
+        <input type="radio" name="role" value="viewer">
+        <div class="role-icon">👁</div>
+        <div class="role-name">檢視者</div>
+        <div class="role-desc">僅可檢視報告</div>
+      </label>
+    </div>
+
+    <div class="field-row">
+      <div class="field">
+        <label for="id_password1">密碼 *</label>
+        <div class="input-wrap">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          <input type="password" name="password1" id="id_password1" placeholder="設定密碼" required>
+          <button type="button" class="toggle-pw" onclick="togglePw('id_password1')">
+            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="id_password2">確認密碼 *</label>
+        <div class="input-wrap">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+          <input type="password" name="password2" id="id_password2" placeholder="再次輸入密碼" required oninput="checkPwMatch()">
+        </div>
+        <div class="pw-match" id="pwMatch"></div>
+      </div>
+    </div>
+
+    <button type="submit" class="submit-btn">建立帳號</button>
   </form>
-  <div class="link-row">Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a></div>
+
+  <div class="reg-footer">
+    已有帳號？<a href="{% url 'accounts:login' %}">立即登入</a>
+  </div>
 </div>
+
 <script>
-function updateRoleDesc(role) {
-  const descs = {
-    analyst: '可上傳 PCAP、執行 AI 分析、匯出報告及管理專案。',
-    viewer:  '僅可檢視分析結果，無法上傳或執行 AI 功能。',
-  };
-  document.getElementById('roleDesc').textContent = descs[role] || '';
+function togglePw(id){const i=document.getElementById(id);i.type=i.type==='password'?'text':'password';}
+function selectRole(el){document.querySelectorAll('.role-option').forEach(o=>o.classList.remove('selected'));el.classList.add('selected');}
+function checkPwMatch(){
+  const p1=document.getElementById('id_password1').value;
+  const p2=document.getElementById('id_password2').value;
+  const el=document.getElementById('pwMatch');
+  if(!p2){el.className='pw-match';return;}
+  el.className='pw-match show '+(p1===p2?'ok':'err');
+  el.textContent=p1===p2?'✓ 密碼一致':'✗ 密碼不一致';
 }
 </script>
 </body>

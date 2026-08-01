@@ -37,6 +37,18 @@ ALERT_ARP_SPOOF_WINDOW  = 5    # 同一 IP 在此秒數內出現多個 MAC -> AR
 # ── 時間窗口設定（秒）────────────────────────────────────
 ANOMALY_WINDOW_SECONDS = 10    # 滑動窗口分析時間範圍
 
+# ── 記憶體保護設定 ─────────────────────────────────────────
+MAX_MEMORY_PACKETS   = 100000   # 即時擷取時記憶體中保留的最大封包數
+PCAP_SEGMENT_SIZE    = 50000    # PCAP 分段儲存：每 N 個封包自動儲存一次
+PCAP_SEGMENT_SECONDS = 300      # PCAP 分段儲存：每 N 秒自動儲存一次
+
+# ── 告警冷卻設定 ──────────────────────────────────────────
+ALERT_COOLDOWN_SECONDS = 60     # 同一 IP 同類型告警的冷卻時間（秒）
+
+# ── DNS Tunneling 偵測閾值 ────────────────────────────────
+ALERT_THRESHOLD_DNS_TUNNEL_LEN  = 50    # DNS 查詢名稱長度超過此值 -> 疑似 DNS Tunneling
+ALERT_THRESHOLD_DNS_TUNNEL_COUNT = 30   # 同一 IP 長名稱 DNS 查詢超過此數 -> 觸發告警
+
 # ── 協議號對應表 ──────────────────────────────────────────
 PROTOCOL_MAP = {
     1:   "ICMP",
@@ -78,6 +90,12 @@ PORT_SERVICE_MAP = {
     9200:  "Elasticsearch",
     11211: "Memcached",
     27017: "MongoDB",
+    993:   "IMAPS",
+    995:   "POP3S",
+    465:   "SMTPS",
+    587:   "SMTP-Submission",
+    1194:  "OpenVPN",
+    5060:  "SIP",
 }
 
 # ── ICMP 類型對應表（加強版）────────────────────────────

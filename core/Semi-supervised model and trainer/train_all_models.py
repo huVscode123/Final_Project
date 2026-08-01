@@ -152,9 +152,22 @@ def train_ddos2019(args, X_normal, X_attack, output_root):
     }
     out_dir = os.path.join(output_root, "model_cicddos2019")
     trainer = SemiSupervisedTrainer_DDoS2019(config, output_dir=out_dir)
-    trainer.train_full(X_normal, X_attack)
 
-    result = evaluate(trainer.model, X_normal, X_attack,
+    import numpy as np
+    rng = np.random.default_rng(42)
+    idx_n = rng.permutation(len(X_normal))
+    split_n = int(len(X_normal) * 0.8)
+    X_train_normal = X_normal[idx_n[:split_n]]
+    X_test_normal  = X_normal[idx_n[split_n:]]
+
+    idx_a = rng.permutation(len(X_attack))
+    split_a = int(len(X_attack) * 0.5)
+    X_finetune_attack = X_attack[idx_a[:split_a]]
+    X_test_attack     = X_attack[idx_a[split_a:]]
+
+    trainer.train_full(X_train_normal, X_finetune_attack)
+
+    result = evaluate(trainer.model, X_test_normal, X_test_attack,
                       trainer.threshold, device=trainer.device)
     _save_result(result, out_dir, "cicddos2019")
     return result
@@ -193,9 +206,22 @@ def train_cicids2017(args, X_normal, X_attack, output_root):
     }
     out_dir = os.path.join(output_root, "model_cicids2017")
     trainer = SemiSupervisedTrainer_CICIDS2017(config, output_dir=out_dir)
-    trainer.train_full(X_normal, X_attack)
 
-    result = evaluate(trainer.model, X_normal, X_attack,
+    import numpy as np
+    rng = np.random.default_rng(42)
+    idx_n = rng.permutation(len(X_normal))
+    split_n = int(len(X_normal) * 0.8)
+    X_train_normal = X_normal[idx_n[:split_n]]
+    X_test_normal  = X_normal[idx_n[split_n:]]
+
+    idx_a = rng.permutation(len(X_attack))
+    split_a = int(len(X_attack) * 0.5)
+    X_finetune_attack = X_attack[idx_a[:split_a]]
+    X_test_attack     = X_attack[idx_a[split_a:]]
+
+    trainer.train_full(X_train_normal, X_finetune_attack)
+
+    result = evaluate(trainer.model, X_test_normal, X_test_attack,
                       trainer.threshold, device=trainer.device)
     _save_result(result, out_dir, "cicids2017")
     return result
@@ -235,9 +261,27 @@ def train_nslkdd(args, X_normal, X_attack, attack_cats, output_root):
     }
     out_dir = os.path.join(output_root, "model_nslkdd")
     trainer = SemiSupervisedTrainer_NSLKDD(config, output_dir=out_dir)
-    trainer.train_full(X_normal, X_attack, attack_cats=attack_cats)
 
-    result = evaluate(trainer.model, X_normal, X_attack,
+    import numpy as np
+    rng = np.random.default_rng(42)
+    idx_n = rng.permutation(len(X_normal))
+    split_n = int(len(X_normal) * 0.8)
+    X_train_normal = X_normal[idx_n[:split_n]]
+    X_test_normal  = X_normal[idx_n[split_n:]]
+
+    idx_a = rng.permutation(len(X_attack))
+    split_a = int(len(X_attack) * 0.5)
+    X_finetune_attack = X_attack[idx_a[:split_a]]
+    X_test_attack     = X_attack[idx_a[split_a:]]
+
+    if attack_cats is not None:
+        attack_cats_finetune = [attack_cats[i] for i in idx_a[:split_a]]
+    else:
+        attack_cats_finetune = None
+
+    trainer.train_full(X_train_normal, X_finetune_attack, attack_cats=attack_cats_finetune)
+
+    result = evaluate(trainer.model, X_test_normal, X_test_attack,
                       trainer.threshold, device=trainer.device)
     _save_result(result, out_dir, "nslkdd")
     return result

@@ -2,9 +2,9 @@ from pathlib import Path
 import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = 'django-dev-key-請在正式環境替換成隨機字串'
-DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-dev-key-請在正式環境替換成隨機字串')
+DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() == 'true'
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,*').split(',')
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -57,7 +57,14 @@ DATABASES = {
     }
 }
 
-AUTH_PASSWORD_VALIDATORS = []
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
 
 LANGUAGE_CODE = 'zh-hant'
 TIME_ZONE     = 'Asia/Taipei'
@@ -91,7 +98,7 @@ REST_FRAMEWORK = {
     'PAGE_SIZE': 20,
 }
 
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = DEBUG
 
 CELERY_BROKER_URL         = os.getenv('CELERY_BROKER', 'redis://localhost:6379/0')
 CELERY_RESULT_BACKEND     = os.getenv('CELERY_BACKEND', 'redis://localhost:6379/0')
@@ -103,7 +110,8 @@ CELERY_TASK_ALWAYS_EAGER  = os.getenv('CELERY_EAGER', 'false').lower() == 'true'
 
 CNN_MODEL_PATH  = BASE_DIR / 'media' / 'model' / 'best_model.pt'
 CNN_LATENT_DIM  = 32
-CNN_THRESHOLD  = 0.000069
+# ── [P1-2 修正] 支援環境變數覆蓋 ──
+CNN_THRESHOLD = float(os.getenv('CNN_THRESHOLD', '0.000069'))
 
 DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024

@@ -6,6 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q
 from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 
 from .models import Project, ProjectMembership, PacketFile
 from .forms import ProjectForm, PacketFileUploadForm
@@ -112,6 +113,7 @@ def project_archive(request, pk):
     return redirect('projects:list')
 
 
+@require_POST
 @login_required
 def member_add(request, pk):
     """新增專案成員（POST JSON）。"""
@@ -139,6 +141,7 @@ def member_add(request, pk):
     return redirect('projects:detail', pk=pk)
 
 
+@require_POST
 @login_required
 def member_remove(request, pk, user_pk):
     """移除專案成員（POST）。"""

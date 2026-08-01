@@ -34,7 +34,7 @@ from cnn_autoencoder import CNNAutoencoder
 # ── 超參數設定 ────────────────────────────────────────────
 # 可依實際資料量與硬體資源調整
 DEFAULT_CONFIG = {
-    "latent_dim":    64,      # 潛在空間維度
+    "latent_dim":    32,      # 潛在空間維度（統一預設值，與 cnn_autoencoder.py 一致）
     "batch_size":    32,      # 批次大小（記憶體不足時縮小至 16）
     "epochs":        100,     # 最大訓練輪數
     "learning_rate": 1e-3,    # Adam 初始學習率
@@ -47,53 +47,8 @@ DEFAULT_CONFIG = {
     "threshold_percentile": 95,  # 閾值百分位數（95%=只有5%正常流量被誤判）
 }
  
+from training_common import EarlyStopping  # [修正 #4] 改為從共用模組引入
  
-class EarlyStopping:
-    """
-    Early Stopping 機制：當驗證損失連續 patience 輪未改善時停止訓練
- 
-    避免問題：
-      - 過擬合：模型過度記憶訓練資料的雜訊
-      - 計算浪費：訓練損失下降但驗證損失已停滯
- 
-    參考：
-      https://github.com/Bjarten/early-stopping-pytorch
-    """
- 
-    def __init__(self, patience: int = 15, min_delta: float = 1e-6,
-                 path: str = "best_model.pt"):
-        """
-        Args:
-            patience : 等待的輪數上限
-            min_delta: 最小改善幅度（低於此值不算改善）
-            path     : 最佳模型儲存路徑
-        """
-        self.patience   = patience
-        self.min_delta  = min_delta
-        self.path       = path
-        self.counter    = 0           # 未改善的連續輪數
-        self.best_loss  = float("inf")
-        self.early_stop = False
- 
-    def __call__(self, val_loss: float, model: nn.Module) -> bool:
-        """
-        每個 epoch 結束後呼叫
- 
-        Returns:
-            bool: True = 應停止訓練
-        """
-        if val_loss < self.best_loss - self.min_delta:
-            # 有改善：儲存模型並重置計數器
-            self.best_loss = val_loss
-            self.counter   = 0
-            torch.save(model.state_dict(), self.path)
-        else:
-            # 無改善：計數器 +1
-            self.counter += 1
-            if self.counter >= self.patience:
-                self.early_stop = True
- 
-        return self.early_stop
  
  
 class PacketDataset(TensorDataset):
@@ -197,6 +152,20 @@ class Trainer:
         self.best_val_loss = float("inf")
         self.threshold    = None   # 異常偵測閾值（訓練後計算）
  
+    # ── DataLoader 工作執行緒自動偵測 ───────────────────────
+    @staticmethod
+    def _auto_num_workers() -> int:
+        """根據作業系統自動設定 DataLoader 的 worker 數量
+
+        Windows 的 multiprocessing 使用 spawn（而非 fork），
+        在 Jupyter/互動式環境下容易卡死，因此固定為 0。
+        Linux/macOS 可安全使用多 worker 加速資料載入。
+        """
+        import platform
+        if platform.system() == "Windows":
+            return 0
+        return min(2, os.cpu_count() or 1)
+
     # ── 資料載入 ──────────────────────────────────────────
     def load_data(self, npy_path: str):
         """
@@ -225,14 +194,14 @@ class Trainer:
             self.train_set,
             batch_size=self.config["batch_size"],
             shuffle=True,                # 訓練時打亂順序
-            num_workers=0,               # Windows 需設為 0，Linux 可設 2~4
+            num_workers=self._auto_num_workers(),
             pin_memory=(self.device.type == "cuda"),
         )
         self.val_loader = DataLoader(
             self.val_set,
             batch_size=self.config["batch_size"],
             shuffle=False,               # 驗證時不需打亂
-            num_workers=0,
+            num_workers=self._auto_num_workers(),
         )
  
         print(f"  [Trainer] 訓練集: {n_train} 個，驗證集: {n_val} 個")
@@ -300,8 +269,8 @@ class Trainer:
         # 修改前
         #self.model.load_state_dict(torch.load(model_path, #map_location=self.device))
  
-        # 修改後
-        self.model.load_state_dict(torch.load(model_path, map_location=self.device, weights_only=True))
+        # 修改後 [修正 #4] 使用 memory-based 權重還原並寫入磁碟
+        early_stop.restore_best(self.model, persist=True)
         self.best_val_loss = early_stop.best_loss
  
         # 儲存訓練設定
@@ -327,7 +296,7 @@ class Trainer:
             loss = self.criterion(x_hat, x)
  
             # 反向傳播
-            self.optimizer.zero_grad()  # 清除上一步梯度
+            self.optimizer.zero_grad(set_to_none=True)  # 清除上一步梯度（set_to_none 節省記憶體）
             loss.backward()             # 計算梯度
  
             # 梯度裁剪：防止梯度爆炸（max_norm=1.0）
@@ -373,15 +342,24 @@ class Trainer:
         Returns:
             float: 閾值
         """
-        pct = percentile or self.config["threshold_percentile"]
+        # [修正] 使用 is not None 而非 or，避免 percentile=0 被視為 falsy
+        pct = percentile if percentile is not None else self.config["threshold_percentile"]
         self.model.eval()
  
         errors = []
-        loader = self.train_loader  # 預設用訓練集
- 
+
+        # [修正] 先判斷 npy_path，再 fallback 到 train_loader
+        # 原版先存取 self.train_loader 再判斷 npy_path，
+        # 若未呼叫 load_data() 就直接傳 npy_path 會觸發 AttributeError。
         if npy_path:
             dataset = PacketDataset.from_npy(npy_path)
             loader  = DataLoader(dataset, batch_size=64, shuffle=False)
+        elif hasattr(self, "train_loader") and self.train_loader is not None:
+            loader = self.train_loader
+        else:
+            raise RuntimeError(
+                "無法計算閾值：未提供 npy_path 且未呼叫 load_data() 載入訓練資料"
+            )
  
         with torch.no_grad():
             for batch in loader:
@@ -523,7 +501,7 @@ class Trainer:
  
     @classmethod
     def load_model(cls, model_path: str, config_path: str = None,
-                   latent_dim: int = 64) -> tuple:
+                   latent_dim: int = 32) -> tuple:
         """
         載入已訓練的模型與閾值
  
@@ -551,7 +529,8 @@ class Trainer:
         model.eval()
  
         print(f"  [Trainer] 模型已載入: {model_path}")
-        if threshold:
+        # [修正] 使用 is not None，避免 threshold=0.0 被視為 falsy
+        if threshold is not None:
             print(f"  [Trainer] 閾值: {threshold:.6f}")
  
         return model, threshold

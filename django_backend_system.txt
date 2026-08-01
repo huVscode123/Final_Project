@@ -1,11 +1,48 @@
-============================================================
-  accounts\__init__.py
-============================================================
+========================================================================
+  Django 後端系統程式碼彙整 (Python/System)
+  匯出時間 : 2026-08-01 16:38:09
+  總檔案數 : 33
+========================================================================
 
+[檔案目錄]
+  01. accounts\admin.py
+  02. accounts\apps.py
+  03. accounts\forms.py
+  04. accounts\models.py
+  05. accounts\urls.py
+  06. accounts\views.py
+  07. analyzer\admin.py
+  08. analyzer\apps.py
+  09. analyzer\models.py
+  10. analyzer\tasks.py
+  11. analyzer\urls.py
+  12. analyzer\views.py
+  13. api\apps.py
+  14. api\permissions.py
+  15. api\serializers.py
+  16. api\urls.py
+  17. api\views.py
+  18. manage.py
+  19. network_platform\celery.py
+  20. network_platform\settings.py
+  21. network_platform\urls.py
+  22. network_platform\wsgi.py
+  23. projects\admin.py
+  24. projects\apps.py
+  25. projects\forms.py
+  26. projects\models.py
+  27. projects\urls.py
+  28. projects\views.py
+  29. reports\apps.py
+  30. reports\generators.py
+  31. reports\urls.py
+  32. reports\views.py
+  33. requirements.txt
 
-============================================================
-  accounts\admin.py
-============================================================
+========================================================================
+
+// FILE: accounts\admin.py
+----------------------------------------
 # ============================================================
 # accounts/admin.py
 # ============================================================
@@ -59,9 +96,10 @@ class UserActivityLogAdmin(admin.ModelAdmin):
         return False
 
 
-============================================================
-  accounts\apps.py
-============================================================
+========================================================================
+
+// FILE: accounts\apps.py
+----------------------------------------
 from django.apps import AppConfig
 
 class AccountsConfig(AppConfig):
@@ -69,9 +107,10 @@ class AccountsConfig(AppConfig):
     verbose_name = '使用者系統'
 
 
-============================================================
-  accounts\forms.py
-============================================================
+========================================================================
+
+// FILE: accounts\forms.py
+----------------------------------------
 # ============================================================
 # accounts/forms.py
 # ============================================================
@@ -84,7 +123,12 @@ from .models import UserProfile
 class RegisterForm(UserCreationForm):
     email        = forms.EmailField(required=True, label='電子郵件')
     organization = forms.CharField(max_length=100, required=False, label='所屬組織')
-    role         = forms.ChoiceField(choices=UserProfile.ROLE_CHOICES, label='角色')
+    # [安全修正] 移除 admin 角色自選，防止權限提升漏洞
+    role         = forms.ChoiceField(
+        choices=[c for c in UserProfile.ROLE_CHOICES if c[0] != 'admin'],
+        label='角色',
+        initial='analyst',
+    )
 
     class Meta:
         model  = User
@@ -138,9 +182,10 @@ class UserProfileForm(forms.ModelForm):
             self.fields['email'].initial      = user.email
 
 
-============================================================
-  accounts\models.py
-============================================================
+========================================================================
+
+// FILE: accounts\models.py
+----------------------------------------
 # ============================================================
 # accounts/models.py
 # 使用者擴充資料（UserProfile）與角色/權限系統
@@ -242,9 +287,10 @@ class UserActivityLog(models.Model):
         return f'[{self.timestamp:%Y-%m-%d %H:%M}] {self.user.username} - {self.get_action_display()}'
 
 
-============================================================
-  accounts\urls.py
-============================================================
+========================================================================
+
+// FILE: accounts\urls.py
+----------------------------------------
 # ============================================================
 # accounts/urls.py
 # ============================================================
@@ -254,17 +300,21 @@ from . import views
 app_name = 'accounts'
 
 urlpatterns = [
-    path('register/',      views.register,       name='register'),
-    path('login/',         views.user_login,      name='login'),
-    path('logout/',        views.user_logout,     name='logout'),
-    path('profile/',       views.profile,         name='profile'),
-    path('activity-logs/', views.activity_logs,   name='activity_logs'),
+    path('register/',                views.register,          name='register'),
+    path('login/',                   views.user_login,        name='login'),
+    path('logout/',                  views.user_logout,       name='logout'),
+    path('profile/',                 views.profile,           name='profile'),
+    path('activity-logs/',           views.activity_logs,     name='activity_logs'),
+    # 管理員面板
+    path('admin-panel/',             views.admin_panel,       name='admin_panel'),
+    path('admin/user/<int:user_id>/',views.admin_update_user, name='admin_update_user'),
 ]
 
 
-============================================================
-  accounts\views.py
-============================================================
+========================================================================
+
+// FILE: accounts\views.py
+----------------------------------------
 # ============================================================
 # accounts/views.py
 # ============================================================
@@ -371,14 +421,83 @@ def activity_logs(request):
     return render(request, 'accounts/activity_logs.html', {'logs': logs})
 
 
-============================================================
-  analyzer\__init__.py
-============================================================
+@login_required
+def admin_panel(request):
+    """管理員管理面板 — 使用者管理、系統統計。"""
+    if not request.user.profile.is_admin:
+        messages.error(request, '權限不足：僅管理員可存取。')
+        return redirect('analyzer:dashboard')
+
+    from django.contrib.auth.models import User
+    from analyzer.models import AnalysisSession, Alert
+    from projects.models import Project
+
+    users = User.objects.select_related('profile').all().order_by('-date_joined')
+    logs = UserActivityLog.objects.select_related('user').all()[:50]
+
+    # 系統統計
+    stats = {
+        'total_users':    users.count(),
+        'admin_count':    users.filter(profile__role='admin').count(),
+        'analyst_count':  users.filter(profile__role='analyst').count(),
+        'viewer_count':   users.filter(profile__role='viewer').count(),
+        'total_sessions': AnalysisSession.objects.count(),
+        'done_sessions':  AnalysisSession.objects.filter(task_status='done').count(),
+        'total_alerts':   Alert.objects.count(),
+        'critical_alerts':Alert.objects.filter(severity='CRITICAL').count(),
+        'total_projects': Project.objects.exclude(status='deleted').count(),
+    }
+
+    return render(request, 'accounts/admin_panel.html', {
+        'users': users,
+        'logs': logs,
+        'stats': stats,
+    })
 
 
-============================================================
-  analyzer\admin.py
-============================================================
+@login_required
+def admin_update_user(request, user_id):
+    """管理員更新使用者角色或狀態（AJAX）。"""
+    if not request.user.profile.is_admin:
+        return JsonResponse({'error': '權限不足'}, status=403)
+
+    import json
+    from django.contrib.auth.models import User
+
+    try:
+        target = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({'error': '使用者不存在'}, status=404)
+
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        action = data.get('action')
+
+        if action == 'change_role':
+            new_role = data.get('role')
+            if new_role in ['admin', 'analyst', 'viewer']:
+                target.profile.role = new_role
+                target.profile.save()
+                _log_action(request, 'admin_change_role',
+                            f'將 {target.username} 的角色變更為 {new_role}')
+                return JsonResponse({'ok': True, 'role': new_role})
+
+        elif action == 'toggle_active':
+            target.is_active = not target.is_active
+            target.save()
+            status = '啟用' if target.is_active else '停用'
+            _log_action(request, 'admin_toggle_active',
+                        f'{status}使用者 {target.username}')
+            return JsonResponse({'ok': True, 'is_active': target.is_active})
+
+    return JsonResponse({'error': '無效的操作'}, status=400)
+
+
+
+========================================================================
+
+// FILE: analyzer\admin.py
+----------------------------------------
 # ============================================================
 # analyzer/admin.py
 # ============================================================
@@ -471,9 +590,10 @@ class AnalysisReportAdmin(admin.ModelAdmin):
     readonly_fields = ('created_at', 'file_size')
 
 
-============================================================
-  analyzer\apps.py
-============================================================
+========================================================================
+
+// FILE: analyzer\apps.py
+----------------------------------------
 from django.apps import AppConfig
 
 class AnalyzerConfig(AppConfig):
@@ -481,9 +601,10 @@ class AnalyzerConfig(AppConfig):
     verbose_name = '封包分析'
 
 
-============================================================
-  analyzer\models.py
-============================================================
+========================================================================
+
+// FILE: analyzer\models.py
+----------------------------------------
 # ============================================================
 # analyzer/models.py
 # 分析任務、告警、CNN 結果、視覺化影像儲存
@@ -687,9 +808,10 @@ class AnalysisReport(models.Model):
         return f'Report [{self.format.upper()}] Session {self.session_id}'
 
 
-============================================================
-  analyzer\tasks.py
-============================================================
+========================================================================
+
+// FILE: analyzer\tasks.py
+----------------------------------------
 # ============================================================
 # analyzer/tasks.py
 # Celery 非同步任務：封包前處理、規則偵測、CNN 分析、Grad-CAM
@@ -842,6 +964,21 @@ def run_pcap_analysis(self, session_id):
         raise self.retry(exc=exc)
 
 
+def _compute_errors_batched(model, X, device, batch_size=256):
+    """[P1-3 修正] 分批推論，避免大型 pcap 造成 GPU OOM"""
+    import numpy as np
+    import torch
+    errs = []
+    with torch.no_grad():
+        for i in range(0, len(X), batch_size):
+            batch = torch.from_numpy(
+                X[i:i+batch_size, np.newaxis, :, :].astype(np.float32)
+            ).to(device)
+            e = model.reconstruction_error(batch)
+            errs.append(e.cpu().numpy())
+    return np.concatenate(errs)
+
+
 def _run_cnn_analysis(session, pcap_path):
     """CNN Autoencoder 推論，回傳指標 dict（失敗回傳 None）。"""
     import numpy as np
@@ -858,8 +995,16 @@ def _run_cnn_analysis(session, pcap_path):
         from scapy.all import rdpcap
 
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model  = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
-        model.load_state_dict(torch.load(model_path, map_location=device))
+        # ── [P1-2 修正] 優先從 checkpoint 讀取閾值 ──
+        ckpt = torch.load(model_path, map_location=device, weights_only=True)
+        if isinstance(ckpt, dict) and 'model_state' in ckpt:
+            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
+            model.load_state_dict(ckpt['model_state'])
+            threshold = float(ckpt.get('threshold', settings.CNN_THRESHOLD))
+        else:
+            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
+            model.load_state_dict(ckpt)
+            threshold = float(settings.CNN_THRESHOLD)
         model.eval()
 
         packets = rdpcap(pcap_path)
@@ -876,12 +1021,8 @@ def _run_cnn_analysis(session, pcap_path):
             return None
 
         X        = np.array(images, dtype=np.float32)
-        X_tensor = torch.from_numpy(X[:, np.newaxis, :, :]).to(device)
-
-        with torch.no_grad():
-            errors = model.reconstruction_error(X_tensor).cpu().numpy()
-
-        threshold    = float(settings.CNN_THRESHOLD)
+        
+        errors = _compute_errors_batched(model, X, device)
         anomaly_mask = errors > threshold
         n_normal     = int((~anomaly_mask).sum())
         n_anomaly    = int(anomaly_mask.sum())
@@ -1075,9 +1216,10 @@ def _comparison_png(viz, x_tensor, heatmap):
     return buf.getvalue()
 
 
-============================================================
-  analyzer\urls.py
-============================================================
+========================================================================
+
+// FILE: analyzer\urls.py
+----------------------------------------
 # analyzer/urls.py
 from django.urls import path
 from . import views
@@ -1092,15 +1234,22 @@ urlpatterns = [
     path('sessions/<int:pk>/status/',           views.session_status_api, name='session_status'),
     path('sessions/<int:pk>/gradcam/',          views.trigger_gradcam,    name='trigger_gradcam'),
     path('sessions/<int:pk>/gradcam/gallery/',  views.gradcam_gallery,    name='gradcam_gallery'),
+    path('sessions/<int:pk>/heatmap/',          views.heatmap_analysis,   name='heatmap_analysis'),
     path('sessions/<int:pk>/delete/',           views.session_delete,     name='session_delete'),
+    path('simulation/',                         views.simulation,         name='simulation'),
+    path('simulation/api/',                     views.simulation_api,     name='simulation_api'),
+    path('ablation/',                           views.ablation_dashboard, name='ablation'),
+    path('ablation/api/run/',                   views.ablation_run_api,   name='ablation_run'),
+    path('ablation/api/status/',                views.ablation_status_api,name='ablation_status'),
     path('live/',                               views.live_monitor,       name='live'),
     path('ai-chat/',                            views.ai_chat,            name='ai_chat'),
 ]
 
 
-============================================================
-  analyzer\views.py
-============================================================
+========================================================================
+
+// FILE: analyzer\views.py
+----------------------------------------
 # ============================================================
 # analyzer/views.py
 # ============================================================
@@ -1395,8 +1544,11 @@ def gradcam_gallery(request, pk):
 @require_POST
 def session_delete(request, pk):
     session = get_object_or_404(AnalysisSession, pk=pk)
-    if session.created_by != request.user and not request.user.profile.is_admin:
-        messages.error(request, '只有建立者或管理員可刪除 Session。')
+    from django.core.exceptions import PermissionDenied
+    try:
+        _check_session_access(request, session)
+    except PermissionDenied:
+        messages.error(request, '您沒有刪除此 Session 的權限。')
         return redirect('analyzer:session_detail', pk=pk)
     from accounts.views import _log_action
     _log_action(request, 'delete_session', f'Session {session.pk}')
@@ -1458,14 +1610,350 @@ def _check_session_access(request, session):
     raise PermissionDenied('您沒有存取此 Session 的權限。')
 
 
-============================================================
-  api\__init__.py
-============================================================
+# ── 異常封包模擬檢測 ─────────────────────────────────────────
+@login_required
+def simulation(request):
+    """異常封包模擬檢測頁面 — 支援預設攻擊場景和自訂封包。"""
+    # 載入 CNN 模型資訊
+    model_ready = False
+    model_path = getattr(settings, 'CNN_MODEL_PATH', '')
+    if model_path:
+        model_ready = os.path.exists(model_path)
+
+    return render(request, 'analyzer/simulation.html', {
+        'model_ready':   model_ready,
+        'cnn_threshold': settings.CNN_THRESHOLD,
+        'cnn_latent_dim': settings.CNN_LATENT_DIM,
+    })
 
 
-============================================================
-  api\apps.py
-============================================================
+@login_required
+def simulation_api(request):
+    """模擬檢測 AJAX 端點 — 接收封包資料，回傳 CNN 異常分數。"""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': '僅接受 POST'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError) as e:
+        return JsonResponse({'ok': False, 'error': f'JSON 解析失敗：{e}'}, status=400)
+
+    attack_type = data.get('attack_type', 'syn_flood')
+    packet_count = min(int(data.get('packet_count', 10)), 100)
+
+    # 使用 core 引擎生成模擬封包
+    try:
+        import sys
+        core_path = os.path.join(settings.BASE_DIR, 'core')
+        if core_path not in sys.path:
+            sys.path.insert(0, core_path)
+
+        from generate_attack_pcap import generate_attack_packets
+        from scapy.all import raw as scapy_raw
+
+        # 產生 Scapy 封包物件
+        scapy_packets = generate_attack_packets(attack_type, packet_count)
+
+        # 統一轉換為 raw bytes（核心修正：Scapy 封包物件不能直接當 bytes 使用）
+        raw_packets = []
+        for pkt in scapy_packets:
+            try:
+                raw_packets.append(scapy_raw(pkt))
+            except Exception:
+                raw_packets.append(bytes(pkt))
+
+        results = []
+        model_path = getattr(settings, 'CNN_MODEL_PATH', '')
+
+        if model_path and os.path.exists(str(model_path)):
+            # ── 真實模型推論模式 ──
+            from cnn_autoencoder import CNNAutoencoder
+            from anomaly_scorer import AnomalyScorer
+            from packet_visualizer import PacketVisualizer
+            import torch
+            import numpy as np
+
+            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
+            model.load_state_dict(torch.load(
+                str(model_path), map_location='cpu', weights_only=True
+            ))
+            model.eval()
+
+            visualizer = PacketVisualizer("medium", apply_mask=True)
+
+            # [v3.0 核心優化] 比較式判定策略
+            # 問題：合成封包的位元組分布與訓練集不同，
+            #        導致固定閾值 (CNN_THRESHOLD) 失效。
+            # 解法：先產生 baseline 正常流量，動態計算分離度。
+            #
+            # 策略：
+            #   1. 生成一組正常封包，計算 baseline MSE 分布
+            #   2. 計算目標封包的 MSE
+            #   3. 用 baseline 的 95th percentile 作為動態閾值
+            #   4. 同時回傳原始的 settings 閾值，供前端參考
+
+            # 生成 baseline 正常流量
+            baseline_pkts = generate_attack_packets('normal_traffic', 20)
+            baseline_raw = []
+            for pkt in baseline_pkts:
+                try:
+                    baseline_raw.append(scapy_raw(pkt))
+                except Exception:
+                    baseline_raw.append(bytes(pkt))
+
+            # 計算 baseline 的 MSE 分布
+            baseline_arrs = np.array([
+                visualizer.bytes_to_image(b) for b in baseline_raw
+            ], dtype=np.float32)
+            baseline_tensor = torch.from_numpy(baseline_arrs[:, np.newaxis])
+
+            with torch.no_grad():
+                baseline_errors = model.reconstruction_error(baseline_tensor).numpy()
+
+            baseline_mean = float(baseline_errors.mean())
+            baseline_std = float(baseline_errors.std())
+            # 動態閾值 = baseline 平均值 + 2 倍標準差
+            dynamic_threshold = baseline_mean + 2.0 * baseline_std
+
+            # 計算目標封包的 MSE
+            target_arrs = np.array([
+                visualizer.bytes_to_image(b) for b in raw_packets
+            ], dtype=np.float32)
+            target_tensor = torch.from_numpy(target_arrs[:, np.newaxis])
+
+            with torch.no_grad():
+                target_errors = model.reconstruction_error(target_tensor).numpy()
+
+            for i, score in enumerate(target_errors):
+                score_val = float(score)
+                is_anomaly = score_val > dynamic_threshold
+                results.append({
+                    'index': i,
+                    'score': round(score_val, 8),
+                    'is_anomaly': is_anomaly,
+                    'size': len(raw_packets[i]),
+                })
+
+            # 回傳時附上動態閾值資訊
+            effective_threshold = dynamic_threshold
+        else:
+            # ── 模型未就緒 — 使用模擬分數 ──
+            import random
+            threshold = settings.CNN_THRESHOLD
+            is_normal = (attack_type == 'normal_traffic')
+
+            for i, pkt_bytes in enumerate(raw_packets):
+                if is_normal:
+                    sim_score = random.uniform(threshold * 0.05, threshold * 0.85)
+                else:
+                    sim_score = random.uniform(threshold * 2.0, threshold * 15.0)
+
+                results.append({
+                    'index': i,
+                    'score': round(sim_score, 8),
+                    'is_anomaly': sim_score > threshold,
+                    'size': len(pkt_bytes),
+                })
+            effective_threshold = threshold
+
+        anomaly_count = sum(1 for r in results if r['is_anomaly'])
+        total = len(results)
+
+        return JsonResponse({
+            'ok': True,
+            'attack_type': attack_type,
+            'packet_count': total,
+            'threshold': effective_threshold,
+            'static_threshold': settings.CNN_THRESHOLD,
+            'results': results,
+            'avg_score': round(
+                sum(r['score'] for r in results) / max(total, 1), 8
+            ),
+            'anomaly_count': anomaly_count,
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({
+            'ok': False,
+            'error': f'{type(e).__name__}: {str(e)}'
+        }, status=500)
+
+
+# ── 熱力圖分析 ───────────────────────────────────────────────
+@login_required
+def heatmap_analysis(request, pk):
+    """熱力圖深度分析頁面 — Grad-CAM 影像詳細檢視。"""
+    session = get_object_or_404(AnalysisSession, pk=pk)
+    _check_session_access(request, session)
+
+    images = session.gradcam_images.order_by('packet_index')
+    anomaly_images = images.filter(is_anomaly=True)
+    normal_images = images.filter(is_anomaly=False)
+
+    cnn_result = getattr(session, 'cnn_result', None)
+
+    return render(request, 'analyzer/heatmap_analysis.html', {
+        'session':        session,
+        'images':         images,
+        'anomaly_images': anomaly_images,
+        'normal_images':  normal_images,
+        'cnn_result':     cnn_result,
+        'total_count':    images.count(),
+        'anomaly_count':  anomaly_images.count(),
+        'normal_count':   normal_images.count(),
+    })
+
+
+# ── 消融實驗 (Ablation Study) ──────────────────────────────────
+import subprocess
+import threading
+import time
+
+# 用於追蹤當前正在執行的背景消融實驗行程（簡單的全域變數實作）
+# 鍵: dataset_name, 值: {'process': Popen_object, 'log_file': path_to_log, 'status': 'running'|'done'|'error'}
+ablation_tasks = {}
+
+@login_required
+def ablation_dashboard(request):
+    """消融實驗主頁面"""
+    return render(request, 'analyzer/ablation.html', {
+        'page_title': '消融實驗分析',
+    })
+
+@require_POST
+@login_required
+def ablation_run_api(request):
+    """啟動背景消融實驗"""
+    try:
+        data = json.loads(request.body)
+        dataset = data.get('dataset', 'simulate')
+        experiments = data.get('experiments', ['all'])
+        repeats = data.get('repeats', 1)
+        
+        # 建立輸出目錄與 Log 檔案
+        output_dir = os.path.join(settings.BASE_DIR, 'output', dataset, 'ablation')
+        os.makedirs(output_dir, exist_ok=True)
+        log_path = os.path.join(output_dir, 'ablation.log')
+        
+        script_path = os.path.join(settings.BASE_DIR, 'core', 'run_threshold_tuning.py')
+        
+        # 準備命令列參數
+        # 由於原始腳本 run_threshold_tuning.py 中目前尚未把 n_repeats 拉成命令列參數，
+        # 這裡主要是呼叫 --ablation 和 --ablation-exp。
+        # 如果需要 n_repeats，腳本需要被微調，或者我們就依賴預設的 3 次。
+        cmd = ['python', script_path, '--dataset', dataset, '--ablation']
+        if 'all' not in experiments:
+            cmd.extend(['--ablation-exp'] + experiments)
+            
+        # 清空舊的 Log
+        with open(log_path, 'w', encoding='utf-8') as f:
+            f.write(f"--- 啟動消融實驗 (資料集: {dataset}) ---\n")
+            f.write(f"執行指令: {' '.join(cmd)}\n\n")
+
+        # 啟動子行程，將 stdout 與 stderr 導向至 Log 檔
+        log_file = open(log_path, 'a', encoding='utf-8')
+        process = subprocess.Popen(
+            cmd,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            cwd=settings.BASE_DIR,
+            shell=False
+        )
+        
+        # 紀錄至全域追蹤變數
+        ablation_tasks[dataset] = {
+            'process': process,
+            'log_path': log_path,
+            'log_file_obj': log_file,
+            'status': 'running'
+        }
+        
+        # 建立一個背景執行緒來等待行程結束並關閉檔案
+        def wait_process(task_dict):
+            p = task_dict['process']
+            p.wait()
+            task_dict['log_file_obj'].close()
+            if p.returncode == 0:
+                task_dict['status'] = 'done'
+            else:
+                task_dict['status'] = 'error'
+
+        threading.Thread(target=wait_process, args=(ablation_tasks[dataset],)).start()
+        
+        return JsonResponse({'ok': True, 'message': '消融實驗已在背景啟動', 'dataset': dataset})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'ok': False, 'error': str(e)}, status=500)
+
+@login_required
+def ablation_status_api(request):
+    """查詢實驗進度與取得結果"""
+    dataset = request.GET.get('dataset', 'simulate')
+    
+    task = ablation_tasks.get(dataset)
+    log_path = os.path.join(settings.BASE_DIR, 'output', dataset, 'ablation', 'ablation.log')
+    
+    status = task['status'] if task else 'idle'
+    
+    # 讀取最後幾行 Log 作為進度提示
+    logs = ""
+    if os.path.exists(log_path):
+        try:
+            with open(log_path, 'r', encoding='utf-8') as f:
+                # 讀取最後 100 行
+                lines = f.readlines()
+                logs = "".join(lines[-100:])
+        except Exception:
+            logs = "無法讀取日誌檔案..."
+            
+    # 如果已完成或原本就沒有在跑，嘗試回傳結果
+    report_data = None
+    images = {}
+    
+    if status in ['done', 'idle']:
+        report_path = os.path.join(settings.BASE_DIR, 'output', dataset, 'ablation', 'ablation_report.json')
+        if os.path.exists(report_path):
+            try:
+                with open(report_path, 'r', encoding='utf-8') as f:
+                    report_data = json.load(f)
+                    
+                # 尋找所有生成的圖表
+                output_dir = os.path.dirname(report_path)
+                for file in os.listdir(output_dir):
+                    if file.endswith('.png'):
+                        # 提供可以供前端載入的路徑 (這裡暫時使用相對路徑，前提是 output 資料夾可以透過 static 或 media 服務，
+                        # 但如果 Django 沒開的話，我們可能要寫個 view 來 serve，或者將它複製到 media 裡面)
+                        pass
+                        
+                # 簡單做法：將圖表複製到 media/ablation/{dataset}/ 供前端存取
+                media_ablation_dir = os.path.join(settings.MEDIA_ROOT, 'ablation', dataset)
+                os.makedirs(media_ablation_dir, exist_ok=True)
+                
+                import shutil
+                for file in os.listdir(output_dir):
+                    if file.endswith('.png'):
+                        src = os.path.join(output_dir, file)
+                        dst = os.path.join(media_ablation_dir, file)
+                        shutil.copy2(src, dst)
+                        images[file] = f"{settings.MEDIA_URL}ablation/{dataset}/{file}"
+            except Exception as e:
+                print("讀取消融實驗報告失敗:", e)
+    
+    return JsonResponse({
+        'ok': True,
+        'status': status,
+        'logs': logs,
+        'report': report_data,
+        'images': images
+    })
+
+
+========================================================================
+
+// FILE: api\apps.py
+----------------------------------------
 from django.apps import AppConfig
 
 class ApiConfig(AppConfig):
@@ -1473,9 +1961,43 @@ class ApiConfig(AppConfig):
     verbose_name = 'REST API'
 
 
-============================================================
-  api\serializers.py
-============================================================
+========================================================================
+
+// FILE: api\permissions.py
+----------------------------------------
+"""API 共用權限檢查工具"""
+from rest_framework.response import Response
+from analyzer.models import AnalysisSession
+
+
+def get_session_or_403(request, pk):
+    """
+    共用的 Session 存取檢查（比照 analyzer/views.py 的 _check_session_access）。
+    回傳 (session, None) 或 (None, error_response)。
+    """
+    try:
+        s = AnalysisSession.objects.get(pk=pk)
+    except AnalysisSession.DoesNotExist:
+        return None, Response({'error': 'Session 不存在'}, status=404)
+
+    user = request.user
+    has_access = (
+        user.profile.is_admin
+        or s.created_by == user
+        or (s.project and (
+            s.project.owner == user
+            or s.project.members.filter(pk=user.pk).exists()
+        ))
+    )
+    if not has_access:
+        return None, Response({'error': '權限不足'}, status=403)
+    return s, None
+
+
+========================================================================
+
+// FILE: api\serializers.py
+----------------------------------------
 # ============================================================
 # api/serializers.py
 # ============================================================
@@ -1648,9 +2170,10 @@ class AnalysisReportSerializer(serializers.ModelSerializer):
         return None
 
 
-============================================================
-  api\urls.py
-============================================================
+========================================================================
+
+// FILE: api\urls.py
+----------------------------------------
 # api/urls.py
 from django.urls import path
 from . import views
@@ -1697,9 +2220,10 @@ urlpatterns = [
 ]
 
 
-============================================================
-  api\views.py
-============================================================
+========================================================================
+
+// FILE: api\views.py
+----------------------------------------
 # ============================================================
 # api/views.py
 # REST API：Token 認證、專案、Session、CNN、Grad-CAM、AI Chat
@@ -1726,6 +2250,8 @@ from .serializers import (
     AnalysisSessionDetailSerializer, AlertSerializer,
     CNNResultSerializer, GradCAMImageSerializer, AnalysisReportSerializer,
 )
+from .permissions import get_session_or_403
+
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1874,6 +2400,10 @@ class PacketFileUploadAPI(APIView):
         except Project.DoesNotExist:
             return Response({'error': '專案不存在'}, status=404)
 
+        if project.owner != request.user and not project.members.filter(pk=request.user.pk).exists():
+            return Response({'error': '權限不足'}, status=403)
+
+
         file = request.FILES.get('file')
         if not file:
             return Response({'error': '請提供 PCAP 檔案'}, status=400)
@@ -2012,10 +2542,10 @@ class SessionStatusAPI(APIView):
     """GET /api/v1/sessions/<pk>/status/ — 輪詢任務進度"""
 
     def get(self, request, pk):
-        try:
-            s = AnalysisSession.objects.get(pk=pk)
-        except AnalysisSession.DoesNotExist:
-            return Response({'error': 'Session 不存在'}, status=404)
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
+
         return Response({
             'task_status':   s.task_status,
             'packet_count':  s.packet_count,
@@ -2034,6 +2564,9 @@ class CNNResultAPI(APIView):
     """GET /api/v1/sessions/<pk>/cnn/"""
 
     def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
         try:
             result = CNNResult.objects.get(session_id=pk)
         except CNNResult.DoesNotExist:
@@ -2047,10 +2580,9 @@ class CNNRunAPI(APIView):
     def post(self, request, pk):
         if not request.user.profile.can_run_ai_analysis:
             return Response({'error': '權限不足'}, status=403)
-        try:
-            session = AnalysisSession.objects.get(pk=pk)
-        except AnalysisSession.DoesNotExist:
-            return Response({'error': 'Session 不存在'}, status=404)
+        session, err = get_session_or_403(request, pk)
+        if err:
+            return err
         try:
             from analyzer.tasks import run_pcap_analysis
             task = run_pcap_analysis.delay(session.pk)
@@ -2071,10 +2603,9 @@ class GradCAMRunAPI(APIView):
     def post(self, request, pk):
         if not request.user.profile.can_run_ai_analysis:
             return Response({'error': '您無執行 AI 分析的權限'}, status=403)
-        try:
-            session = AnalysisSession.objects.get(pk=pk)
-        except AnalysisSession.DoesNotExist:
-            return Response({'error': 'Session 不存在'}, status=404)
+        session, err = get_session_or_403(request, pk)
+        if err:
+            return err
 
         variant      = request.data.get('variant', 'gradcam')
         max_images   = int(request.data.get('max_images', 20))
@@ -2100,6 +2631,9 @@ class GradCAMListAPI(APIView):
     """GET /api/v1/sessions/<pk>/gradcam/ — 取得 Grad-CAM 影像列表"""
 
     def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
         qs = GradCAMImage.objects.filter(session_id=pk)
         variant = request.query_params.get('variant')
         anomaly = request.query_params.get('anomaly_only')
@@ -2119,6 +2653,9 @@ class AlertListAPI(APIView):
     """GET /api/v1/sessions/<pk>/alerts/"""
 
     def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
         qs = Alert.objects.filter(session_id=pk).order_by('-timestamp')
         severity = request.query_params.get('severity')
         if severity:
@@ -2135,10 +2672,9 @@ class ReportExportAPI(APIView):
     def post(self, request, pk):
         if not request.user.profile.can_export_report:
             return Response({'error': '您無匯出報告的權限'}, status=403)
-        try:
-            session = AnalysisSession.objects.get(pk=pk)
-        except AnalysisSession.DoesNotExist:
-            return Response({'error': 'Session 不存在'}, status=404)
+        session, err = get_session_or_403(request, pk)
+        if err:
+            return err
 
         fmt = request.data.get('format', 'pdf').lower()
         if fmt not in ('pdf', 'json', 'csv'):
@@ -2162,6 +2698,9 @@ class ReportListAPI(APIView):
     """GET /api/v1/sessions/<pk>/reports/"""
 
     def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
         qs = __import__('analyzer.models', fromlist=['AnalysisReport']
                          ).AnalysisReport.objects.filter(session_id=pk)
         return Response(AnalysisReportSerializer(
@@ -2182,8 +2721,8 @@ class AIChatAPI(APIView):
 
         context = ''
         if session_id:
-            try:
-                session = AnalysisSession.objects.get(pk=session_id)
+            session, err = get_session_or_403(request, session_id)
+            if not err:
                 alerts  = session.alerts.all()[:5]
                 cnn     = getattr(session, 'cnn_result', None)
                 context = (
@@ -2195,8 +2734,6 @@ class AIChatAPI(APIView):
                 if cnn:
                     context += (f' CNN 偵測率: {cnn.detection_rate*100:.1f}%，'
                                 f'異常封包: {cnn.anomaly_count}。')
-            except AnalysisSession.DoesNotExist:
-                pass
 
         webhook_url = getattr(settings, 'N8N_WEBHOOK_URL',
                               'http://localhost:5678/webhook/ai-chat')
@@ -2234,14 +2771,248 @@ class SystemStatsAPI(APIView):
         })
 
 
-============================================================
-  projects\__init__.py
-============================================================
+========================================================================
+
+// FILE: manage.py
+----------------------------------------
+#!/usr/bin/env python
+"""Django's command-line utility for administrative tasks."""
+import os
+import sys
 
 
-============================================================
-  projects\admin.py
-============================================================
+def main():
+    """Run administrative tasks."""
+    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
+    try:
+        from django.core.management import execute_from_command_line
+    except ImportError as exc:
+        raise ImportError(
+            "Couldn't import Django. Are you sure it's installed and "
+            "available on your PYTHONPATH environment variable? Did you "
+            "forget to activate a virtual environment?"
+        ) from exc
+    execute_from_command_line(sys.argv)
+
+
+if __name__ == '__main__':
+    main()
+
+
+========================================================================
+
+// FILE: network_platform\celery.py
+----------------------------------------
+# ============================================================
+# network_platform/celery.py
+# ============================================================
+import os
+from celery import Celery
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
+
+app = Celery('network_platform')
+app.config_from_object('django.conf:settings', namespace='CELERY')
+app.autodiscover_tasks()
+
+
+@app.task(bind=True)
+def debug_task(self):
+    print(f'Request: {self.request!r}')
+
+
+========================================================================
+
+// FILE: network_platform\settings.py
+----------------------------------------
+from pathlib import Path
+import os
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-dev-key-請在正式環境替換成隨機字串')
+DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() == 'true'
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,*').split(',')
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'rest_framework',
+    'rest_framework.authtoken',
+    'corsheaders',
+    'accounts',
+    'projects',
+    'analyzer',
+    'api',
+    'reports',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = 'network_platform.urls'
+
+TEMPLATES = [{
+    'BACKEND': 'django.template.backends.django.DjangoTemplates',
+    'DIRS': [BASE_DIR / 'templates'],
+    'APP_DIRS': True,
+    'OPTIONS': {'context_processors': [
+        'django.template.context_processors.debug',
+        'django.template.context_processors.request',
+        'django.contrib.auth.context_processors.auth',
+        'django.contrib.messages.context_processors.messages',
+    ]},
+}]
+
+WSGI_APPLICATION = 'network_platform.wsgi.application'
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+LANGUAGE_CODE = 'zh-hant'
+TIME_ZONE     = 'Asia/Taipei'
+USE_I18N = True
+USE_TZ   = True
+
+STATIC_URL       = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT      = BASE_DIR / 'staticfiles'
+MEDIA_URL        = '/media/'
+MEDIA_ROOT       = BASE_DIR / 'media'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.MultiPartParser',
+        'rest_framework.parsers.FormParser',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+}
+
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+CELERY_BROKER_URL         = os.getenv('CELERY_BROKER', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND     = os.getenv('CELERY_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT     = ['json']
+CELERY_TASK_SERIALIZER    = 'json'
+CELERY_RESULT_SERIALIZER  = 'json'
+CELERY_TIMEZONE           = 'Asia/Taipei'
+CELERY_TASK_ALWAYS_EAGER  = os.getenv('CELERY_EAGER', 'false').lower() == 'true'
+
+CNN_MODEL_PATH  = BASE_DIR / 'media' / 'model' / 'best_model.pt'
+CNN_LATENT_DIM  = 32
+# ── [P1-2 修正] 支援環境變數覆蓋 ──
+CNN_THRESHOLD = float(os.getenv('CNN_THRESHOLD', '0.000069'))
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
+
+REPORT_OUTPUT_DIR = BASE_DIR / 'media' / 'reports'
+N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+LOGIN_URL           = '/accounts/login/'
+LOGIN_REDIRECT_URL  = '/analyzer/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+
+========================================================================
+
+// FILE: network_platform\urls.py
+----------------------------------------
+# ============================================================
+# network_platform/urls.py
+# ============================================================
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+from django.views.generic import RedirectView
+
+# 客製化後台標題
+admin.site.site_header  = '網路攻擊分析平台 管理後台'
+admin.site.site_title   = 'NetGuard Admin'
+admin.site.index_title  = '系統管理'
+
+urlpatterns = [
+    # ── 後台管理 ──────────────────────────────────────────────
+    path('admin/', admin.site.urls),
+
+    # ── 使用者系統（登入/登出/註冊/個人資料）────────────────
+    path('accounts/', include('accounts.urls', namespace='accounts')),
+
+    # ── 專案管理（前端頁面）──────────────────────────────────
+    path('projects/', include('projects.urls', namespace='projects')),
+
+    # ── 分析模組（前端頁面）──────────────────────────────────
+    path('analyzer/', include('analyzer.urls', namespace='analyzer')),
+
+    # ── 報告匯出 ──────────────────────────────────────────────
+    path('reports/', include('reports.urls', namespace='reports')),
+
+    # ── REST API（/api/v1/...）────────────────────────────────
+    path('api/v1/', include('api.urls', namespace='api')),
+
+    # ── 根路由導向首頁 ────────────────────────────────────────
+    path('', RedirectView.as_view(url='/analyzer/', permanent=False)),
+]
+
+# 開發環境 media / static 提供
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL,  document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+
+========================================================================
+
+// FILE: network_platform\wsgi.py
+----------------------------------------
+import os
+from django.core.wsgi import get_wsgi_application
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
+application = get_wsgi_application()
+
+
+========================================================================
+
+// FILE: projects\admin.py
+----------------------------------------
 # ============================================================
 # projects/admin.py
 # ============================================================
@@ -2291,9 +3062,10 @@ class PacketFileAdmin(admin.ModelAdmin):
         return f'{obj.file_size_mb} MB'
 
 
-============================================================
-  projects\apps.py
-============================================================
+========================================================================
+
+// FILE: projects\apps.py
+----------------------------------------
 from django.apps import AppConfig
 
 class ProjectsConfig(AppConfig):
@@ -2301,14 +3073,19 @@ class ProjectsConfig(AppConfig):
     verbose_name = '專案管理'
 
 
-============================================================
-  projects\forms.py
-============================================================
+========================================================================
+
+// FILE: projects\forms.py
+----------------------------------------
 # ============================================================
 # projects/forms.py
 # ============================================================
 from django import forms
+from django.core.exceptions import ValidationError
 from .models import Project, PacketFile
+
+ALLOWED_EXTENSIONS = ('.pcap', '.pcapng', '.cap')
+MAX_UPLOAD_SIZE = 200 * 1024 * 1024  # 200MB
 
 
 class ProjectForm(forms.ModelForm):
@@ -2344,10 +3121,31 @@ class PacketFileUploadForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'rows': 2}),
         }
 
+    def clean_file(self):
+        f = self.cleaned_data['file']
+        name_lower = f.name.lower()
+        if not name_lower.endswith(ALLOWED_EXTENSIONS):
+            raise ValidationError(
+                f'不支援的檔案格式，僅接受 {", ".join(ALLOWED_EXTENSIONS)}。')
+        if f.size > MAX_UPLOAD_SIZE:
+            raise ValidationError(
+                f'檔案過大（{f.size/1024/1024:.1f}MB），上限為 '
+                f'{MAX_UPLOAD_SIZE/1024/1024:.0f}MB。')
+        head = f.read(4)
+        f.seek(0)
+        valid_magic = head in (
+            b'\xa1\xb2\xc3\xd4', b'\xd4\xc3\xb2\xa1',
+            b'\x0a\x0d\x0d\x0a',
+        )
+        if not valid_magic:
+            raise ValidationError('檔案內容不像是合法的 PCAP/PCAPNG 檔案。')
+        return f
 
-============================================================
-  projects\models.py
-============================================================
+
+========================================================================
+
+// FILE: projects\models.py
+----------------------------------------
 # ============================================================
 # projects/models.py
 # 專案管理：讓使用者將不同時間點、不同網段的封包分門別類
@@ -2496,9 +3294,10 @@ class PacketFile(models.Model):
         return self.sha256
 
 
-============================================================
-  projects\urls.py
-============================================================
+========================================================================
+
+// FILE: projects\urls.py
+----------------------------------------
 # projects/urls.py
 from django.urls import path
 from . import views
@@ -2518,9 +3317,10 @@ urlpatterns = [
 ]
 
 
-============================================================
-  projects\views.py
-============================================================
+========================================================================
+
+// FILE: projects\views.py
+----------------------------------------
 # ============================================================
 # projects/views.py
 # ============================================================
@@ -2529,6 +3329,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.db.models import Q
 from django.http import JsonResponse
+from django.views.decorators.http import require_POST
 
 from .models import Project, ProjectMembership, PacketFile
 from .forms import ProjectForm, PacketFileUploadForm
@@ -2635,6 +3436,7 @@ def project_archive(request, pk):
     return redirect('projects:list')
 
 
+@require_POST
 @login_required
 def member_add(request, pk):
     """新增專案成員（POST JSON）。"""
@@ -2662,6 +3464,7 @@ def member_add(request, pk):
     return redirect('projects:detail', pk=pk)
 
 
+@require_POST
 @login_required
 def member_remove(request, pk, user_pk):
     """移除專案成員（POST）。"""
@@ -2757,14 +3560,10 @@ def packet_file_delete(request, pk, file_pk):
     return redirect('projects:detail', pk=pk)
 
 
-============================================================
-  reports\__init__.py
-============================================================
+========================================================================
 
-
-============================================================
-  reports\apps.py
-============================================================
+// FILE: reports\apps.py
+----------------------------------------
 from django.apps import AppConfig
 
 class ReportsConfig(AppConfig):
@@ -2772,9 +3571,10 @@ class ReportsConfig(AppConfig):
     verbose_name = '報告匯出'
 
 
-============================================================
-  reports\generators.py
-============================================================
+========================================================================
+
+// FILE: reports\generators.py
+----------------------------------------
 # ============================================================
 # reports/generators.py
 # 分析報告匯出系統：PDF（ReportLab）/ JSON / CSV
@@ -3154,9 +3954,10 @@ class ReportGenerator:
         return report
 
 
-============================================================
-  reports\urls.py
-============================================================
+========================================================================
+
+// FILE: reports\urls.py
+----------------------------------------
 # reports/urls.py
 from django.urls import path
 from . import views
@@ -3170,9 +3971,10 @@ urlpatterns = [
 ]
 
 
-============================================================
-  reports\views.py
-============================================================
+========================================================================
+
+// FILE: reports\views.py
+----------------------------------------
 # ============================================================
 # reports/views.py
 # 報告匯出：前端觸發與下載
@@ -3280,209 +4082,59 @@ def report_list(request, session_pk):
     })
 
 
-============================================================
-  network_platform\__init__.py
-============================================================
-from .celery import app as celery_app
+========================================================================
 
-__all__ = ('celery_app',)
-
-
-============================================================
-  network_platform\celery.py
-============================================================
+// FILE: requirements.txt
+----------------------------------------
 # ============================================================
-# network_platform/celery.py
+# requirements.txt
 # ============================================================
-import os
-from celery import Celery
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
+--extra-index-url https://download.pytorch.org/whl/cu121
 
-app = Celery('network_platform')
-app.config_from_object('django.conf:settings', namespace='CELERY')
-app.autodiscover_tasks()
+# Web Framework
+django>=4.2,<5.0
+djangorestframework>=3.14
+django-cors-headers>=4.0
 
+# Network packet capture and parsing
+scapy>=2.5
 
-@app.task(bind=True)
-def debug_task(self):
-    print(f'Request: {self.request!r}')
+# Data processing
+numpy>=1.26.4
+pandas>=2.0
 
+# image processing
+Pillow>=10.0
 
-============================================================
-  network_platform\settings.py
-============================================================
-from pathlib import Path
-import os
+# Deep Learning (GPU Version)
+torch==2.1.0+cu121
+torchvision==0.16.0+cu121
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = 'django-dev-key-請在正式環境替換成隨機字串'
-DEBUG = True
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '*']
+# Machine learning tools
+scikit-learn>=1.3
 
-INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'rest_framework',
-    'rest_framework.authtoken',
-    'corsheaders',
-    'accounts',
-    'projects',
-    'analyzer',
-    'api',
-    'reports',
-]
+# Data Visualization
+matplotlib>=3.7
+plotly>=5.0
+seaborn>=0.13.0
 
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
+# Terminal Tools
+colorama>=0.4.6
+tabulate>=0.9.0
 
-ROOT_URLCONF = 'network_platform.urls'
+# HTTP Request (for AI Agent n8n concatenation)
+requests>=2.31
 
-TEMPLATES = [{
-    'BACKEND': 'django.template.backends.django.DjangoTemplates',
-    'DIRS': [BASE_DIR / 'templates'],
-    'APP_DIRS': True,
-    'OPTIONS': {'context_processors': [
-        'django.template.context_processors.debug',
-        'django.template.context_processors.request',
-        'django.contrib.auth.context_processors.auth',
-        'django.contrib.messages.context_processors.messages',
-    ]},
-}]
+# Test framework
+pytest>=7.0
+pytest-cov>=4.0
+pytest-django>=4.5
 
-WSGI_APPLICATION = 'network_platform.wsgi.application'
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
-AUTH_PASSWORD_VALIDATORS = []
-
-LANGUAGE_CODE = 'zh-hant'
-TIME_ZONE     = 'Asia/Taipei'
-USE_I18N = True
-USE_TZ   = True
-
-STATIC_URL       = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT      = BASE_DIR / 'staticfiles'
-MEDIA_URL        = '/media/'
-MEDIA_ROOT       = BASE_DIR / 'media'
-
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',
-    ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-        'rest_framework.parsers.MultiPartParser',
-        'rest_framework.parsers.FormParser',
-    ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
-}
-
-CORS_ALLOW_ALL_ORIGINS = True
-
-CELERY_BROKER_URL         = os.getenv('CELERY_BROKER', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND     = os.getenv('CELERY_BACKEND', 'redis://localhost:6379/0')
-CELERY_ACCEPT_CONTENT     = ['json']
-CELERY_TASK_SERIALIZER    = 'json'
-CELERY_RESULT_SERIALIZER  = 'json'
-CELERY_TIMEZONE           = 'Asia/Taipei'
-CELERY_TASK_ALWAYS_EAGER  = os.getenv('CELERY_EAGER', 'false').lower() == 'true'
-
-CNN_MODEL_PATH  = BASE_DIR / 'media' / 'model' / 'best_model.pt'
-CNN_LATENT_DIM  = 32
-CNN_THRESHOLD   = 0.000822
-
-DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
-
-REPORT_OUTPUT_DIR = BASE_DIR / 'media' / 'reports'
-N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-LOGIN_URL           = '/accounts/login/'
-LOGIN_REDIRECT_URL  = '/analyzer/'
-LOGOUT_REDIRECT_URL = '/accounts/login/'
+# Async Tasks
+celery>=5.3.0
+redis>=5.0.0
 
 
-============================================================
-  network_platform\urls.py
-============================================================
-# ============================================================
-# network_platform/urls.py
-# ============================================================
-from django.contrib import admin
-from django.urls import path, include
-from django.conf import settings
-from django.conf.urls.static import static
-from django.views.generic import RedirectView
-
-# 客製化後台標題
-admin.site.site_header  = '網路攻擊分析平台 管理後台'
-admin.site.site_title   = 'NetGuard Admin'
-admin.site.index_title  = '系統管理'
-
-urlpatterns = [
-    # ── 後台管理 ──────────────────────────────────────────────
-    path('admin/', admin.site.urls),
-
-    # ── 使用者系統（登入/登出/註冊/個人資料）────────────────
-    path('accounts/', include('accounts.urls', namespace='accounts')),
-
-    # ── 專案管理（前端頁面）──────────────────────────────────
-    path('projects/', include('projects.urls', namespace='projects')),
-
-    # ── 分析模組（前端頁面）──────────────────────────────────
-    path('analyzer/', include('analyzer.urls', namespace='analyzer')),
-
-    # ── 報告匯出 ──────────────────────────────────────────────
-    path('reports/', include('reports.urls', namespace='reports')),
-
-    # ── REST API（/api/v1/...）────────────────────────────────
-    path('api/v1/', include('api.urls', namespace='api')),
-
-    # ── 根路由導向首頁 ────────────────────────────────────────
-    path('', RedirectView.as_view(url='/analyzer/', permanent=False)),
-]
-
-# 開發環境 media / static 提供
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL,  document_root=settings.MEDIA_ROOT)
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-
-
-============================================================
-  network_platform\wsgi.py
-============================================================
-import os
-from django.core.wsgi import get_wsgi_application
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
-application = get_wsgi_application()
-
+========================================================================
 

@@ -91,6 +91,12 @@ class PacketVisualizer:
         self.normalize     = normalize
         self.skip_ethernet = skip_ethernet
 
+        if apply_mask and not skip_ethernet:
+            raise ValueError(
+                "apply_mask=True 目前僅支援搭配 skip_ethernet=True，"
+                "因為欄位遮罩的位移量是以『已跳過 Ethernet Header』為前提計算。"
+            )
+
     # ──────────────────────────────────────────────────────
     # 核心轉換：原始 bytes → 2D 灰階矩陣
     # ──────────────────────────────────────────────────────

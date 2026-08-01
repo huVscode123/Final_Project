@@ -24,6 +24,8 @@ from .serializers import (
     AnalysisSessionDetailSerializer, AlertSerializer,
     CNNResultSerializer, GradCAMImageSerializer, AnalysisReportSerializer,
 )
+from .permissions import get_session_or_403
+
 
 
 # ─────────────────────────────────────────────────────────────
@@ -172,6 +174,10 @@ class PacketFileUploadAPI(APIView):
         except Project.DoesNotExist:
             return Response({'error': '專案不存在'}, status=404)
 
+        if project.owner != request.user and not project.members.filter(pk=request.user.pk).exists():
+            return Response({'error': '權限不足'}, status=403)
+
+
         file = request.FILES.get('file')
         if not file:
             return Response({'error': '請提供 PCAP 檔案'}, status=400)
@@ -310,10 +316,10 @@ class SessionStatusAPI(APIView):
     """GET /api/v1/sessions/<pk>/status/ — 輪詢任務進度"""
 
     def get(self, request, pk):
-        try:
-            s = AnalysisSession.objects.get(pk=pk)
-        except AnalysisSession.DoesNotExist:
-            return Response({'error': 'Session 不存在'}, status=404)
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
+
         return Response({
             'task_status':   s.task_status,
             'packet_count':  s.packet_count,
@@ -332,6 +338,9 @@ class CNNResultAPI(APIView):
     """GET /api/v1/sessions/<pk>/cnn/"""
 
     def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
         try:
             result = CNNResult.objects.get(session_id=pk)
         except CNNResult.DoesNotExist:
@@ -345,10 +354,9 @@ class CNNRunAPI(APIView):
     def post(self, request, pk):
         if not request.user.profile.can_run_ai_analysis:
             return Response({'error': '權限不足'}, status=403)
-        try:
-            session = AnalysisSession.objects.get(pk=pk)
-        except AnalysisSession.DoesNotExist:
-            return Response({'error': 'Session 不存在'}, status=404)
+        session, err = get_session_or_403(request, pk)
+        if err:
+            return err
         try:
             from analyzer.tasks import run_pcap_analysis
             task = run_pcap_analysis.delay(session.pk)
@@ -369,10 +377,9 @@ class GradCAMRunAPI(APIView):
     def post(self, request, pk):
         if not request.user.profile.can_run_ai_analysis:
             return Response({'error': '您無執行 AI 分析的權限'}, status=403)
-        try:
-            session = AnalysisSession.objects.get(pk=pk)
-        except AnalysisSession.DoesNotExist:
-            return Response({'error': 'Session 不存在'}, status=404)
+        session, err = get_session_or_403(request, pk)
+        if err:
+            return err
 
         variant      = request.data.get('variant', 'gradcam')
         max_images   = int(request.data.get('max_images', 20))
@@ -398,6 +405,9 @@ class GradCAMListAPI(APIView):
     """GET /api/v1/sessions/<pk>/gradcam/ — 取得 Grad-CAM 影像列表"""
 
     def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
         qs = GradCAMImage.objects.filter(session_id=pk)
         variant = request.query_params.get('variant')
         anomaly = request.query_params.get('anomaly_only')
@@ -417,6 +427,9 @@ class AlertListAPI(APIView):
     """GET /api/v1/sessions/<pk>/alerts/"""
 
     def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
         qs = Alert.objects.filter(session_id=pk).order_by('-timestamp')
         severity = request.query_params.get('severity')
         if severity:
@@ -433,10 +446,9 @@ class ReportExportAPI(APIView):
     def post(self, request, pk):
         if not request.user.profile.can_export_report:
             return Response({'error': '您無匯出報告的權限'}, status=403)
-        try:
-            session = AnalysisSession.objects.get(pk=pk)
-        except AnalysisSession.DoesNotExist:
-            return Response({'error': 'Session 不存在'}, status=404)
+        session, err = get_session_or_403(request, pk)
+        if err:
+            return err
 
         fmt = request.data.get('format', 'pdf').lower()
         if fmt not in ('pdf', 'json', 'csv'):
@@ -460,6 +472,9 @@ class ReportListAPI(APIView):
     """GET /api/v1/sessions/<pk>/reports/"""
 
     def get(self, request, pk):
+        s, err = get_session_or_403(request, pk)
+        if err:
+            return err
         qs = __import__('analyzer.models', fromlist=['AnalysisReport']
                          ).AnalysisReport.objects.filter(session_id=pk)
         return Response(AnalysisReportSerializer(
@@ -480,8 +495,8 @@ class AIChatAPI(APIView):
 
         context = ''
         if session_id:
-            try:
-                session = AnalysisSession.objects.get(pk=session_id)
+            session, err = get_session_or_403(request, session_id)
+            if not err:
                 alerts  = session.alerts.all()[:5]
                 cnn     = getattr(session, 'cnn_result', None)
                 context = (
@@ -493,8 +508,6 @@ class AIChatAPI(APIView):
                 if cnn:
                     context += (f' CNN 偵測率: {cnn.detection_rate*100:.1f}%，'
                                 f'異常封包: {cnn.anomaly_count}。')
-            except AnalysisSession.DoesNotExist:
-                pass
 
         webhook_url = getattr(settings, 'N8N_WEBHOOK_URL',
                               'http://localhost:5678/webhook/ai-chat')

@@ -55,9 +55,18 @@ class PcapAnalyzer:
         self.detector    = AnomalyDetector()
         self.records     = []
         self.packets     = []
+        self.total_bytes = 0   # [新增] 快取總流量，避免重複計算
 
     # ── 讀取 PCAP ────────────────────────────────────────
     def load(self, use_streaming=False):
+        """載入 PCAP 檔案
+
+        Args:
+            use_streaming: 是否使用串流模式逐封包讀取（適用於大型 PCAP）
+
+        Returns:
+            self（支援鏈式呼叫）
+        """
         print(f"\n{Fore.CYAN}載入 PCAP: {self.pcap_path}{Style.RESET_ALL}")
 
         if use_streaming:
@@ -69,9 +78,10 @@ class PcapAnalyzer:
             self.packets = rdpcap(self.pcap_path)
             self.records = [self.parser.parse(p) for p in self.packets]
 
-        total_bytes = sum(r.get("length", 0) for r in self.records)
+        # [優化] 快取 total_bytes，避免後續 summary() 重複計算
+        self.total_bytes = sum(r.get("length", 0) for r in self.records)
         print(f"{Fore.GREEN}  共載入 {len(self.packets):,} 個封包  "
-              f"({total_bytes/1024:.1f} KB){Style.RESET_ALL}")
+              f"({self.total_bytes/1024:.1f} KB){Style.RESET_ALL}")
         return self
 
     # ── 基本統計摘要 ──────────────────────────────────────
@@ -84,7 +94,8 @@ class PcapAnalyzer:
             r["dst_port"] for r in self.records
             if isinstance(r.get("dst_port"), int)
         )
-        total_bytes  = sum(r.get("length", 0) for r in self.records)
+        # [優化] 使用 load() 階段已快取的 total_bytes，避免重複迭代
+        total_bytes  = self.total_bytes
         timestamps   = [r["timestamp"] for r in self.records if r.get("timestamp")]
         ip_versions  = Counter(r.get("ip_version") for r in self.records
                                if r.get("ip_version"))
@@ -142,6 +153,8 @@ class PcapAnalyzer:
 
     # ── 提取 DNS 查詢 ─────────────────────────────────────
     def extract_dns(self):
+        """提取並分析所有 DNS 查詢與回應記錄"""
+        self._require_loaded()
         dns_records = []
         for pkt in self.packets:
             if not pkt.haslayer(DNS):
@@ -189,6 +202,8 @@ class PcapAnalyzer:
 
     # ── 提取 HTTP 請求 ────────────────────────────────────
     def extract_http(self):
+        """提取並分析所有 HTTP 請求"""
+        self._require_loaded()
         http_requests = []
         for pkt in self.packets:
             if not (pkt.haslayer(TCP) and pkt[TCP].dport == 80
@@ -223,6 +238,8 @@ class PcapAnalyzer:
 
     # ── TLS/SSL 分析 ──────────────────────────────────────
     def analyze_tls(self):
+        """分析所有 TLS/SSL 封包"""
+        self._require_loaded()
         tls_records = [r for r in self.records if r.get("protocol") == "TLS"]
         if not tls_records:
             print(f"\n{Fore.YELLOW}  [TLS] 未找到 TLS 封包{Style.RESET_ALL}")
@@ -248,6 +265,8 @@ class PcapAnalyzer:
 
     # ── ARP 分析 ──────────────────────────────────────────
     def analyze_arp(self):
+        """分析所有 ARP 封包並偵測疑似 ARP Spoofing"""
+        self._require_loaded()
         arp_records = [r for r in self.records if r.get("protocol") == "ARP"]
         if not arp_records:
             print(f"\n{Fore.YELLOW}  [ARP] 未找到 ARP 封包{Style.RESET_ALL}")
@@ -277,6 +296,12 @@ class PcapAnalyzer:
 
     # ── 時間軸分析 ────────────────────────────────────────
     def analyze_timeline(self, granularity="second"):
+        """按時間軸分析封包分布
+
+        Args:
+            granularity: 時間粒度，'second' 或 'minute'
+        """
+        self._require_loaded()
         time_counter = Counter()
         for r in self.records:
             ts = r.get("timestamp", "")
@@ -336,6 +361,12 @@ class PcapAnalyzer:
         summary     = self.detector.get_summary()
         alert_list  = list(self.detector.alert_history)  # list[dict]
 
+        # [修正] 將 total_packets 加入摘要，供 tasks.py 正確取得封包數量
+        # 原本 tasks.py 呼叫 summary_info.get('total_packets') 會得到 None，
+        # 因為 detector.get_summary() 只包含 total_alerts 而無 total_packets。
+        summary["total_packets"] = len(self.records)
+        summary["total_bytes"]   = self.total_bytes
+
         if summary.get("total_alerts", 0) == 0:
             print(f"{Fore.GREEN}  ✓ 未發現攻擊特徵{Style.RESET_ALL}")
         else:
@@ -382,6 +413,76 @@ class PcapAnalyzer:
                        tablefmt="rounded_outline"))
         return streams
 
+    # ── 連線五元組統計 ──────────────────────────────────────
+    def analyze_connections(self):
+        """分析連線五元組（src_ip, src_port, dst_ip, dst_port, protocol）
+
+        統計每個唯一連線的封包數與總流量，用於識別
+        高流量連線和可疑的持續性連線。
+
+        Returns:
+            list[dict]: 依封包數降序排列的連線統計
+        """
+        self._require_loaded()
+
+        connections = defaultdict(lambda: {
+            "count": 0, "bytes": 0,
+            "first_seen": None, "last_seen": None
+        })
+
+        for r in self.records:
+            src_ip   = r.get("src_ip", "N/A")
+            dst_ip   = r.get("dst_ip", "N/A")
+            src_port = r.get("src_port", 0)
+            dst_port = r.get("dst_port", 0)
+            proto    = r.get("protocol", "UNKNOWN")
+            ts       = r.get("timestamp", "")
+
+            # 使用排序後的端點組合，確保雙向流量合併
+            ep1 = (src_ip, src_port)
+            ep2 = (dst_ip, dst_port)
+            key = (tuple(sorted([ep1, ep2])), proto)
+
+            conn = connections[key]
+            conn["count"] += 1
+            conn["bytes"] += r.get("length", 0)
+            if conn["first_seen"] is None or ts < conn["first_seen"]:
+                conn["first_seen"] = ts
+            if conn["last_seen"] is None or ts > conn["last_seen"]:
+                conn["last_seen"] = ts
+
+        # 轉換為列表並排序
+        result = []
+        for (endpoints, proto), stats in connections.items():
+            (ip1, port1), (ip2, port2) = endpoints
+            svc = PORT_SERVICE_MAP.get(port1) or PORT_SERVICE_MAP.get(port2) or ""
+            result.append({
+                "endpoint_a": f"{ip1}:{port1}",
+                "endpoint_b": f"{ip2}:{port2}",
+                "protocol":   proto,
+                "service":    svc,
+                "packets":    stats["count"],
+                "bytes":      stats["bytes"],
+                "first_seen": stats["first_seen"],
+                "last_seen":  stats["last_seen"],
+            })
+
+        result.sort(key=lambda x: x["packets"], reverse=True)
+
+        # 列印前 15 名
+        print(f"\n{Fore.YELLOW}  [連線五元組分析] 共 {len(result)} 條連線{Style.RESET_ALL}")
+        if result:
+            table = [
+                [c["endpoint_a"], c["endpoint_b"], c["protocol"],
+                 c["service"], c["packets"], f"{c['bytes']:,} B"]
+                for c in result[:15]
+            ]
+            print(tabulate(table,
+                           headers=["端點 A", "端點 B", "協議", "服務", "封包數", "流量"],
+                           tablefmt="rounded_outline"))
+
+        return result
+
     # ── 儲存結果 ──────────────────────────────────────────
     def save_results(self):
         if self.records:
@@ -393,6 +494,7 @@ class PcapAnalyzer:
 
     # ── 一鍵完整分析 ──────────────────────────────────────
     def full_analysis(self):
+        """一鍵執行完整 PCAP 分析流程"""
         self.load()
         self.summary()
         self.extract_dns()
@@ -402,6 +504,7 @@ class PcapAnalyzer:
         self.analyze_timeline()
         self.detect_attacks()
         self.rebuild_tcp_streams()
+        self.analyze_connections()
         self.save_results()
         return self
 

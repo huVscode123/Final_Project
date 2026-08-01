@@ -413,9 +413,20 @@ class CICIDSLoader:
 
         X = df.values.astype(np.float64)
 
-        # 處理無限值：先用欄位最大有限值取代，再填 0
-        X = np.where(np.isposinf(X), np.finfo(np.float32).max, X)
-        X = np.where(np.isneginf(X), np.finfo(np.float32).min, X)
+        # 處理無限值：用該欄位的最大有限值取代 inf，再填 0 處理 NaN
+        # [修正] 原版使用 np.finfo(float32).max (≈3.4×10³⁸) 取代 inf，
+        #        導致 MinMaxScaler 後所有正常值都被壓縮到接近 0，
+        #        影像幾乎全黑，CNN 無法學到有效特徵。
+        #        現在改用每個欄位的最大有限值，確保 scaling 不被極端值扭曲。
+        for col_idx in range(X.shape[1]):
+            col = X[:, col_idx]
+            inf_mask = np.isinf(col)
+            if inf_mask.any():
+                finite_vals = col[np.isfinite(col)]
+                col_max = np.max(finite_vals) if len(finite_vals) > 0 else 0.0
+                col_min = np.min(finite_vals) if len(finite_vals) > 0 else 0.0
+                X[np.isposinf(X[:, col_idx]), col_idx] = col_max
+                X[np.isneginf(X[:, col_idx]), col_idx] = col_min
         X = np.nan_to_num(X, nan=0.0)
         X = X.astype(np.float32)
 
@@ -582,15 +593,16 @@ class DatasetFactory:
         攻擊流量特徵：模擬 SYN Flood/Port Scan（低 entropy，均勻分布）
         """
         print(f"  [DatasetFactory] 使用模擬資料（{n_normal} 正常 + {n_attack} 攻擊）")
-        np.random.seed(42)
+        # [修正] 使用局部 Generator，避免 np.random.seed() 污染全域隨機狀態
+        rng = np.random.default_rng(42)
 
         # 正常流量：41 維模擬特徵，中等數值、有變化
-        normal_feat = np.random.beta(2, 5, size=(n_normal, 41)).astype(np.float32)
+        normal_feat = rng.beta(2, 5, size=(n_normal, 41)).astype(np.float32)
         # 加入一些高數值特徵（模擬 src_bytes, dst_bytes）
-        normal_feat[:, 4:6] = np.random.beta(5, 2, size=(n_normal, 2)).astype(np.float32)
+        normal_feat[:, 4:6] = rng.beta(5, 2, size=(n_normal, 2)).astype(np.float32)
 
         # 攻擊流量：集中在低數值（SYN Flood = 小封包，Port Scan = 短連線）
-        attack_feat = np.random.beta(0.5, 5, size=(n_attack, 41)).astype(np.float32)
+        attack_feat = rng.beta(0.5, 5, size=(n_attack, 41)).astype(np.float32)
         attack_feat[:, 0] = 0.0    # duration = 0（SYN 無連線時間）
         attack_feat[:, 4] = 0.0    # src_bytes = 0（無 Payload）
 

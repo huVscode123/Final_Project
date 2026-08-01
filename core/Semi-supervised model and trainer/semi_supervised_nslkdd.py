@@ -41,8 +41,16 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Optional, Tuple, Dict, List
 from sklearn.preprocessing import MinMaxScaler
+import sys as _sys
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+_core_dir = os.path.dirname(_this_dir)
+if _this_dir not in _sys.path:
+    _sys.path.insert(0, _this_dir)
+if _core_dir not in _sys.path:
+    _sys.path.insert(0, _core_dir)
 
 from cnn_autoencoder import features_to_image, evaluate
+from training_common import EarlyStopping
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
@@ -227,11 +235,26 @@ class NSLKDDLoader:
         """
         特徵工程：
           1. Log1p 對重尾連續特徵
-          2. One-Hot 類別特徵
+          2. 類別特徵數值化（共用碼表）
           3. MinMaxScaler（fit 僅用正常）
+
+        [修正 #1] 先合併正常+攻擊建立共用碼表，確保同一類別值
+        （如 protocol_type="tcp"）在兩個子集中得到相同整數碼。
+        原版各自獨立呼叫 pd.Categorical()，會因為各自看到不同
+        類別子集而分配不同碼，導致模型看到語意錯位的特徵。
         """
         drop_cols = {"label", "attack_cat", "difficulty_level"}
         feat_cols = [c for c in df_normal.columns if c not in drop_cols]
+
+        # [修正 #1] 建立共用碼表：合併兩個子集的類別全集
+        combined = pd.concat([df_normal[feat_cols], df_attack[feat_cols]],
+                             ignore_index=True)
+        self._cat_categories = {}
+        for col in _CAT_FEATURES:
+            if col in combined.columns:
+                self._cat_categories[col] = sorted(
+                    combined[col].astype(str).unique()
+                )
 
         def _prepare(df: pd.DataFrame) -> pd.DataFrame:
             out = df[feat_cols].copy()
@@ -241,10 +264,13 @@ class NSLKDDLoader:
                     out[col] = np.log1p(pd.to_numeric(out[col],
                                                        errors="coerce")
                                          .fillna(0).clip(lower=0))
-            # 類別特徵數值化
+            # [修正 #1] 類別特徵數值化 — 使用共用碼表
             for col in _CAT_FEATURES:
-                if col in out.columns:
-                    out[col] = pd.Categorical(out[col]).codes
+                if col in out.columns and col in self._cat_categories:
+                    out[col] = pd.Categorical(
+                        out[col].astype(str),
+                        categories=self._cat_categories[col]
+                    ).codes
             # 全部轉 float
             out = out.apply(pd.to_numeric, errors="coerce").fillna(0.0)
             return out
@@ -326,20 +352,22 @@ class SemiSupervisedAE_NSLKDD(nn.Module):
         )
 
         self.kld_weight = 1e-4    # KL Divergence 權重（variational=True 時生效）
+        self._last_logvar = None  # [修正 #2] 快取 logvar，避免重複前向傳播
 
     def _flatten(self, x: torch.Tensor) -> torch.Tensor:
         return self.encoder_conv(x).flatten(start_dim=1)
 
     def encode(self, x: torch.Tensor) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
+        """[修正 #2] 移除死碼，encoder_fc 只呼叫一次，logvar 快取至 _last_logvar"""
         h = self._flatten(x)
         if self.variational:
             mu     = self.fc_mu(h)
             logvar = self.fc_logvar(h)
+            self._last_logvar = logvar
             return mu, logvar
-        z = self.encoder_fc(torch.cat([h], dim=1)
-                             if False else h)  # 保留介面一致性
-        # 非 variational 時 logvar=None
-        return self.encoder_fc(h), None
+        z = self.encoder_fc(h)          # 只算一次
+        self._last_logvar = None
+        return z, None
 
     def reparameterize(self,
                        mu: torch.Tensor,
@@ -440,9 +468,25 @@ class SemiSupervisedTrainer_NSLKDD:
         lr     = self.config.get("pretrain_lr", 1e-3)
         bs     = self.config.get("batch_size", 64)
         var    = self.config.get("variational", False)
+        val_split = self.config.get("val_split", 0.0)
+
+        # [Fix #11] 可選 val split + Early Stopping
+        if val_split > 0:
+            n_val = max(1, int(len(X_normal) * val_split))
+            indices = np.random.default_rng(42).permutation(len(X_normal))
+            X_train = X_normal[indices[n_val:]]
+            X_val   = X_normal[indices[:n_val]]
+            val_tensor = torch.from_numpy(X_val).to(self.device)
+            early_stop = EarlyStopping(
+                patience=self.config.get("es_patience", 15),
+                path=os.path.join(self.output_dir, "best_pretrain.pt")
+            )
+        else:
+            X_train = X_normal
+            early_stop = None
 
         loader = DataLoader(
-            TensorDataset(torch.from_numpy(X_normal)),
+            TensorDataset(torch.from_numpy(X_train)),
             batch_size=bs, shuffle=True, drop_last=False,
         )
         opt   = torch.optim.Adam(self.model.parameters(), lr=lr,
@@ -463,10 +507,9 @@ class SemiSupervisedTrainer_NSLKDD:
                 x_hat, z = self.model(batch)
                 loss     = crit(x_hat, batch)
 
-                if var:
-                    _, logvar = self.model.encode(batch)
-                    if logvar is not None:
-                        loss = loss + self.model.kl_loss(z, logvar)
+                # [修正 #2] 讀快取的 logvar，不再重複呼叫 encode()
+                if var and self.model._last_logvar is not None:
+                    loss = loss + self.model.kl_loss(z, self.model._last_logvar)
 
                 opt.zero_grad()
                 loss.backward()
@@ -474,11 +517,28 @@ class SemiSupervisedTrainer_NSLKDD:
                 opt.step()
                 ep_loss += loss.item() * len(batch)
             sched.step()
-            avg = ep_loss / len(X_normal)
+            avg = ep_loss / len(X_train)
             losses.append(avg)
             if ep % max(1, epochs // 8) == 0:
                 print(f"  [P1] Epoch {ep:4d}/{epochs}  Loss={avg:.6f}")
 
+            # [Fix #11] 驗證 + Early Stopping
+            if early_stop is not None:
+                self.model.eval()
+                with torch.no_grad():
+                    val_hat, val_z = self.model(val_tensor)
+                    v_loss = crit(val_hat, val_tensor)
+                    if var and self.model._last_logvar is not None:
+                        v_loss = v_loss + self.model.kl_loss(val_z, self.model._last_logvar)
+                    val_loss = v_loss.item()
+                self.model.train()
+                if early_stop(val_loss, self.model):
+                    print(f"  [P1] Early Stopping at epoch {ep}")
+                    early_stop.restore_best(self.model, persist=False)
+                    break
+
+        if early_stop is not None:
+            early_stop.restore_best(self.model, persist=False)
         self.model.eval()
         self._pretrain_losses = losses
         return losses
@@ -682,6 +742,23 @@ if __name__ == "__main__":
     )
     X_normal, X_attack, attack_cats = loader.load()
 
+    import numpy as np
+    rng = np.random.default_rng(42)
+    idx_n = rng.permutation(len(X_normal))
+    split_n = int(len(X_normal) * 0.8)
+    X_train_normal = X_normal[idx_n[:split_n]]
+    X_test_normal  = X_normal[idx_n[split_n:]]
+
+    idx_a = rng.permutation(len(X_attack))
+    split_a = int(len(X_attack) * 0.5)
+    X_finetune_attack = X_attack[idx_a[:split_a]]
+    X_test_attack     = X_attack[idx_a[split_a:]]
+
+    if attack_cats is not None:
+        attack_cats_finetune = [attack_cats[i] for i in idx_a[:split_a]]
+    else:
+        attack_cats_finetune = None
+
     config = {
         "latent_dim":          args.latent,
         "image_size":          args.image_size,
@@ -696,9 +773,9 @@ if __name__ == "__main__":
         "use_category_margin": True,
     }
     trainer = SemiSupervisedTrainer_NSLKDD(config, output_dir=args.output)
-    trainer.train_full(X_normal, X_attack, attack_cats=attack_cats)
+    trainer.train_full(X_train_normal, X_finetune_attack, attack_cats=attack_cats_finetune)
 
-    result = evaluate(trainer.model, X_normal, X_attack,
+    result = evaluate(trainer.model, X_test_normal, X_test_attack,
                       trainer.threshold, device=trainer.device)
     with open(os.path.join(args.output, "eval_result.json"), "w") as f:
         json.dump(result, f, indent=2)

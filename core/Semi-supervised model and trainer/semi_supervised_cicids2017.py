@@ -43,8 +43,16 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset
 from typing import Optional, Tuple, List
 from sklearn.preprocessing import RobustScaler
+import sys as _sys
+_this_dir = os.path.dirname(os.path.abspath(__file__))
+_core_dir = os.path.dirname(_this_dir)
+if _this_dir not in _sys.path:
+    _sys.path.insert(0, _this_dir)
+if _core_dir not in _sys.path:
+    _sys.path.insert(0, _core_dir)
 
 from cnn_autoencoder import Encoder, Decoder, features_to_image, evaluate
+from training_common import EarlyStopping
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 
@@ -406,9 +414,25 @@ class SemiSupervisedTrainer_CICIDS2017:
         epochs = self.config.get("pretrain_epochs", 80)
         lr     = self.config.get("pretrain_lr", 1e-3)
         bs     = self.config.get("batch_size", 32)
+        val_split = self.config.get("val_split", 0.0)
+
+        # [Fix #11] 可選 val split + Early Stopping
+        if val_split > 0:
+            n_val = max(1, int(len(X_normal) * val_split))
+            indices = np.random.default_rng(42).permutation(len(X_normal))
+            X_train = X_normal[indices[n_val:]]
+            X_val   = X_normal[indices[:n_val]]
+            val_tensor = torch.from_numpy(X_val).to(self.device)
+            early_stop = EarlyStopping(
+                patience=self.config.get("es_patience", 15),
+                path=os.path.join(self.output_dir, "best_pretrain.pt")
+            )
+        else:
+            X_train = X_normal
+            early_stop = None
 
         loader = DataLoader(
-            TensorDataset(torch.from_numpy(X_normal)),
+            TensorDataset(torch.from_numpy(X_train)),
             batch_size=bs, shuffle=True, drop_last=False,
         )
         opt   = torch.optim.AdamW(self.model.parameters(), lr=lr,
@@ -434,11 +458,25 @@ class SemiSupervisedTrainer_CICIDS2017:
                 opt.step()
                 sched.step()
                 ep_loss += loss.item() * len(batch)
-            avg = ep_loss / len(X_normal)
+            avg = ep_loss / len(X_train)
             losses.append(avg)
             if ep % max(1, epochs // 8) == 0:
                 print(f"  [P1] Epoch {ep:4d}/{epochs}  Loss={avg:.6f}")
 
+            # [Fix #11] 驗證 + Early Stopping
+            if early_stop is not None:
+                self.model.eval()
+                with torch.no_grad():
+                    val_hat, _ = self.model(val_tensor)
+                    val_loss = crit(val_hat, val_tensor).item()
+                self.model.train()
+                if early_stop(val_loss, self.model):
+                    print(f"  [P1] Early Stopping at epoch {ep}")
+                    early_stop.restore_best(self.model, persist=False)
+                    break
+
+        if early_stop is not None:
+            early_stop.restore_best(self.model, persist=False)
         self.model.eval()
         self._pretrain_losses = losses
         return losses
@@ -611,6 +649,18 @@ if __name__ == "__main__":
     )
     X_normal, X_attack = loader.load()
 
+    import numpy as np
+    rng = np.random.default_rng(42)
+    idx_n = rng.permutation(len(X_normal))
+    split_n = int(len(X_normal) * 0.8)
+    X_train_normal = X_normal[idx_n[:split_n]]
+    X_test_normal  = X_normal[idx_n[split_n:]]
+
+    idx_a = rng.permutation(len(X_attack))
+    split_a = int(len(X_attack) * 0.5)
+    X_finetune_attack = X_attack[idx_a[:split_a]]
+    X_test_attack     = X_attack[idx_a[split_a:]]
+
     config = {
         "latent_dim":      args.latent,
         "batch_size":      args.batch,
@@ -623,9 +673,9 @@ if __name__ == "__main__":
         "percentile":      args.pct,
     }
     trainer = SemiSupervisedTrainer_CICIDS2017(config, output_dir=args.output)
-    trainer.train_full(X_normal, X_attack)
+    trainer.train_full(X_train_normal, X_finetune_attack)
 
-    result = evaluate(trainer.model, X_normal, X_attack,
+    result = evaluate(trainer.model, X_test_normal, X_test_attack,
                       trainer.threshold, device=trainer.device)
     with open(os.path.join(args.output, "eval_result.json"), "w") as f:
         json.dump(result, f, indent=2)

@@ -52,6 +52,31 @@ class PacketStorage:
         print(f"{Fore.GREEN}  CSV 已儲存: {path} ({len(records):,} 筆){Style.RESET_ALL}")
         return path
 
+    def append_csv(self, records: list, filename: str = "packets.csv") -> str:
+        """追加模式儲存 CSV
+
+        若檔案已存在，追加記錄（不重寫 header）；
+        若檔案不存在，建立新檔案（含 header）。
+
+        Args:
+            records  : 封包記錄列表
+            filename : CSV 檔案名稱
+
+        Returns:
+            儲存的檔案路徑
+        """
+        if not records:
+            return None
+        path = self._resolve_path(filename, OUTPUT_CSV)
+        file_exists = os.path.exists(path)
+        with open(path, "a", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=list(records[0].keys()))
+            if not file_exists:
+                writer.writeheader()
+            writer.writerows(records)
+        print(f"{Fore.GREEN}  CSV 已追加: {path} (+{len(records):,} 筆){Style.RESET_ALL}")
+        return path
+
     # ── JSON ──────────────────────────────────────────────
     def save_json(self, records: list, filename: str = "packets.json") -> str:
         if not records:
@@ -97,14 +122,33 @@ class PacketStorage:
                     cur.execute(f'CREATE INDEX IF NOT EXISTS idx_{col} ON packets("{col}")')
                 except sqlite3.OperationalError:
                     pass
-        placeholders = ", ".join("?" for _ in columns)
-        col_names    = ", ".join(f'"{c}"' for c in columns)
+        # [修正] 保留原始型別（int, float, str），只對非基本型別做 str 轉換
+        # 原版將所有值轉為 str，導致 SQL 數值比較失效（如 WHERE dst_port > 1024）
+        def _to_sql_value(val):
+            """將 Python 值轉換為 SQLite 相容的型別"""
+            if val is None:
+                return None
+            if isinstance(val, (int, float, str)):
+                return val
+            if isinstance(val, bool):
+                return int(val)
+            return str(val)
+
         rows = [
-            tuple(str(r.get(col)) if r.get(col) is not None else None for col in columns)
+            tuple(_to_sql_value(r.get(col)) for col in columns)
             for r in records
         ]
-        cur.executemany(f'INSERT INTO packets ({col_names}) VALUES ({placeholders})', rows)
-        conn.commit()
+        # [優化] 批次寫入：每 1000 筆 commit 一次，避免大量記錄時 transaction 過大
+        BATCH_SIZE = 1000
+        placeholders = ", ".join("?" for _ in columns)
+        col_names    = ", ".join(f'"{c}"' for c in columns)
+        for i in range(0, len(rows), BATCH_SIZE):
+            batch = rows[i:i + BATCH_SIZE]
+            cur.executemany(
+                f'INSERT INTO packets ({col_names}) VALUES ({placeholders})',
+                batch
+            )
+            conn.commit()
         conn.close()
         print(f"{Fore.GREEN}  SQLite 已儲存: {path} ({len(records):,} 筆){Style.RESET_ALL}")
         return path

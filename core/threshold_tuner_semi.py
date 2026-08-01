@@ -106,10 +106,18 @@ class SemiSupervisedThresholdTuner(ThresholdTuner):
         thr_max     = float(np.percentile(all_errors, 99))   # 99th 百分位
         candidates  = np.linspace(thr_min, thr_max, n_thresholds)
 
+        # ── [P2-1 修正] PR-AUC 與 threshold 無關，只需算一次 ──
+        all_errors = np.concatenate([errors_normal, errors_attack])
+        all_labels = np.concatenate([np.zeros(len(errors_normal)), np.ones(len(errors_attack))])
+        from sklearn.metrics import precision_recall_curve
+        from sklearn.metrics import auc as sk_auc
+        pr_pre, pr_rec, _ = precision_recall_curve(all_labels, all_errors)
+        pr_auc = float(sk_auc(pr_rec, pr_pre))
+
         results = []
         for thr in candidates:
             metrics = self._evaluate_at_threshold(
-                errors_normal, errors_attack, float(thr)
+                errors_normal, errors_attack, float(thr), pr_auc=pr_auc
             )
             # 額外計算 MCC（Matthews Correlation Coefficient）
             tp, tn, fp, fn = (metrics["tp"], metrics["tn"],

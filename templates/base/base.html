@@ -4,339 +4,30 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="description" content="VNAAP — 視覺化網路攻擊自動化分析平台"/>
   <title>{% block title %}VNAAP — 視覺化網路攻擊分析平台{% endblock %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{% static 'css/main.css' %}"/>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg-base:    #0f172a;
-      --bg-card:    #111827;
-      --bg-header:  #0d1117;
-      --border:     #1f2d40;
-      --border2:    #1e293b;
-      --green:      #22c55e;
-      --green-dim:  rgba(34,197,94,0.12);
-      --green-glow: rgba(34,197,94,0.25);
-      --red:        #ef4444;
-      --red-dim:    rgba(239,68,68,0.12);
-      --orange:     #f97316;
-      --orange-dim: rgba(249,115,22,0.12);
-      --yellow:     #eab308;
-      --yellow-dim: rgba(234,179,8,0.12);
-      --blue:       #3b82f6;
-      --blue-dim:   rgba(59,130,246,0.12);
-      --purple:     #a855f7;
-      --text-primary:   #e2e8f0;
-      --text-secondary: #94a3b8;
-      --text-muted:     #475569;
-      --text-faint:     #334155;
-      --mono: 'JetBrains Mono', monospace;
-      --radius: 12px;
-    }
-
-    body {
-      font-family: 'Inter', sans-serif;
-      background: var(--bg-base);
-      color: var(--text-primary);
-      height: 100vh;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    ::-webkit-scrollbar { width: 5px; height: 5px; }
-    ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; }
-
-    /* ═══ HEADER ══════════════════════════════════════════ */
-    header {
-      background: var(--bg-header);
-      border-bottom: 1px solid var(--border);
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 0 24px;
-      height: 62px;
-      flex-shrink: 0;
-      z-index: 100;
-    }
-    .header-logo { display: flex; align-items: center; }
-    .header-logo a { display: flex; align-items: center; text-decoration: none; }
-    .header-logo .logo-img {
-      height: 120px;
-      width: auto;
-      display: block;
-      filter: drop-shadow(0 0 8px rgba(34,197,94,0.2));
-      transition: transform 0.2s;
-    }
-    .header-logo .logo-img:hover {
-      transform: scale(1.02);
-    }
-    .header-right { display: flex; align-items: center; gap: 16px; }
-    .live-badge {
-      display: flex; align-items: center; gap: 7px;
-      font-size: 0.7rem; color: var(--text-secondary);
-      font-family: var(--mono);
-    }
-    .live-dot {
-      width: 7px; height: 7px; border-radius: 50%;
-      background: var(--green); box-shadow: 0 0 8px var(--green);
-      animation: pulse 1.5s infinite;
-    }
-    .header-clock {
-      font-family: var(--mono); font-size: 0.72rem;
-      color: var(--text-muted);
-    }
-    .profile-btn {
-      display: flex; align-items: center; gap: 8px;
-      background: #1e293b; border: 1px solid #334155;
-      border-radius: 8px; padding: 6px 12px;
-      cursor: pointer; transition: background 0.2s;
-      text-decoration: none;
-    }
-    .profile-btn:hover { background: #263548; }
-    .avatar {
-      width: 28px; height: 28px; border-radius: 50%;
-      background: linear-gradient(135deg, #22c55e, #16a34a);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.65rem; font-weight: 700; color: #0d1117; flex-shrink: 0;
-    }
-    .profile-name { font-size: 0.72rem; font-weight: 600; color: var(--text-primary); }
-    .profile-role { font-size: 0.6rem; color: var(--green); }
-
-    /* Django messages toast */
-    .toast-wrap {
-      position: fixed; top: 70px; right: 16px; z-index: 999;
-      display: flex; flex-direction: column; gap: 8px;
-    }
-    .toast {
-      padding: 10px 16px; border-radius: 8px; font-size: 0.8rem;
-      min-width: 240px; max-width: 360px;
-      animation: slideIn 0.3s ease;
-    }
-    .toast-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.25); color: #22c55e; }
-    .toast-error, .toast-danger { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.25); color: #ef4444; }
-    .toast-info  { background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.25); color: #3b82f6; }
-    .toast-warning { background: rgba(234,179,8,0.1); border: 1px solid rgba(234,179,8,0.25); color: #eab308; }
-    @keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
-
-    /* ═══ LAYOUT ══════════════════════════════════════════ */
-    .body-wrap { display: flex; flex: 1; overflow: hidden; }
-
-    /* ═══ SIDEBAR ════════════════════════════════════════= */
-    aside {
-      width: 220px; flex-shrink: 0;
-      background: var(--bg-header);
-      border-right: 1px solid var(--border);
-      display: flex; flex-direction: column;
-      padding: 16px 0; overflow-y: auto;
-    }
-    .nav-section { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
-    .nav-group-label {
-      font-size: 0.6rem; font-weight: 600; letter-spacing: 0.1em;
-      color: var(--text-faint); padding: 8px 10px 4px;
-      text-transform: uppercase;
-    }
-    .nav-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px 10px; border-radius: 8px;
-      border: 1px solid transparent; cursor: pointer;
-      transition: all 0.2s; text-decoration: none;
-      background: transparent; position: relative;
-    }
-    .nav-item:hover { background: rgba(255,255,255,0.04); }
-    .nav-item.active {
-      background: linear-gradient(90deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04));
-      border-color: rgba(34,197,94,0.25);
-    }
-    .nav-item.active::before {
-      content: ''; position: absolute; left: 0; top: 50%; transform: translateY(-50%);
-      width: 3px; height: 20px; border-radius: 2px;
-      background: var(--green); box-shadow: 0 0 8px var(--green);
-    }
-    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-    .nav-item.active svg { color: var(--green); filter: drop-shadow(0 0 4px var(--green)); }
-    .nav-item:not(.active) svg { color: #475569; }
-    .nav-label { font-size: 0.78rem; }
-    .nav-item.active .nav-label { color: var(--text-primary); font-weight: 600; }
-    .nav-item:not(.active) .nav-label { color: #64748b; }
-    .nav-badge {
-      margin-left: auto; font-size: 0.6rem; padding: 2px 5px; border-radius: 20px;
-      font-weight: 700; background: rgba(239,68,68,0.15); color: var(--red);
-      border: 1px solid rgba(239,68,68,0.3);
-    }
-    .sidebar-divider { margin: 10px 14px; border-top: 1px solid var(--border2); }
-    .nav-bottom { display: flex; flex-direction: column; gap: 2px; padding: 0 10px; }
-    .nav-bottom-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 10px; border-radius: 8px;
-      cursor: pointer; transition: background 0.2s;
-      background: transparent; border: none; width: 100%;
-      text-decoration: none;
-    }
-    .nav-bottom-item:hover { background: rgba(255,255,255,0.04); }
-    .nav-bottom-item svg { width: 14px; height: 14px; color: #475569; flex-shrink: 0; }
-    .nav-bottom-item span { font-size: 0.75rem; color: #475569; }
-    .sidebar-version {
-      margin: 10px 10px 0; padding: 8px;
-      border-radius: 8px; text-align: center;
-      background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.1);
-    }
-    .sidebar-version .v { font-size: 0.6rem; color: var(--green); letter-spacing: 0.1em; font-family: var(--mono); }
-    .sidebar-version .sub { font-size: 0.55rem; color: #475569; margin-top: 2px; }
-
-    /* ═══ MAIN ════════════════════════════════════════════ */
-    main {
-      flex: 1; overflow-y: auto; padding: 22px;
-      display: flex; flex-direction: column; gap: 20px;
-    }
-
-    /* ─── Cards ─── */
-    .card {
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 18px;
-    }
-    .card-title {
-      font-size: 0.88rem; font-weight: 600; color: var(--text-primary);
-      margin-bottom: 14px; font-family: var(--mono);
-      display: flex; align-items: center; gap: 8px;
-    }
-    .card-title .dot {
-      width: 6px; height: 6px; border-radius: 50%; background: var(--green);
-      box-shadow: 0 0 6px var(--green);
-    }
-
-    /* ─── Buttons ─── */
-    .btn-primary {
-      background: var(--green-dim); color: var(--green);
-      border: 1px solid rgba(34,197,94,0.3);
-      padding: 8px 16px; border-radius: 8px; cursor: pointer;
-      font-size: 0.82rem; font-weight: 600; transition: all 0.2s;
-      display: inline-flex; align-items: center; gap: 7px;
-      text-decoration: none;
-    }
-    .btn-primary:hover { background: var(--green); color: #0d1117; }
-    .btn-danger {
-      background: var(--red-dim); color: var(--red);
-      border: 1px solid rgba(239,68,68,0.3);
-      padding: 8px 16px; border-radius: 8px; cursor: pointer;
-      font-size: 0.82rem; font-weight: 600; transition: all 0.2s;
-      display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
-    }
-    .btn-danger:hover { background: var(--red); color: #fff; }
-    .btn-ghost {
-      background: transparent; color: var(--text-secondary);
-      border: 1px solid var(--border2);
-      padding: 7px 14px; border-radius: 8px; cursor: pointer;
-      font-size: 0.8rem; font-weight: 500; transition: all 0.2s;
-      display: inline-flex; align-items: center; gap: 7px; text-decoration: none;
-    }
-    .btn-ghost:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
-    .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
-
-    /* ─── Forms ─── */
-    .form-group { margin-bottom: 14px; }
-    .form-label {
-      display: block; font-size: 0.78rem; font-weight: 500;
-      color: var(--text-secondary); margin-bottom: 6px;
-    }
-    .form-input {
-      width: 100%; background: #010409; border: 1px solid var(--border2);
-      border-radius: 8px; padding: 9px 14px; color: var(--text-primary);
-      font-size: 0.85rem; font-family: 'Inter', sans-serif;
-      outline: none; transition: border-color 0.2s;
-    }
-    .form-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(34,197,94,0.1); }
-    .form-input::placeholder { color: var(--text-faint); }
-    select.form-input { cursor: pointer; }
-    select.form-input option { background: #111827; }
-
-    /* ─── Tables ─── */
-    .table-wrap { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-    thead tr { border-bottom: 1px solid var(--border); }
-    th {
-      padding: 9px 14px; text-align: left;
-      font-size: 0.68rem; font-weight: 600; letter-spacing: 0.07em;
-      text-transform: uppercase; color: var(--text-muted);
-      background: rgba(255,255,255,0.02);
-    }
-    td { padding: 10px 14px; border-bottom: 1px solid rgba(31,45,64,0.5); }
-    tr:hover td { background: rgba(255,255,255,0.015); }
-    tr:last-child td { border-bottom: none; }
-
-    /* ─── Severity pills ─── */
-    .sev {
-      font-size: 0.68rem; padding: 2px 8px; border-radius: 20px;
-      font-weight: 700; letter-spacing: 0.04em; font-family: var(--mono);
-    }
-    .sev-CRITICAL { background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3); }
-    .sev-HIGH     { background:rgba(249,115,22,0.15); color:#f97316; border:1px solid rgba(249,115,22,0.3); }
-    .sev-MEDIUM   { background:rgba(234,179,8,0.15);  color:#eab308; border:1px solid rgba(234,179,8,0.3); }
-    .sev-LOW      { background:rgba(34,197,94,0.12);  color:#22c55e; border:1px solid rgba(34,197,94,0.25); }
-
-    /* ─── Status dots ─── */
-    .status-pill {
-      display: inline-flex; align-items: center; gap: 5px;
-      font-size: 0.72rem; font-weight: 600;
-    }
-    .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; }
-    .status-done    .dot { background: var(--green); box-shadow: 0 0 5px var(--green); }
-    .status-running .dot { background: var(--blue);  box-shadow: 0 0 5px var(--blue); animation: pulse 1.5s infinite; }
-    .status-pending .dot { background: var(--text-muted); }
-    .status-failed  .dot { background: var(--red); box-shadow: 0 0 5px var(--red); }
-    .status-done    { color: var(--green); }
-    .status-running { color: var(--blue); }
-    .status-pending { color: var(--text-muted); }
-    .status-failed  { color: var(--red); }
-
-    /* ─── Page bar ─── */
-    .page-bar {
-      display: flex; align-items: flex-start; justify-content: space-between;
-    }
-    .page-title { font-size: 1.05rem; font-weight: 700; color: var(--text-primary); }
-    .page-sub   { font-size: 0.7rem; color: var(--text-muted); margin-top: 3px; }
-    .page-controls { display: flex; align-items: center; gap: 10px; }
-
-    /* ─── Misc utils ─── */
-    .mono { font-family: var(--mono); }
-    .text-green  { color: var(--green); }
-    .text-red    { color: var(--red); }
-    .text-yellow { color: var(--yellow); }
-    .text-blue   { color: var(--blue); }
-    .text-muted  { color: var(--text-muted); }
-    .text-sec    { color: var(--text-secondary); }
-    .flex { display: flex; }
-    .items-center { align-items: center; }
-    .justify-between { justify-content: space-between; }
-    .gap-2 { gap: 8px; }
-    .gap-3 { gap: 12px; }
-    .mb-1 { margin-bottom: 6px; }
-    .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
-    .empty-state svg { opacity: 0.25; margin-bottom: 12px; }
-    .empty-state h3 { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 6px; }
-    .empty-state p  { font-size: 0.8rem; }
-    code {
-      background: rgba(255,255,255,0.06); padding: 1px 6px;
-      border-radius: 4px; font-family: var(--mono); font-size: 0.82em;
-    }
-
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
-
-    {% block extra_css %}{% endblock %}
-  </style>
+  {% block extra_css %}{% endblock %}
 </head>
 <body>
 
 <!-- ═══ HEADER ════════════════════════════════════════════ -->
-<header>
-  <div class="header-logo">
-    <a href="{% url 'analyzer:dashboard' %}">
-      <img src="{% static 'img/breaking bad - Visualized Network Attack Automated Analysis Platform.png' %}" 
-           alt="VNAAP Logo" class="logo-img">
-    </a>
+<header class="site-header">
+  <div style="display:flex;align-items:center;gap:12px;">
+    <!-- 漢堡選單（手機用） -->
+    <button class="hamburger" id="hamburgerBtn" aria-label="切換選單">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="header-logo">
+      <a href="{% url 'analyzer:dashboard' %}">
+        <img src="{% static 'img/breaking bad - Visualized Network Attack Automated Analysis Platform.png' %}"
+             alt="VNAAP Logo" class="logo-img">
+      </a>
+    </div>
   </div>
   <div class="header-right">
     <div class="live-badge"><span class="live-dot"></span> LIVE</div>
@@ -357,16 +48,22 @@
 {% if messages %}
 <div class="toast-wrap" id="toastWrap">
   {% for msg in messages %}
-  <div class="toast toast-{{ msg.tags }}" onclick="this.remove()">{{ msg }}</div>
+  <div class="toast toast-{{ msg.tags }}">
+    <span>{{ msg }}</span>
+    <button class="toast-close" onclick="this.parentElement.remove()">&times;</button>
+  </div>
   {% endfor %}
 </div>
 {% endif %}
 
 <div class="body-wrap">
+  <!-- ═══ SIDEBAR OVERLAY（手機用） ════════════════════════ -->
+  <div class="sidebar-overlay" onclick="closeSidebar()"></div>
+
   <!-- ═══ SIDEBAR ══════════════════════════════════════════ -->
-  <aside>
+  <aside class="sidebar">
     <div class="nav-section">
-      <div class="nav-group-label">Analysis</div>
+      <div class="nav-group-label">分析功能</div>
 
       <a href="{% url 'analyzer:dashboard' %}"
          class="nav-item {% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
@@ -388,7 +85,7 @@
       </a>
 
       <a href="{% url 'analyzer:sessions' %}"
-         class="nav-item {% if request.resolver_match.url_name == 'sessions' or request.resolver_match.url_name == 'session_detail' %}active{% endif %}">
+         class="nav-item {% if request.resolver_match.url_name == 'sessions' or request.resolver_match.url_name == 'session_detail' or request.resolver_match.url_name == 'gradcam_gallery' %}active{% endif %}">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2z"/>
         </svg>
@@ -396,6 +93,22 @@
         {% if running_count %}
         <span class="nav-badge">{{ running_count }}</span>
         {% endif %}
+      </a>
+
+      <a href="{% url 'analyzer:simulation' %}"
+         class="nav-item {% if request.resolver_match.url_name == 'simulation' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        <span class="nav-label">異常模擬檢測</span>
+      </a>
+
+      <a href="{% url 'analyzer:ablation' %}"
+         class="nav-item {% if request.resolver_match.url_name == 'ablation' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="nav-label">消融實驗分析</span>
       </a>
 
       <a href="{% url 'analyzer:live' %}"
@@ -415,7 +128,7 @@
       </a>
 
       <div class="sidebar-divider"></div>
-      <div class="nav-group-label">Projects</div>
+      <div class="nav-group-label">專案管理</div>
 
       <a href="{% url 'projects:list' %}"
          class="nav-item {% if request.resolver_match.app_name == 'projects' %}active{% endif %}">
@@ -426,6 +139,18 @@
         <span class="nav-label">專案管理</span>
       </a>
 
+      {% if user.profile.is_admin %}
+      <div class="sidebar-divider"></div>
+      <div class="nav-group-label">系統管理</div>
+
+      <a href="{% url 'accounts:admin_panel' %}"
+         class="nav-item {% if request.resolver_match.url_name == 'admin_panel' %}active{% endif %}">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"/>
+        </svg>
+        <span class="nav-label">管理員面板</span>
+      </a>
+      {% endif %}
     </div>
 
     <div class="sidebar-divider"></div>
@@ -454,8 +179,8 @@
     </div>
 
     <div class="sidebar-version">
-      <div class="v">VNAAP v2.5.0</div>
-      <div class="sub">Semi-supervised CNN Autoencoder</div>
+      <div class="v">VNAAP v3.0.0</div>
+      <div class="sub">CNN Autoencoder · Deep Learning</div>
     </div>
   </aside>
 
@@ -465,24 +190,7 @@
   </main>
 </div>
 
+<script src="{% static 'js/main.js' %}"></script>
 {% block extra_js %}{% endblock %}
-
-<script>
-/* Clock */
-(function tick() {
-  const el = document.getElementById('headerClock');
-  if (el) {
-    const n = new Date();
-    el.textContent = n.toLocaleTimeString('zh-TW', {hour12: false}) + ' UTC+8';
-  }
-  setTimeout(tick, 1000);
-})();
-
-/* Auto-dismiss toasts */
-setTimeout(() => {
-  const w = document.getElementById('toastWrap');
-  if (w) w.style.opacity = '0', w.style.transition = 'opacity 0.5s', setTimeout(()=>w.remove(), 500);
-}, 4000);
-</script>
 </body>
 </html>

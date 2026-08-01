@@ -102,3 +102,76 @@ def activity_logs(request):
     else:
         logs = UserActivityLog.objects.filter(user=request.user)[:100]
     return render(request, 'accounts/activity_logs.html', {'logs': logs})
+
+
+@login_required
+def admin_panel(request):
+    """管理員管理面板 — 使用者管理、系統統計。"""
+    if not request.user.profile.is_admin:
+        messages.error(request, '權限不足：僅管理員可存取。')
+        return redirect('analyzer:dashboard')
+
+    from django.contrib.auth.models import User
+    from analyzer.models import AnalysisSession, Alert
+    from projects.models import Project
+
+    users = User.objects.select_related('profile').all().order_by('-date_joined')
+    logs = UserActivityLog.objects.select_related('user').all()[:50]
+
+    # 系統統計
+    stats = {
+        'total_users':    users.count(),
+        'admin_count':    users.filter(profile__role='admin').count(),
+        'analyst_count':  users.filter(profile__role='analyst').count(),
+        'viewer_count':   users.filter(profile__role='viewer').count(),
+        'total_sessions': AnalysisSession.objects.count(),
+        'done_sessions':  AnalysisSession.objects.filter(task_status='done').count(),
+        'total_alerts':   Alert.objects.count(),
+        'critical_alerts':Alert.objects.filter(severity='CRITICAL').count(),
+        'total_projects': Project.objects.exclude(status='deleted').count(),
+    }
+
+    return render(request, 'accounts/admin_panel.html', {
+        'users': users,
+        'logs': logs,
+        'stats': stats,
+    })
+
+
+@login_required
+def admin_update_user(request, user_id):
+    """管理員更新使用者角色或狀態（AJAX）。"""
+    if not request.user.profile.is_admin:
+        return JsonResponse({'error': '權限不足'}, status=403)
+
+    import json
+    from django.contrib.auth.models import User
+
+    try:
+        target = User.objects.get(pk=user_id)
+    except User.DoesNotExist:
+        return JsonResponse({'error': '使用者不存在'}, status=404)
+
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        action = data.get('action')
+
+        if action == 'change_role':
+            new_role = data.get('role')
+            if new_role in ['admin', 'analyst', 'viewer']:
+                target.profile.role = new_role
+                target.profile.save()
+                _log_action(request, 'admin_change_role',
+                            f'將 {target.username} 的角色變更為 {new_role}')
+                return JsonResponse({'ok': True, 'role': new_role})
+
+        elif action == 'toggle_active':
+            target.is_active = not target.is_active
+            target.save()
+            status = '啟用' if target.is_active else '停用'
+            _log_action(request, 'admin_toggle_active',
+                        f'{status}使用者 {target.username}')
+            return JsonResponse({'ok': True, 'is_active': target.is_active})
+
+    return JsonResponse({'error': '無效的操作'}, status=400)
+

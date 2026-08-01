@@ -54,6 +54,7 @@ from torch.utils.data import (
 
 from cnn_autoencoder import CNNAutoencoder
 from trainer import PacketDataset, EarlyStopping, DEFAULT_CONFIG
+from training_common import compute_optimal_threshold_vectorized  # [修正 #6]
 
 
 # ── 半監督訓練超參數預設值 ─────────────────────────────────
@@ -342,10 +343,8 @@ class SemiSupervisedTrainer:
                 print(f"\n  [EarlyStopping] 第 {epoch} epoch 停止")
                 break
 
-        # 載入最佳預訓練模型
-        self.model.load_state_dict(
-            torch.load(model_path, map_location=self.device, weights_only=True)
-        )
+        # 載入並儲存最佳預訓練模型 [修正 #4]
+        early_stop.restore_best(self.model, persist=True)
         print(f"\n  Phase 1 完成！最佳驗證損失: {early_stop.best_loss:.6f}")
         print(f"  預訓練模型已儲存: {model_path}")
 
@@ -564,24 +563,11 @@ class SemiSupervisedTrainer:
             print(f"  閾值（{percentile}th 百分位）: {self.threshold:.6f}")
 
         elif method == "optimal":
-            # 掃描所有百分位，選 F1 最大的閾值
-            best_f1  = -1.0
-            best_thr = None
-            for pct in range(50, 100):
-                thr = float(np.percentile(errors_normal, pct))
-                fp  = int((errors_normal > thr).sum())
-                tn  = len(errors_normal) - fp
-                tp  = int((errors_attack > thr).sum())
-                fn  = len(errors_attack) - tp
-                precision = tp / (tp + fp + 1e-9)
-                recall    = tp / (tp + fn + 1e-9)
-                f1        = 2 * precision * recall / (precision + recall + 1e-9)
-                if f1 > best_f1:
-                    best_f1  = f1
-                    best_thr = thr
-                    best_pct = pct
-
-            self.threshold = float(best_thr)
+            # [修正 #6] 向量化閾值搜尋 O(N log N)
+            best_thr, best_f1, best_pct = compute_optimal_threshold_vectorized(
+                errors_normal, errors_attack, pct_range=(50, 100)
+            )
+            self.threshold = best_thr
             print(f"  最佳閾值（F1={best_f1:.4f}，{best_pct}th 百分位）: "
                   f"{self.threshold:.6f}")
 

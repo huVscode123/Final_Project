@@ -1,0 +1,261 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block title %}異常封包模擬檢測 — VNAAP{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <h1 class="page-title">異常封包模擬檢測</h1>
+    <p class="page-sub">選擇攻擊類型產生模擬封包，透過 CNN Autoencoder 即時偵測異常</p>
+  </div>
+</div>
+
+<!-- ── 模型狀態 ── -->
+<div class="kpi-grid" style="grid-template-columns: repeat(3, 1fr);">
+  <div class="kpi-card kpi-{% if model_ready %}green{% else %}red{% endif %}">
+    <div class="kpi-value" style="font-size:1.1rem;">{% if model_ready %}✓ 已就緒{% else %}✗ 未載入{% endif %}</div>
+    <div class="kpi-label">CNN 模型狀態</div>
+  </div>
+  <div class="kpi-card kpi-accent">
+    <div class="kpi-value mono" style="font-size:1.1rem;">{{ cnn_threshold }}</div>
+    <div class="kpi-label">異常閾值 (Threshold)</div>
+  </div>
+  <div class="kpi-card kpi-purple">
+    <div class="kpi-value mono" style="font-size:1.1rem;">{{ cnn_latent_dim }}d</div>
+    <div class="kpi-label">Latent 維度</div>
+  </div>
+</div>
+
+<div class="grid-2" style="align-items:start;">
+  <!-- 左側：攻擊場景選擇 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title"><span class="dot"></span>攻擊場景選擇</div>
+    </div>
+
+    <div id="attackGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <button class="attack-card selected" data-type="syn_flood" onclick="selectAttack(this)">
+        <div class="attack-icon">🌊</div>
+        <div class="attack-name">SYN Flood</div>
+        <div class="attack-desc">TCP SYN 洪水攻擊</div>
+      </button>
+      <button class="attack-card" data-type="port_scan" onclick="selectAttack(this)">
+        <div class="attack-icon">🔍</div>
+        <div class="attack-name">Port Scan</div>
+        <div class="attack-desc">端口掃描探測</div>
+      </button>
+      <button class="attack-card" data-type="arp_spoof" onclick="selectAttack(this)">
+        <div class="attack-icon">🎭</div>
+        <div class="attack-name">ARP Spoofing</div>
+        <div class="attack-desc">ARP 欺騙攻擊</div>
+      </button>
+      <button class="attack-card" data-type="dns_amplification" onclick="selectAttack(this)">
+        <div class="attack-icon">📡</div>
+        <div class="attack-name">DNS 放大</div>
+        <div class="attack-desc">DNS 放大反射攻擊</div>
+      </button>
+      <button class="attack-card" data-type="icmp_flood" onclick="selectAttack(this)">
+        <div class="attack-icon">💥</div>
+        <div class="attack-name">ICMP Flood</div>
+        <div class="attack-desc">Ping 洪水攻擊</div>
+      </button>
+      <button class="attack-card" data-type="normal_traffic" onclick="selectAttack(this)">
+        <div class="attack-icon">✅</div>
+        <div class="attack-name">正常流量</div>
+        <div class="attack-desc">正常 TCP/UDP 通訊</div>
+      </button>
+    </div>
+
+    <div style="margin-top:18px;">
+      <div class="form-group">
+        <label class="form-label">模擬封包數量</label>
+        <input type="range" id="packetCount" min="5" max="50" value="20" class="form-input"
+               style="padding:4px;" oninput="document.getElementById('countLabel').textContent=this.value">
+        <div class="flex justify-between mt-1">
+          <span class="text-muted" style="font-size:0.68rem;">5</span>
+          <span class="mono text-accent" id="countLabel" style="font-size:0.78rem;">20</span>
+          <span class="text-muted" style="font-size:0.68rem;">50</span>
+        </div>
+      </div>
+      <button class="btn-primary btn-block" id="runBtn" onclick="runSimulation()">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
+          <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+          <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>開始模擬檢測</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 右側：結果面板 -->
+  <div class="card" id="resultPanel">
+    <div class="card-header">
+      <div class="card-title"><span class="dot"></span>檢測結果</div>
+      <span class="text-muted" style="font-size:0.72rem;" id="resultTime"></span>
+    </div>
+
+    <!-- 初始空狀態 -->
+    <div id="emptyResult" class="empty-state">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;">
+        <path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+      </svg>
+      <h3>選擇攻擊場景並執行模擬</h3>
+      <p>模擬結果將顯示在此處</p>
+    </div>
+
+    <!-- 載入中 -->
+    <div id="loadingResult" style="display:none;text-align:center;padding:40px;">
+      <div style="width:40px;height:40px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto;"></div>
+      <p class="text-sec mt-2" style="font-size:0.82rem;">CNN 模型推論中...</p>
+    </div>
+
+    <!-- 結果內容 -->
+    <div id="resultContent" style="display:none;">
+      <!-- 統計 KPI -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:16px;">
+        <div style="background:var(--bg-base);border-radius:8px;padding:12px;text-align:center;">
+          <div class="mono text-accent" style="font-size:1.2rem;font-weight:700;" id="resTotal">0</div>
+          <div class="text-muted" style="font-size:0.68rem;">總封包數</div>
+        </div>
+        <div style="background:var(--bg-base);border-radius:8px;padding:12px;text-align:center;">
+          <div class="mono text-red" style="font-size:1.2rem;font-weight:700;" id="resAnomaly">0</div>
+          <div class="text-muted" style="font-size:0.68rem;">偵測異常</div>
+        </div>
+        <div style="background:var(--bg-base);border-radius:8px;padding:12px;text-align:center;">
+          <div class="mono text-blue" style="font-size:1.2rem;font-weight:700;" id="resAvgScore">0</div>
+          <div class="text-muted" style="font-size:0.68rem;">平均分數</div>
+        </div>
+      </div>
+
+      <!-- 分數圖表 -->
+      <div style="height:200px;margin-bottom:16px;">
+        <canvas id="scoreChart"></canvas>
+      </div>
+
+      <!-- 封包結果表格 -->
+      <div class="table-wrap" style="max-height:250px;overflow-y:auto;">
+        <table>
+          <thead><tr><th>#</th><th>大小</th><th>異常分數</th><th>判定</th></tr></thead>
+          <tbody id="resultTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+  .attack-card {
+    background: var(--bg-base); border: 1px solid var(--border2); border-radius: 10px;
+    padding: 14px; text-align: center; cursor: pointer; transition: all 0.2s;
+    font-family: inherit; color: inherit;
+  }
+  .attack-card:hover { border-color: var(--text-muted); background: rgba(255,255,255,0.02); }
+  .attack-card.selected { border-color: var(--accent-glow); background: var(--accent-dim); }
+  .attack-icon { font-size: 1.5rem; margin-bottom: 4px; }
+  .attack-name { font-size: 0.78rem; font-weight: 600; }
+  .attack-desc { font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<!-- annotation plugin 必須在 Chart 使用前載入 -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script>
+let selectedAttack = 'syn_flood';
+let scoreChartInstance = null;
+
+function selectAttack(el) {
+  document.querySelectorAll('.attack-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedAttack = el.dataset.type;
+}
+
+async function runSimulation() {
+  const btn = document.getElementById('runBtn');
+  btn.disabled = true;
+  document.getElementById('emptyResult').style.display = 'none';
+  document.getElementById('loadingResult').style.display = 'block';
+  document.getElementById('resultContent').style.display = 'none';
+
+  try {
+    const count = document.getElementById('packetCount').value;
+    const res = await VNAAP.api('{% url "analyzer:simulation_api" %}', {
+      method: 'POST',
+      body: JSON.stringify({ attack_type: selectedAttack, packet_count: count })
+    });
+
+    if (!res || !res.ok) {
+      throw { status: 500, data: { error: res?.error || '伺服器回傳異常' } };
+    }
+
+    document.getElementById('loadingResult').style.display = 'none';
+    document.getElementById('resultContent').style.display = 'block';
+    document.getElementById('resultTime').textContent = new Date().toLocaleTimeString('zh-TW', {hour12:false});
+
+    // 統計
+    document.getElementById('resTotal').textContent = res.packet_count;
+    document.getElementById('resAnomaly').textContent = res.anomaly_count;
+    document.getElementById('resAvgScore').textContent = res.avg_score.toFixed(4);
+
+    // 圖表
+    renderScoreChart(res.results, res.threshold);
+
+    // 表格
+    const tbody = document.getElementById('resultTbody');
+    tbody.innerHTML = res.results.map(r => `
+      <tr>
+        <td class="mono">${r.index + 1}</td>
+        <td>${VNAAP.formatBytes(r.size)}</td>
+        <td class="mono ${r.is_anomaly ? 'text-red' : 'text-green'}">${r.score.toFixed(6)}</td>
+        <td>${r.is_anomaly ? '<span class="sev-CRITICAL">異常</span>' : '<span class="sev-LOW">正常</span>'}</td>
+      </tr>
+    `).join('');
+
+    showToast(`檢測完成：${res.anomaly_count}/${res.packet_count} 個異常封包`, res.anomaly_count > 0 ? 'warning' : 'success');
+  } catch(e) {
+    document.getElementById('loadingResult').style.display = 'none';
+    document.getElementById('emptyResult').style.display = 'block';
+    const errMsg = (e && e.data && e.data.error) ? e.data.error : (e && e.message ? e.message : '未知錯誤');
+    showToast('模擬檢測失敗：' + errMsg, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderScoreChart(results, threshold) {
+  const ctx = document.getElementById('scoreChart').getContext('2d');
+  if (scoreChartInstance) scoreChartInstance.destroy();
+
+  scoreChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: results.map((_, i) => `#${i + 1}`),
+      datasets: [{
+        label: '異常分數',
+        data: results.map(r => r.score),
+        backgroundColor: results.map(r => r.is_anomaly ? 'rgba(239,68,68,0.7)' : 'rgba(34,197,94,0.5)'),
+        borderColor: results.map(r => r.is_anomaly ? '#ef4444' : '#22c55e'),
+        borderWidth: 1, borderRadius: 3,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        annotation: { annotations: {
+          threshold: { type: 'line', yMin: threshold, yMax: threshold, borderColor: '#f97316', borderWidth: 2, borderDash: [5,5], label: { display: true, content: `閾值 ${threshold}`, position: 'end', backgroundColor: 'rgba(249,115,22,0.8)', font: { size: 10 } } }
+        }}
+      },
+      scales: {
+        x: { ticks: { color: '#475569', font: { size: 10 } }, grid: { display: false } },
+        y: { ticks: { color: '#475569', font: { size: 10 } }, grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }
+      }
+    }
+  });
+}
+</script>
+{% endblock %}
+

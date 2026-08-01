@@ -1,0 +1,84 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block title %}Grad-CAM 熱力圖 — {{ session.label }} — VNAAP{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <h1 class="page-title">Grad-CAM 熱力圖</h1>
+    <p class="page-sub">Session #{{ session.pk }} · {{ session.label }}</p>
+  </div>
+  <div class="page-controls">
+    <a href="{% url 'analyzer:heatmap_analysis' pk=session.pk %}" class="btn-primary">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      深度分析
+    </a>
+    <a href="{% url 'analyzer:session_detail' pk=session.pk %}" class="btn-ghost">
+      ← 返回 Session
+    </a>
+  </div>
+</div>
+
+<!-- 篩選列 -->
+<div class="card" style="padding:12px 18px;">
+  <div class="flex items-center gap-3 flex-wrap">
+    <span class="text-sec" style="font-size:0.78rem;">篩選：</span>
+    <a href="{% url 'analyzer:gradcam_gallery' pk=session.pk %}"
+       class="btn-ghost btn-sm {% if not variant and not request.GET.anomaly_only %}btn-primary{% endif %}">全部 ({{ images.count }})</a>
+    <a href="{% url 'analyzer:gradcam_gallery' pk=session.pk %}?anomaly_only=1"
+       class="btn-ghost btn-sm">僅異常</a>
+    <a href="{% url 'analyzer:gradcam_gallery' pk=session.pk %}?variant=gradcam"
+       class="btn-ghost btn-sm">Grad-CAM</a>
+    <a href="{% url 'analyzer:gradcam_gallery' pk=session.pk %}?variant=gradcam_pp"
+       class="btn-ghost btn-sm">Grad-CAM++</a>
+    <a href="{% url 'analyzer:gradcam_gallery' pk=session.pk %}?variant=scorecam"
+       class="btn-ghost btn-sm">Score-CAM</a>
+  </div>
+</div>
+
+<!-- 影像網格 -->
+{% if images %}
+<div class="grid-3" style="gap:16px;">
+  {% for img in images %}
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div style="position:relative;">
+      <img src="{{ img.image.url }}" alt="Grad-CAM #{{ img.packet_index }}"
+           style="width:100%;height:200px;object-fit:cover;display:block;">
+      {% if img.is_anomaly %}
+      <span class="sev-CRITICAL" style="position:absolute;top:8px;right:8px;">異常</span>
+      {% else %}
+      <span class="sev-LOW" style="position:absolute;top:8px;right:8px;">正常</span>
+      {% endif %}
+    </div>
+    <div style="padding:12px 14px;">
+      <div class="flex items-center justify-between mb-1">
+        <span class="mono" style="font-size:0.78rem;">封包 #{{ img.packet_index }}</span>
+        <span class="mono text-muted" style="font-size:0.68rem;">{{ img.variant|upper }}</span>
+      </div>
+      {% if img.anomaly_score %}
+      <div class="flex items-center gap-2">
+        <span class="text-sec" style="font-size:0.72rem;">分數:</span>
+        <span class="mono {% if img.is_anomaly %}text-red{% else %}text-green{% endif %}" style="font-size:0.78rem;">
+          {{ img.anomaly_score|floatformat:4 }}
+        </span>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;">
+      <path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5"/>
+    </svg>
+    <h3>尚無 Grad-CAM 影像</h3>
+    <p>請回到 Session 詳情頁面觸發 Grad-CAM 分析</p>
+    <a href="{% url 'analyzer:session_detail' pk=session.pk %}" class="btn-primary" style="margin-top:12px;">
+      返回 Session
+    </a>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

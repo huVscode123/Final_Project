@@ -10,7 +10,12 @@ from .models import UserProfile
 class RegisterForm(UserCreationForm):
     email        = forms.EmailField(required=True, label='電子郵件')
     organization = forms.CharField(max_length=100, required=False, label='所屬組織')
-    role         = forms.ChoiceField(choices=UserProfile.ROLE_CHOICES, label='角色')
+    # [安全修正] 移除 admin 角色自選，防止權限提升漏洞
+    role         = forms.ChoiceField(
+        choices=[c for c in UserProfile.ROLE_CHOICES if c[0] != 'admin'],
+        label='角色',
+        initial='analyst',
+    )
 
     class Meta:
         model  = User

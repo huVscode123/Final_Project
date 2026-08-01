@@ -185,8 +185,6 @@ class GradCAM:
             x_hat_base, _ = self.model(x)
             baseline_score = F.mse_loss(x_hat_base, x, reduction="none").mean(dim=[1, 2, 3])
 
-        with torch.no_grad():
-            _, _ = self.model(x)
         activation = self._hook_manager.get_activation(self._resolved_layer).detach()
 
         B, C, h, w = activation.shape
@@ -245,32 +243,13 @@ class GradCAM:
 
     @staticmethod
     def _gaussian_smooth(cam: np.ndarray, sigma: float = 1.0) -> np.ndarray:
-        from math import ceil, exp
-        radius   = ceil(3 * sigma)
-        size     = 2 * radius + 1
-        kernel_1d = np.array(
-            [exp(-((i - radius) ** 2) / (2 * sigma ** 2)) for i in range(size)],
-            dtype=np.float32,
-        )
-        kernel_1d /= kernel_1d.sum()
-
-        result = cam.copy()
-        for i in range(cam.shape[0]):
-            img = cam[i]
-            pad = radius
-            img_padded = np.pad(img, pad, mode="reflect")
-            tmp = np.array([
-                (img_padded[r, c - pad:c + pad + 1] * kernel_1d).sum()
-                for r in range(pad, img_padded.shape[0] - pad)
-                for c in range(pad, img_padded.shape[1] - pad)
-            ], dtype=np.float32).reshape(img.shape)
-            tmp_padded = np.pad(tmp, pad, mode="reflect")
-            result[i] = np.array([
-                (tmp_padded[r - pad:r + pad + 1, c] * kernel_1d).sum()
-                for r in range(pad, tmp_padded.shape[0] - pad)
-                for c in range(pad, tmp_padded.shape[1] - pad)
-            ], dtype=np.float32).reshape(img.shape)
-        return result
+        """[P3 修正] 用 scipy 取代純 Python 迴圈"""
+        if sigma <= 0:
+            return cam
+        from scipy.ndimage import gaussian_filter1d
+        smoothed = gaussian_filter1d(cam, sigma=sigma, axis=-2, mode='reflect')
+        smoothed = gaussian_filter1d(smoothed, sigma=sigma, axis=-1, mode='reflect')
+        return smoothed
 
     def __del__(self):
         try:
