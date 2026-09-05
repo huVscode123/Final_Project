@@ -165,7 +165,13 @@ def _quick_train(model: nn.Module,
 
     tensor  = torch.from_numpy(X_arr.astype(np.float32))
     dataset = TensorDataset(tensor)
-    loader  = DataLoader(dataset, batch_size=batch_size, shuffle=True, drop_last=False)
+    # ── [P3-2 修正] 加速資料載入 ──
+    use_cuda = torch.cuda.is_available()
+    loader = DataLoader(
+        dataset, batch_size=batch_size, shuffle=True, drop_last=False,
+        num_workers=2 if use_cuda else 0,
+        pin_memory=use_cuda,
+    )
 
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=1e-5)
     criterion = nn.MSELoss()

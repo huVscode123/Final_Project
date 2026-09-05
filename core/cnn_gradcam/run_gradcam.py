@@ -93,8 +93,9 @@ def parse_args():
     parser.add_argument("--variant", default="gradcam",
                         choices=["gradcam", "gradcam++", "scorecam"],
                         help="Grad-CAM 變體（預設: gradcam）")
-    parser.add_argument("--layer",   default="encoder_conv",
-                        help="目標層名稱（預設: encoder_conv，自動選最後一個 Conv2d）")
+    parser.add_argument("--layer",   default=None,
+                        help="目標層名稱（預設: None，自動偵測 Encoder 最後一個 Conv2d 層；"
+                             "同時相容 CNNAutoencoder 巢狀命名與 CNNAutoencoderFlex 扁平命名）")
     parser.add_argument("--target-type", default="mse",
                         choices=["mse", "pixel", "channel"],
                         help="目標函數類型（預設: mse）")
@@ -135,32 +136,58 @@ def parse_args():
 def load_model(model_path: str, latent_dim: int, device):
     """
     載入 CNN Autoencoder 模型。
-    優先使用 CNNAutoencoderFlex（支援更多架構），fallback 到 CNNAutoencoder。
+
+    [Bug 1 修正 — 2026] 舊版無條件優先 try `from ablation_study import
+    CNNAutoencoderFlex`，但 ablation_study.py 在同目錄下必定 import 成功，
+    導致 except ImportError 永遠不會觸發 —— 程式因此永遠使用
+    CNNAutoencoderFlex（扁平層命名 "encoder_conv.*"），而非
+    trainer.py / run_training.py 實際訓練並存檔的 CNNAutoencoder
+    （巢狀層命名 "encoder.conv_layers.*"）。兩者 state_dict 的 key
+    完全不同，load_state_dict() 必定 RuntimeError，被 except 捕捉後
+    悄悄回退成「隨機初始化」的模型，導致所有後續 Grad-CAM 熱力圖、
+    特徵重要性分析都是在未訓練模型上跑出來的無意義結果。
+
+    修正：改為「先讀取 checkpoint，再依 state_dict 的 key 前綴判斷
+    對應的模型類別」，確保載入的架構與訓練時儲存的架構一致。
     """
     import torch
+    from cnn_autoencoder import CNNAutoencoder
 
-    try:
+    if not os.path.exists(model_path):
+        print(f"  [警告] 找不到 {model_path}，使用隨機初始化的 CNNAutoencoder（僅用於測試）")
+        return CNNAutoencoder(latent_dim=latent_dim).to(device).eval()
+
+    state = torch.load(model_path, map_location=device)
+
+    # 相容多種儲存格式（trainer.py / EarlyStopping.restore_best 輸出）
+    if isinstance(state, dict) and "model_state_dict" in state:
+        state_dict = state["model_state_dict"]
+    elif isinstance(state, dict) and "state_dict" in state:
+        state_dict = state["state_dict"]
+    else:
+        state_dict = state
+
+    # ── 依 checkpoint 的實際 key 前綴判斷架構，而非盲目猜測 ──
+    keys = list(state_dict.keys())
+    is_flex_arch = any(
+        k.startswith(("encoder_conv", "encoder_fc", "decoder_fc", "decoder_deconv"))
+        for k in keys
+    )
+
+    if is_flex_arch:
         from ablation_study import CNNAutoencoderFlex
         model = CNNAutoencoderFlex(latent_dim=latent_dim)
-    except ImportError:
-        from cnn_autoencoder import CNNAutoencoder
-        model = CNNAutoencoder(latent_dim=latent_dim)
-
-    if os.path.exists(model_path):
-        state = torch.load(model_path, map_location=device)
-        # 相容多種儲存格式（trainer.py / Trainer.save 輸出）
-        if isinstance(state, dict) and "model_state_dict" in state:
-            model.load_state_dict(state["model_state_dict"])
-        elif isinstance(state, dict) and "state_dict" in state:
-            model.load_state_dict(state["state_dict"])
-        else:
-            try:
-                model.load_state_dict(state)
-            except RuntimeError:
-                print("  [警告] 模型權重載入失敗，使用隨機初始化（僅用於測試）")
-        print(f"  模型載入成功：{model_path}")
+        print("  偵測到 CNNAutoencoderFlex（消融實驗）架構的權重")
     else:
-        print(f"  [警告] 找不到 {model_path}，使用隨機初始化（僅用於測試）")
+        model = CNNAutoencoder(latent_dim=latent_dim)
+        print("  偵測到標準 CNNAutoencoder 架構的權重")
+
+    try:
+        model.load_state_dict(state_dict)
+        print(f"  模型載入成功：{model_path}")
+    except RuntimeError as e:
+        print(f"  [錯誤] 模型權重載入失敗（架構仍不相符）：{e}")
+        print(f"  [警告] 使用隨機初始化的模型 — 後續 Grad-CAM 結果將不具參考價值！")
 
     return model.to(device).eval()
 
@@ -321,35 +348,52 @@ def compare_variants(results_dict: dict, output_dir: str):
     print(f"\n[Compare] 變體比較圖已儲存至: {save_path}")
 
 
-def run_gradcam_analysis(pcap_path, output_dir):
+def run_gradcam_analysis(pcap_path, output_dir, model_path="output/model/best_model.pt"):
     """
     為 Django Task 提供整合式的 Grad-CAM 分析進入點。
+
+    [Bug 4 修正 — 2026] 舊版呼叫 `AnomalyScorer(model_path=model_path,
+    device=device)`，但 AnomalyScorer.__init__ 的簽名是
+    `(self, model: CNNAutoencoder, threshold=None, device=None)`，
+    並不接受 `model_path` 參數、也不會自行從路徑載入模型 ——
+    只要呼叫這個函式就會直接拋出 TypeError。
+    修正：先用 Trainer.load_model() 從路徑載入模型與訓練時計算好的
+    閾值，再把「已實例化的模型物件」正確地傳給 AnomalyScorer。
     """
     import torch
     from pcap_analyzer import PcapAnalyzer
     from anomaly_scorer import AnomalyScorer
-    
+    from trainer import Trainer
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     os.makedirs(output_dir, exist_ok=True)
-    
+
     # 1. 解析 PCAP
     analyzer = PcapAnalyzer(pcap_path)
     analyzer.load()
-    packets = analyzer.packets # 假設有這個屬性或方法
-    
-    # 2. 初始化 Scorer (內含模型載入)
-    # 注意：這裡路徑可能需要根據實際環境調整
-    model_path = "output/model/best_model.pt"
-    scorer = AnomalyScorer(model_path=model_path, device=device)
-    
-    # 3. 執行分析
+    packets = analyzer.packets
+
+    # 2. 載入已訓練模型與閾值，再建立 Scorer
+    config_path = os.path.join(os.path.dirname(model_path), "training_result.json")
+    model, threshold = Trainer.load_model(
+        model_path,
+        config_path=config_path if os.path.exists(config_path) else None,
+    )
+    model = model.to(device)
+    scorer = AnomalyScorer(model, threshold=threshold, device=device)
+
+    # 3. 執行分析：對每個封包計算異常分數
     anomalies = []
-    # 這裡實作簡化的分析邏輯，實際應批次處理
-    # ... (略過複雜的分析流程，回傳符合 tasks.py 預期的格式)
-    
+    if packets:
+        raw_bytes_list = [bytes(p) for p in packets]
+        results_list = scorer.score_batch(raw_bytes_list)
+        for i, (score, is_attack) in enumerate(results_list):
+            if is_attack:
+                anomalies.append({"packet_index": i, "score": score})
+
     results = {
         'total_packets': len(packets) if packets else 0,
-        'anomalies': anomalies
+        'anomalies': anomalies,
     }
     return results
 

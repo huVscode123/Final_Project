@@ -26,6 +26,59 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+
+def extract_model_state_dict(checkpoint: dict) -> dict:
+    """Return the state dictionary from either supported checkpoint format."""
+    if not isinstance(checkpoint, dict):
+        raise TypeError("checkpoint 必須是 state_dict 或包含 state_dict 的字典")
+
+    for key in ("model_state", "model_state_dict", "state_dict"):
+        nested_state = checkpoint.get(key)
+        if isinstance(nested_state, dict):
+            return nested_state
+    return checkpoint
+
+
+def normalize_legacy_state_dict(state_dict: dict) -> dict:
+    """Make pre-Upsample decoder checkpoints compatible with the current model.
+
+    Older checkpoints stored the decoder output convolution at index 9.  The
+    current decoder inserts an ``Upsample`` module at index 9, so that same
+    convolution is now index 10.  The old layer was ``ConvTranspose2d`` while
+    the current one is ``Conv2d``; their input/output channel dimensions are
+    reversed and the kernel orientation differs.  Convert the old weight so
+    that the new layer performs the equivalent reconstruction operation.
+    """
+    state_dict = dict(state_dict)
+    old_prefix = "decoder.deconv_layers.9."
+    new_prefix = "decoder.deconv_layers.10."
+
+    old_weight_key = old_prefix + "weight"
+    new_weight_key = new_prefix + "weight"
+    if old_weight_key in state_dict and new_weight_key not in state_dict:
+        old_weight = state_dict.pop(old_weight_key)
+        if old_weight.ndim != 4:
+            raise ValueError(f"舊版解碼器權重維度錯誤：{old_weight.shape}")
+        # ConvTranspose2d: (in_channels, out_channels, height, width)
+        # Conv2d:          (out_channels, in_channels, height, width)
+        # Transposed convolution is spatially reversed relative to Conv2d.
+        state_dict[new_weight_key] = old_weight.permute(1, 0, 2, 3).flip(
+            2, 3
+        ).contiguous()
+
+    old_bias_key = old_prefix + "bias"
+    new_bias_key = new_prefix + "bias"
+    if old_bias_key in state_dict and new_bias_key not in state_dict:
+        state_dict[new_bias_key] = state_dict.pop(old_bias_key)
+
+    return state_dict
+
+
+def load_compatible_state_dict(model: nn.Module, checkpoint: dict):
+    """Load a current or legacy CNN checkpoint with strict validation."""
+    state_dict = extract_model_state_dict(checkpoint)
+    return model.load_state_dict(normalize_legacy_state_dict(state_dict))
+
 def features_to_image(X: np.ndarray, image_size: int = 32) -> np.ndarray:
     """
     將 2D 特徵矩陣 (N, F) 轉換為 CNN 可接受的 (N, 1, image_size, image_size)。
@@ -300,12 +353,14 @@ class CNNAutoencoder(nn.Module):
         """
         was_training = self.training
         self.eval()
-        with torch.no_grad():
-            x_hat, _ = self.forward(x)
-            # dim=[1,2,3] 對通道、高度、寬度三個維度取平均
-            errors = torch.mean((x - x_hat) ** 2, dim=[1, 2, 3])
-        if was_training:
-            self.train()
+        try:
+            with torch.no_grad():
+                x_hat, _ = self.forward(x)
+                # dim=[1,2,3] 對通道、高度、寬度三個維度取平均
+                errors = torch.mean((x - x_hat) ** 2, dim=[1, 2, 3])
+        finally:
+            if was_training:
+                self.train()
         return errors
 
     def get_latent_features(self, x: torch.Tensor) -> torch.Tensor:
@@ -319,10 +374,12 @@ class CNNAutoencoder(nn.Module):
         """
         was_training = self.training
         self.eval()
-        with torch.no_grad():
-            z = self.encoder(x)
-        if was_training:
-            self.train()
+        try:
+            with torch.no_grad():
+                z = self.encoder(x)
+        finally:
+            if was_training:
+                self.train()
         return z
 
     def get_model_info(self) -> dict:
@@ -335,18 +392,6 @@ class CNNAutoencoder(nn.Module):
             "trainable_params": trainable,
             "model_size_MB":    total_params * 4 / 1024 / 1024,
         }
-
-    @staticmethod
-    def _kaiming_init(m):
-        """Kaiming (He) 初始化：適用於 ReLU 激活函數的卷積層與全連接層"""
-        if isinstance(m, (nn.Conv2d, nn.ConvTranspose2d, nn.Linear)):
-            nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            if m.bias is not None:
-                nn.init.zeros_(m.bias)
-        elif isinstance(m, nn.BatchNorm2d):
-            nn.init.ones_(m.weight)
-            nn.init.zeros_(m.bias)
-
 
 # ──────────────────────────────────────────────────────────
 # 評估工具（從子資料夾版本合併）
@@ -409,4 +454,3 @@ def evaluate(model: CNNAutoencoder,
           f"Recall={result['recall']:.4f}  F1={result['f1']:.4f}  "
           f"AUC={result['auc']:.4f}  SepRatio={result['sep_ratio']:.3f}x")
     return result
-

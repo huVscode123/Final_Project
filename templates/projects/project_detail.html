@@ -68,7 +68,7 @@
         </div>
         <div style="font-size:.7rem;color:var(--text-muted)">{{ f.uploaded_at|date:"m/d" }}</div>
         {% if project.owner == request.user %}
-        <form method="post" action="{% url 'projects:file_delete' project.pk f.pk %}" onsubmit="return confirm('刪除此檔案？')">
+        <form method="post" action="{% url 'projects:file_delete' project.pk f.pk %}" class="delete-file-form">
           {% csrf_token %}
           <button class="btn-danger btn-sm" style="padding:3px 8px">✕</button>
         </form>
@@ -161,7 +161,7 @@
     {% if project.owner == request.user %}
     <div class="card" style="border-color:rgba(239,68,68,.2)">
       <div class="card-title" style="color:var(--red)">⚠ Danger Zone</div>
-      <form method="post" action="{% url 'projects:archive' project.pk %}" onsubmit="return confirm('確定封存此專案？')">
+      <form method="post" action="{% url 'projects:archive' project.pk %}" id="archiveForm">
         {% csrf_token %}
         <button class="btn-danger" style="width:100%;justify-content:center">Archive Project</button>
       </form>
@@ -169,4 +169,27 @@
     {% endif %}
   </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.querySelectorAll('.delete-file-form').forEach(form => {
+  form.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    if (await confirmAction('確定刪除此檔案？', '確認刪除', 'danger')) {
+      this.submit();
+    }
+  });
+});
+
+const archForm = document.getElementById('archiveForm');
+if (archForm) {
+  archForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    if (await confirmAction('確定封存此專案？封存後將無法新增分析任務。', '確認封存', 'danger')) {
+      this.submit();
+    }
+  });
+}
+</script>
 {% endblock %}

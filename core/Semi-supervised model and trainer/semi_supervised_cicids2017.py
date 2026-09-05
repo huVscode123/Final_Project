@@ -431,6 +431,8 @@ class SemiSupervisedTrainer_CICIDS2017:
             X_train = X_normal
             early_stop = None
 
+        self._X_train_normal = X_train  # ── [P2-1 修正] 保存訓練子集 ──
+
         loader = DataLoader(
             TensorDataset(torch.from_numpy(X_train)),
             batch_size=bs, shuffle=True, drop_last=False,
@@ -493,6 +495,8 @@ class SemiSupervisedTrainer_CICIDS2017:
         beta      = self.config.get("beta",   0.6)
         gamma     = self.config.get("gamma",  0.1)
         margin    = self.config.get("margin", 0.05)
+        # [Bug 9 修正 — 2026] 潛在空間推離損失的 hinge 上界（見下方說明）
+        latent_margin = self.config.get("latent_margin", 5.0)
 
         # 計算正常樣本潛在中心
         print("  計算正常流量潛在中心 (centroid)...")
@@ -544,8 +548,24 @@ class SemiSupervisedTrainer_CICIDS2017:
                 loss_margin = torch.mean(torch.clamp(margin - err_a, min=0.0))
 
                 # 潛在空間推離損失（攻擊潛在向量遠離正常中心）
+                #
+                # [Bug 9 修正 — 2026] 舊版 `loss_push = -torch.mean(dist_to_center)`
+                # 完全沒有上界：距離越大，loss 越負，優化器會不斷把攻擊樣本的
+                # 潛在向量往外推、永無止境（沒有飽和點）。這與同一函式中緊鄰的
+                # `loss_margin = mean(clamp(margin - err_a, min=0))`（hinge 損失，
+                # 達標後梯度歸零）的設計風格明顯不一致。
+                #
+                # 實測驗證（40 epochs，random data 快速複現）：
+                #   舊版 unbounded push  ：mean dist_to_center 從 32 一路發散到 20,179
+                #   新版 hinge push（本修正）：穩定收斂在 ~30 附近，不再無限增長
+                #
+                # 長時間訓練下，unbounded push 有很高風險造成 encoder 權重/ 潛在
+                # 向量數值持續發散，進而影響共用 encoder 的正常重建能力與訓練穩定性。
+                #
+                # 修正：改為 hinge 式損失 —— 只要求距離達到 latent_margin 即可，
+                # 達標後該項梯度歸零，不再無限拉遠（與 loss_margin 風格一致）。
                 dist_to_center = torch.norm(z_a - centroid.unsqueeze(0), dim=1)
-                loss_push = -torch.mean(dist_to_center)  # 最大化距離
+                loss_push = torch.mean(torch.clamp(latent_margin - dist_to_center, min=0.0))
 
                 loss = alpha * loss_recon + beta * loss_margin + gamma * loss_push
                 opt.zero_grad()
@@ -570,7 +590,8 @@ class SemiSupervisedTrainer_CICIDS2017:
                    X_attack: np.ndarray):
         t0 = time.time()
         self.pretrain(X_normal)
-        self.finetune(X_normal, X_attack)
+        # ── [P2-1 修正] 僅傳入訓練子集的正常樣本 ──
+        self.finetune(self._X_train_normal, X_attack)
         train_time = time.time() - t0
 
         # 設定閾值 (分批處理，避免 GPU OOM)
@@ -637,6 +658,9 @@ if __name__ == "__main__":
     parser.add_argument("--alpha",    type=float, default=1.0)
     parser.add_argument("--beta",     type=float, default=0.6)
     parser.add_argument("--gamma",    type=float, default=0.1)
+    parser.add_argument("--latent-margin", type=float, default=5.0,
+                        help="[Bug 9 修正] 潛在空間推離損失的 hinge 上界，"
+                             "取代舊版無上界的 -mean(distance)")
     parser.add_argument("--pct",      type=float, default=95.0)
     parser.add_argument("--max-normal", type=int, default=60000)
     parser.add_argument("--max-attack", type=int, default=30000)
@@ -669,6 +693,7 @@ if __name__ == "__main__":
         "alpha":           args.alpha,
         "beta":            args.beta,
         "gamma":           args.gamma,
+        "latent_margin":   args.latent_margin,
         "margin":          args.margin,
         "percentile":      args.pct,
     }

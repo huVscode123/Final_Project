@@ -587,3 +587,48 @@ code {
   body { background: #fff; color: #000; height: auto; overflow: visible; }
   .card { border: 1px solid #ddd; box-shadow: none; }
 }
+
+/* ── 骨架屏動畫 ── */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-card) 25%, rgba(255,255,255,.04) 50%, var(--bg-card) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease infinite;
+  border-radius: var(--radius-sm);
+}
+.skeleton-text { height: 14px; margin-bottom: 8px; width: 80%; }
+.skeleton-text-sm { height: 10px; margin-bottom: 6px; width: 60%; }
+.skeleton-circle { width: 40px; height: 40px; border-radius: 50%; }
+.skeleton-rect { height: 120px; width: 100%; }
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* ── 轉場動畫 ── */
+.page-transition { animation: pageIn 0.35s ease both; }
+@keyframes pageIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── 統一 hover 提升 ── */
+.card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.card:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,.2); }
+
+/* ── 按鈕微動畫 ── */
+.btn-primary, .btn-ghost, .btn-danger {
+  transition: all 0.15s ease;
+}
+.btn-primary:active, .btn-ghost:active, .btn-danger:active {
+  transform: scale(0.97);
+}
+
+/* ── KPI 數字入場 ── */
+.kpi-value, [data-animate-count] {
+  transition: color 0.3s ease;
+}
+
+/* ── 表格列 hover ── */
+table tbody tr {
+  transition: background 0.15s ease;
+}
+table tbody tr:hover {
+  background: rgba(255,255,255,.02);
+}

@@ -345,6 +345,8 @@ class SemiSupervisedTrainer_DDoS2019:
             X_train = X_normal
             early_stop = None
 
+        self._X_train_normal = X_train  # ── [P2-1 修正] 保存訓練子集 ──
+
         loader = DataLoader(
             TensorDataset(torch.from_numpy(X_train)),
             batch_size=bs, shuffle=True, drop_last=False,
@@ -475,7 +477,8 @@ class SemiSupervisedTrainer_DDoS2019:
         """
         t_start = time.time()
         self.pretrain(X_normal)
-        self.finetune(X_normal, X_attack)
+        # ── [P2-1 修正] 僅傳入訓練子集的正常樣本 ──
+        self.finetune(self._X_train_normal, X_attack)
         train_time = time.time() - t_start
 
         # 設定閾值 (分批處理，避免 GPU OOM)

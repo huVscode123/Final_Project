@@ -43,6 +43,8 @@
   <div class="tab-nav">
     <div class="tab-item active" data-tab="tab-users">👤 使用者管理</div>
     <div class="tab-item" data-tab="tab-logs">📋 操作稽核日誌</div>
+    <div class="tab-item" data-tab="tab-system">⚙️ 系統狀態</div>
+    <div class="tab-item" data-tab="tab-usage">📊 使用統計</div>
   </div>
   <div class="tab-content">
     <!-- 使用者管理 Tab -->
@@ -130,12 +132,160 @@
         </table>
       </div>
     </div>
+
+    <!-- 系統狀態 Tab -->
+    <div class="tab-pane" id="tab-system">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+        <!-- CNN 模型狀態卡片 -->
+        <div class="card" style="padding:18px">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+            <div style="width:36px;height:36px;border-radius:8px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);display:flex;align-items:center;justify-content:center">
+              <svg fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="2" style="width:18px;height:18px"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/></svg>
+            </div>
+            <div>
+              <div style="font-size:.85rem;font-weight:600">CNN Autoencoder</div>
+              <div style="font-size:.67rem;color:var(--text-muted)">Deep Learning Model</div>
+            </div>
+            {% if model_info.exists %}
+            <span class="badge badge-success" style="margin-left:auto">✓ 已載入</span>
+            {% else %}
+            <span class="badge badge-danger" style="margin-left:auto">× 未找到</span>
+            {% endif %}
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <div style="background:var(--bg-base);border-radius:8px;padding:10px">
+              <div style="font-size:.65rem;color:var(--text-muted)">異常閾值</div>
+              <div style="font-size:1.1rem;font-weight:700;font-family:var(--mono);color:var(--yellow)">{{ model_info.threshold }}</div>
+            </div>
+            <div style="background:var(--bg-base);border-radius:8px;padding:10px">
+              <div style="font-size:.65rem;color:var(--text-muted)">潛在維度</div>
+              <div style="font-size:1.1rem;font-weight:700;font-family:var(--mono);color:var(--blue)">{{ model_info.latent_dim }}</div>
+            </div>
+            <div style="background:var(--bg-base);border-radius:8px;padding:10px">
+              <div style="font-size:.65rem;color:var(--text-muted)">模型大小</div>
+              <div style="font-size:1.1rem;font-weight:700;font-family:var(--mono);color:var(--text-secondary)">{{ model_info.file_size_mb }} MB</div>
+            </div>
+            <div style="background:var(--bg-base);border-radius:8px;padding:10px">
+              <div style="font-size:.65rem;color:var(--text-muted)">狀態</div>
+              <div style="font-size:1.1rem;font-weight:700;font-family:var(--mono);color:var(--green)">✓ Online</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 任務狀態分布 -->
+        <div class="card" style="padding:18px">
+          <div style="font-size:.85rem;font-weight:600;margin-bottom:14px">任務狀態分布</div>
+          <div style="height:200px"><canvas id="taskStatusChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- 功能使用頻率 -->
+      <div class="card" style="padding:18px">
+        <div style="font-size:.85rem;font-weight:600;margin-bottom:14px">功能使用頻率</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+          {% for name, count in feature_usage.items %}
+          <div style="background:var(--bg-base);border-radius:8px;padding:14px;text-align:center">
+            <div style="font-size:1.8rem;font-weight:700;font-family:var(--mono);color:var(--accent)" data-animate-count="{{ count }}">0</div>
+            <div style="font-size:.72rem;color:var(--text-muted);margin-top:4px">{{ name }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- 使用統計 Tab -->
+    <div class="tab-pane" id="tab-usage">
+      <!-- 30天活躍度折線圖 -->
+      <div class="card" style="padding:18px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div>
+            <div style="font-size:.85rem;font-weight:600">使用者活躍度趨勢</div>
+            <div style="font-size:.67rem;color:var(--text-muted)">過去 30 天操作次數</div>
+          </div>
+          <div class="legend-pill"><span class="legend-dot" style="background:var(--accent)"></span>操作次數</div>
+        </div>
+        <div style="height:220px"><canvas id="activityChart"></canvas></div>
+      </div>
+
+      <!-- 最活躍使用者 -->
+      <div class="card" style="padding:18px">
+        <div style="font-size:.85rem;font-weight:600;margin-bottom:14px">最活躍使用者 Top 5</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          {% for u in top_users %}
+          <div style="display:flex;align-items:center;gap:12px;background:var(--bg-base);border-radius:8px;padding:10px 14px">
+            <div style="width:28px;height:28px;border-radius:50%;background:var(--accent-dim);border:1px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;color:var(--accent)">{{ forloop.counter }}</div>
+            <code style="flex:1;font-size:.82rem">{{ u.user__username }}</code>
+            <div style="font-size:1rem;font-weight:700;font-family:var(--mono);color:var(--accent)" data-animate-count="{{ u.action_count }}">0</div>
+            <span style="font-size:.67rem;color:var(--text-muted)">次操作</span>
+          </div>
+          {% empty %}
+          <div style="text-align:center;color:var(--text-muted);padding:20px">尚無活動記錄</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// ── 任務狀態圓餅圖 ──
+const tsd = {{ task_status_data|safe }};
+const taskCtx = document.getElementById('taskStatusChart');
+if (taskCtx) {
+  new Chart(taskCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['已完成', '執行中', '等待中', '失敗'],
+      datasets: [{
+        data: [tsd.done, tsd.running, tsd.pending, tsd.failed],
+        backgroundColor: ['rgba(34,197,94,.8)', 'rgba(59,130,246,.8)', 'rgba(234,179,8,.8)', 'rgba(239,68,68,.8)'],
+        borderColor: '#111827', borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '60%',
+      plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10, padding: 8 } } }
+    }
+  });
+}
+
+// ── 30天活躍度折線圖 ──
+const actData = {{ daily_activity|safe }};
+const actCtx = document.getElementById('activityChart');
+if (actCtx) {
+  const actLabels = Object.keys(actData).map(d => d.slice(5)); // MM-DD
+  new Chart(actCtx, {
+    type: 'line',
+    data: {
+      labels: actLabels,
+      datasets: [{
+        label: '操作次數',
+        data: Object.values(actData),
+        borderColor: '#6366f1',
+        backgroundColor: 'rgba(99,102,241,0.08)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.4,
+        pointBackgroundColor: '#6366f1',
+        pointBorderColor: '#111827',
+        pointBorderWidth: 2,
+        pointRadius: 2,
+        pointHoverRadius: 5,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#475569', font: { size: 8 }, maxRotation: 45 }, grid: { color: '#1f2d40' } },
+        y: { ticks: { color: '#475569', font: { size: 9 } }, grid: { color: '#1f2d40' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
 async function changeRole(userId, newRole) {
   if (!await confirmAction(`確定要變更此使用者的角色為「${newRole}」嗎？`, '確認變更', 'primary')) {
     location.reload(); return;

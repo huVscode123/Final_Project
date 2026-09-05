@@ -16,6 +16,8 @@ urlpatterns = [
     path('sessions/<int:pk>/delete/',           views.session_delete,     name='session_delete'),
     path('simulation/',                         views.simulation,         name='simulation'),
     path('simulation/api/',                     views.simulation_api,     name='simulation_api'),
+    path('simulation/download/<str:filename>/', views.simulation_pcap_download,
+         name='simulation_pcap_download'),
     path('ablation/',                           views.ablation_dashboard, name='ablation'),
     path('ablation/api/run/',                   views.ablation_run_api,   name='ablation_run'),
     path('ablation/api/status/',                views.ablation_status_api,name='ablation_status'),

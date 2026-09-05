@@ -158,10 +158,20 @@ class SemiSupervisedDataLoader:
         self.n_normal_val   = n_val
         self.n_attack_labeled = n_attack_labeled
 
+        # [Bug 6 修正 — 2026] 保留「未被用於微調」的攻擊樣本（互補集合），
+        # 供 compute_threshold(method="optimal") 使用，避免閾值搜尋
+        # 直接在 margin loss 微調用過的同一批攻擊樣本上做 F1 最佳化
+        # （屬於資料洩漏：閾值會對已看過的樣本過擬合）。
+        holdout_mask = np.ones(len(X_attack), dtype=bool)
+        holdout_mask[attack_indices] = False
+        self.X_attack_holdout = X_attack[holdout_mask]
+
         print(f"  [SemiSupervisedDataLoader] 資料分配:")
         print(f"    正常流量 - 訓練: {n_train:,}，驗證: {n_val:,}")
-        print(f"    攻擊流量（標記）: {n_attack_labeled:,} / {len(X_attack):,} "
+        print(f"    攻擊流量（標記，用於微調）: {n_attack_labeled:,} / {len(X_attack):,} "
               f"（{attack_ratio*100:.0f}%）")
+        print(f"    攻擊流量（保留，未參與微調，供閾值搜尋用）: "
+              f"{len(self.X_attack_holdout):,}")
 
     def get_pretrain_loaders(self):
         """Phase 1：只用正常流量的 DataLoader"""
@@ -287,6 +297,9 @@ class SemiSupervisedTrainer:
             batch_size    = self.config["batch_size"],
             val_split     = self.config["val_split"],
         )
+        # [Bug 6 修正 — 2026] 記錄「未參與微調」的攻擊樣本，供
+        # compute_threshold(method="optimal") 做無洩漏的閾值搜尋。
+        self.X_attack_holdout = self._data_manager.X_attack_holdout
 
     # ── Phase 1：無監督預訓練 ─────────────────────────────
     def pretrain(self):
@@ -536,9 +549,24 @@ class SemiSupervisedTrainer:
             利用已標記的攻擊樣本，掃描多個百分位數，
             選出 F1 Score 最大的閾值
 
+            [Bug 6 修正 — 2026] 舊版直接對呼叫時傳入的 X_attack 做
+            F1 最佳化搜尋；但 train_full()/run_semi_supervised.py
+            傳入的 X_attack 正是 Phase 2 margin loss 微調所使用的
+            「同一批」標記攻擊樣本 —— 等於用訓練時看過的資料去挑
+            閾值，屬於資料洩漏，挑出的閾值可能對這批樣本過擬合。
+            修正：若已呼叫過 load_data()（因此存在
+            self.X_attack_holdout —— 微調時「未使用」的攻擊樣本
+            互補集合），method="optimal" 會優先改用這份未參與微調
+            的保留樣本做閾值搜尋；只有在沒有可用保留樣本時才退回
+            使用傳入的 X_attack，並印出警告提醒使用者這是退化行為。
+            注意：最終模型效能評估（evaluate_model）仍應使用完全
+            獨立於 load_data() 的測試集（X_test_attack），不受此
+            處影響。
+
         Args:
             X_normal   : 正常流量影像矩陣
-            X_attack   : 攻擊流量影像矩陣
+            X_attack   : 攻擊流量影像矩陣（method="percentile" 時不使用；
+                         method="optimal" 且無可用 holdout 時的備援來源）
             method     : "percentile" 或 "optimal"
             percentile : method="percentile" 時使用
 
@@ -549,21 +577,35 @@ class SemiSupervisedTrainer:
         print(f"\n  [閾值計算] 方法: {method}")
 
         errors_normal = self._compute_errors(X_normal)
-        errors_attack = self._compute_errors(X_attack)
-
-        print(f"  正常流量誤差: mean={errors_normal.mean():.6f}, "
-              f"std={errors_normal.std():.6f}")
-        print(f"  攻擊流量誤差: mean={errors_attack.mean():.6f}, "
-              f"std={errors_attack.std():.6f}")
-        print(f"  分離比（攻擊/正常）: "
-              f"{errors_attack.mean() / (errors_normal.mean() + 1e-9):.2f}x")
 
         if method == "percentile":
             self.threshold = float(np.percentile(errors_normal, percentile))
+            print(f"  正常流量誤差: mean={errors_normal.mean():.6f}, "
+                  f"std={errors_normal.std():.6f}")
             print(f"  閾值（{percentile}th 百分位）: {self.threshold:.6f}")
 
         elif method == "optimal":
-            # [修正 #6] 向量化閾值搜尋 O(N log N)
+            holdout = getattr(self, "X_attack_holdout", None)
+            if holdout is not None and len(holdout) >= 10:
+                print(f"  [防洩漏] 使用微調時未參與訓練的 {len(holdout):,} "
+                      f"筆保留攻擊樣本進行閾值搜尋（非傳入的完整 X_attack）")
+                attack_for_search = holdout
+            else:
+                print(f"  [警告] 無足夠的保留攻擊樣本（需先呼叫 load_data()），"
+                      f"退回使用傳入的 X_attack 進行閾值搜尋 —— "
+                      f"若此 X_attack 與微調樣本重疊，結果可能對其過擬合")
+                attack_for_search = X_attack
+
+            errors_attack = self._compute_errors(attack_for_search)
+
+            print(f"  正常流量誤差: mean={errors_normal.mean():.6f}, "
+                  f"std={errors_normal.std():.6f}")
+            print(f"  攻擊流量誤差: mean={errors_attack.mean():.6f}, "
+                  f"std={errors_attack.std():.6f}")
+            print(f"  分離比（攻擊/正常）: "
+                  f"{errors_attack.mean() / (errors_normal.mean() + 1e-9):.2f}x")
+
+            # [修正 #6（原）] 向量化閾值搜尋 O(N log N)
             best_thr, best_f1, best_pct = compute_optimal_threshold_vectorized(
                 errors_normal, errors_attack, pct_range=(50, 100)
             )

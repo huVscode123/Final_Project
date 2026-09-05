@@ -247,8 +247,14 @@ def main():
     print("\n[Step 3] 執行閾值調校分析 (ThresholdTuner)")
     tuner = ThresholdTuner(model)
 
+    # ── [修正 P1-3] 閾值校準只使用驗證集 ──
+    rng = np.random.default_rng(42)
+    idx = rng.permutation(len(X_normal))
+    split = int(len(X_normal) * 0.8)
+    X_normal_val = X_normal[idx[split:]]
+
     # 掃描不同百分位數的成效
-    report = tuner.scan_percentiles(X_normal, X_attack)
+    report = tuner.scan_percentiles(X_normal_val, X_attack)
 
     # 找出最佳閾值
     best = tuner.find_best_threshold(report, metric="f1")

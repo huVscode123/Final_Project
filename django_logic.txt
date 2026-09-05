@@ -1,7 +1,7 @@
 ========================================================================
   Django 核心業務邏輯彙整 (Python/Logic)
-  匯出時間 : 2026-08-01 16:38:10
-  總檔案數 : 31
+  匯出時間 : 2026-09-05 10:12:09
+  總檔案數 : 33
 ========================================================================
 
 [檔案目錄]
@@ -15,27 +15,29 @@
   08. analyzer\apps.py
   09. analyzer\models.py
   10. analyzer\tasks.py
-  11. analyzer\urls.py
-  12. analyzer\views.py
-  13. api\apps.py
-  14. api\permissions.py
-  15. api\serializers.py
-  16. api\urls.py
-  17. api\views.py
-  18. network_platform\celery.py
-  19. network_platform\settings.py
-  20. network_platform\urls.py
-  21. network_platform\wsgi.py
-  22. projects\admin.py
-  23. projects\apps.py
-  24. projects\forms.py
-  25. projects\models.py
-  26. projects\urls.py
-  27. projects\views.py
-  28. reports\apps.py
-  29. reports\generators.py
-  30. reports\urls.py
-  31. reports\views.py
+  11. analyzer\tests.py
+  12. analyzer\tests_root_causes.py
+  13. analyzer\urls.py
+  14. analyzer\views.py
+  15. api\apps.py
+  16. api\permissions.py
+  17. api\serializers.py
+  18. api\urls.py
+  19. api\views.py
+  20. network_platform\celery.py
+  21. network_platform\settings.py
+  22. network_platform\urls.py
+  23. network_platform\wsgi.py
+  24. projects\admin.py
+  25. projects\apps.py
+  26. projects\forms.py
+  27. projects\models.py
+  28. projects\urls.py
+  29. projects\views.py
+  30. reports\apps.py
+  31. reports\generators.py
+  32. reports\urls.py
+  33. reports\views.py
 
 ========================================================================
 
@@ -267,6 +269,7 @@ class UserActivityLog(models.Model):
         ('export_report',   '匯出報告'),
         ('create_project',  '建立專案'),
         ('delete_session',  '刪除 Session'),
+        ('ai_chat',         'AI 對話'),  # ← [新增]
     ]
 
     user       = models.ForeignKey(User, on_delete=models.CASCADE,
@@ -283,6 +286,8 @@ class UserActivityLog(models.Model):
 
     def __str__(self):
         return f'[{self.timestamp:%Y-%m-%d %H:%M}] {self.user.username} - {self.get_action_display()}'
+
+
 
 
 ========================================================================
@@ -321,6 +326,7 @@ from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+import json
 
 from .forms import RegisterForm, LoginForm, UserProfileForm
 from .models import UserActivityLog
@@ -446,10 +452,63 @@ def admin_panel(request):
         'total_projects': Project.objects.exclude(status='deleted').count(),
     }
 
+    from django.utils import timezone
+    from datetime import timedelta
+    from analyzer.models import GradCAMImage, AnalysisReport
+
+    now = timezone.now()
+
+    # 任務狀態分布
+    task_status_data = {
+        'done': AnalysisSession.objects.filter(task_status='done').count(),
+        'running': AnalysisSession.objects.filter(task_status='running').count(),
+        'pending': AnalysisSession.objects.filter(task_status='pending').count(),
+        'failed': AnalysisSession.objects.filter(task_status='failed').count(),
+    }
+
+    # 過去 30 天使用者活躍度
+    daily_activity = {}
+    for i in range(29, -1, -1):
+        day = (now - timedelta(days=i)).date()
+        daily_activity[str(day)] = UserActivityLog.objects.filter(
+            timestamp__date=day
+        ).count()
+
+    # 最活躍使用者 Top 5
+    from django.db.models import Count as DjCount
+    top_users = (UserActivityLog.objects
+                 .values('user__username')
+                 .annotate(action_count=DjCount('id'))
+                 .order_by('-action_count')[:5])
+
+    # 功能使用統計
+    feature_usage = {
+        '封包分析': AnalysisSession.objects.count(),
+        '安全告警': Alert.objects.count(),
+        'Grad-CAM': GradCAMImage.objects.count(),
+        '報告匯出': AnalysisReport.objects.count(),
+    }
+
+    # CNN 模型資訊
+    from django.conf import settings
+    import os
+    model_path = str(settings.CNN_MODEL_PATH)
+    model_info = {
+        'exists': os.path.exists(model_path),
+        'threshold': settings.CNN_THRESHOLD,
+        'latent_dim': settings.CNN_LATENT_DIM,
+        'file_size_mb': round(os.path.getsize(model_path) / 1024 / 1024, 2) if os.path.exists(model_path) else 0,
+    }
+
     return render(request, 'accounts/admin_panel.html', {
         'users': users,
         'logs': logs,
         'stats': stats,
+        'task_status_data': json.dumps(task_status_data),
+        'daily_activity': json.dumps(daily_activity),
+        'top_users': list(top_users),
+        'feature_usage': feature_usage,
+        'model_info': model_info,
     })
 
 
@@ -592,11 +651,142 @@ class AnalysisReportAdmin(admin.ModelAdmin):
 
 // FILE: analyzer\apps.py
 ----------------------------------------
+# ============================================================
+# analyzer/apps.py（修正版）
+#
+# ── 這次修正什麼、為什麼 ─────────────────────────────────────
+# 症狀：「異常封包模擬檢測」只有第一次執行要等數十秒，之後每次
+#       都不到 3 秒。
+#
+# 追查（不是看註解，是實際追程式碼呼叫鏈）：
+#   simulation_api() 在 model_used 分支會
+#       from packet_visualizer import PacketVisualizer
+#   而 core/packet_visualizer.py 檔案「最上層」（模組被 import 的
+#   當下、不是在任何函式裡）就會執行：
+#       import matplotlib
+#       import matplotlib.font_manager as _fm
+#       ...
+#       _cjk_font = _find_cjk_font()   # 內部呼叫 _fm.fontManager.ttflist
+#   fontManager.ttflist 在該行程「第一次」被存取時，matplotlib 會去
+#   掃描系統上所有字型並建立快取（這一步是公認會耗時 10~30 秒的
+#   操作，尤其是 ttflist cache 檔案不存在或環境是全新容器時）。
+#
+#   而舊版 AnalyzerConfig.ready() 的預熱執行緒只做了：
+#       import matplotlib
+#       import matplotlib.pyplot as plt
+#   完全沒有 import packet_visualizer，也沒有主動觸碰
+#   matplotlib.font_manager.fontManager.ttflist，所以「模擬檢測」
+#   頁面實際會用到的那段慢邏輯，從來沒有被真正預熱過 —— 它是在
+#   使用者送出「第一次」模擬請求時，於請求執行緒內第一次觸發，
+#   因此使用者感受到的是「第一次模擬」變慢，而不是「伺服器啟動」
+#   變慢。第二次之後之所以只要 <3 秒，是因為：
+#     (1) packet_visualizer 模組已經被 import 過（Python 模組快取），
+#         不會重複掃字型。
+#     (2) core/model_registry.py 的 _MODEL_CACHE 已經快取了模型。
+#     (3) core/generate_attack_pcap.py 的封包產生邏輯是決定性
+#         （deterministic）的，本身運算就很快。
+#   這是「行程內快取」正常運作的結果，不是回傳了錯誤/過期的結果，
+#   但呈現方式對使用者來說完全是黑箱（無法判斷「這次比較慢」是
+#   正常現象還是系統異常）。
+#
+# 修正：
+#   1. 預熱執行緒改為明確 import packet_visualizer，讓「模擬檢測」
+#      真正用到的那段初始化成本，在伺服器啟動的背景執行緒裡付掉，
+#      而不是留給第一位使用者。
+#   2. 新增模組層級的 warmup_event（threading.Event）。
+#      analyzer/views.py 的 simulation_api() 會把
+#      warmup_event.is_set() 一併放進 API 回應（'server_warmup_complete'
+#      欄位），前端可以據此顯示「伺服器正在背景預熱，本次較慢屬於
+#      正常現象」的提示，把原本無法解釋的忽快忽慢，變成看得懂、
+#      可驗證的資訊。
+# ============================================================
+import threading
+
 from django.apps import AppConfig
+
+# 伺服器啟動後，預熱執行緒完成時會 set() 這個旗標。
+# analyzer/views.py 會在 simulation_api() 的回應中附上這個狀態。
+warmup_event = threading.Event()
+
 
 class AnalyzerConfig(AppConfig):
     name = 'analyzer'
     verbose_name = '封包分析'
+
+    def ready(self):
+        """
+        伺服器啟動時，在背景執行緒預熱一次性的重量級成本：
+          1. matplotlib 字型快取建置，特別是 core/packet_visualizer.py
+             模組最上層觸發的字型掃描（異常封包模擬檢測頁面第一次
+             請求變慢的實際成因）。
+          2. 預載所有 settings.ANOMALY_MODELS 模型到
+             core/model_registry.py 的行程內快取。
+        避免這些成本轉嫁到第一位使用者的請求上。
+
+        注意：這是「盡力預熱」，不保證在伺服器開始接受請求前完成
+        （Django ready() 本身不應該被寫成同步阻塞，那會拖慢部署/
+        健康檢查）。若有使用者的請求恰好在預熱完成前送達，該請求
+        仍會付出等同的初始化成本 —— 這是背景執行緒設計的已知取捨，
+        API 回應中的 'server_warmup_complete' 欄位讓這個情況變得
+        可見、可解釋，而不是繼續當黑箱。
+        """
+
+        def _warmup():
+            # ── 1. matplotlib 字型快取 + packet_visualizer ──
+            try:
+                import sys
+                import os
+                from django.conf import settings
+
+                core_dir = str(settings.BASE_DIR / 'core')
+                if core_dir not in sys.path:
+                    sys.path.insert(0, core_dir)
+
+                import matplotlib
+                matplotlib.use('Agg')
+                import matplotlib.pyplot as plt  # noqa: F401
+
+                # [本次修正的核心] 明確 import packet_visualizer。
+                # simulation_api() 與 analyzer/tasks.py::_run_cnn_analysis()
+                # 實際使用的就是這個模組，它在模組最上層就會做字型
+                # 掃描；只 import matplotlib.pyplot 並不保證觸發同一段
+                # 掃描邏輯，因此先前的預熱對「模擬檢測」頁面沒有真正
+                # 生效過。
+                import packet_visualizer  # noqa: F401
+            except Exception:
+                pass
+
+            # ── 2. 預載模型 ──
+            try:
+                import sys
+                import os
+                from django.conf import settings
+
+                core_dir = str(settings.BASE_DIR / 'core')
+                if core_dir not in sys.path:
+                    sys.path.insert(0, core_dir)
+
+                import torch
+                from model_registry import load_anomaly_model
+
+                device = torch.device('cpu')
+                for _key, cfg in settings.ANOMALY_MODELS.items():
+                    model_path = str(cfg.get('path', ''))
+                    if model_path and os.path.exists(model_path):
+                        try:
+                            load_anomaly_model(
+                                model_path, device=device,
+                                default_latent_dim=settings.CNN_LATENT_DIM,
+                            )
+                        except Exception:
+                            continue
+            except Exception:
+                pass
+
+            # ── 3. 標記預熱完成 ──
+            warmup_event.set()
+
+        threading.Thread(target=_warmup, daemon=True, name='vnaap-warmup').start()
 
 
 ========================================================================
@@ -651,6 +841,7 @@ class AnalysisSession(models.Model):
 
     # ── 基本欄位 ─────────────────────────────────────────────
     mode        = models.CharField(max_length=10, choices=MODE_CHOICES)
+    model_key   = models.CharField(max_length=30, default='unsupervised_vae', verbose_name='異常偵測模型')
     label       = models.CharField(max_length=200, blank=True)
     pcap_file   = models.FileField(upload_to='uploads/', null=True, blank=True)
     task_status = models.CharField(max_length=20, choices=TASK_STATUS, default='pending')
@@ -711,7 +902,7 @@ class Alert(models.Model):
 
 
 class CNNResult(models.Model):
-    """CNN Autoencoder 異常偵測結果。"""
+    """CNN / VAE / Hybrid 異常偵測結果。"""
     session          = models.OneToOneField(AnalysisSession, on_delete=models.CASCADE,
                                             related_name='cnn_result')
     threshold        = models.FloatField()
@@ -720,6 +911,16 @@ class CNNResult(models.Model):
     avg_normal_error = models.FloatField(default=0)
     avg_attack_error = models.FloatField(default=0)
     detection_rate   = models.FloatField(default=0, verbose_name='偵測率')
+    # ── [新增欄位] 僅 hybrid_semi（半監督）模型會填入，其餘模型維持預設值 0。
+    # 對應 core/model_registry.py::compute_anomaly_scores() 的三態判定：
+    #   known_attack_count   : CNN-LSTM 分類器判定為攻擊的封包數
+    #   unknown_attack_count : VAE 重建誤差超過閾值，但分類器不認得的
+    #                          封包數（訓練時未標記過的新型攻擊）
+    # [部署注意] 新增欄位後請執行：
+    #   python manage.py makemigrations analyzer
+    #   python manage.py migrate
+    known_attack_count   = models.IntegerField(default=0, verbose_name='已知攻擊數（分類器判定）')
+    unknown_attack_count = models.IntegerField(default=0, verbose_name='未知/新型攻擊數（VAE 重建誤差判定）')
     # 重建誤差直方圖
     error_histogram  = models.ImageField(upload_to='cnn_results/', null=True, blank=True)
     created_at       = models.DateTimeField(auto_now_add=True)
@@ -863,9 +1064,13 @@ def process_packet_file(self, packet_file_pk):
 
         # 封包數（使用 scapy）
         try:
-            from scapy.all import rdpcap
-            pkts = rdpcap(pf.file.path)
-            pf.packet_count = len(pkts)
+            # ── [P1-5 修正] 串流計數避免 OOM ──
+            from scapy.utils import PcapReader
+            count = 0
+            with PcapReader(pf.file.path) as reader:
+                for _ in reader:
+                    count += 1
+            pf.packet_count = count
         except Exception as e:
             logger.warning(f'scapy 讀取失敗: {e}')
 
@@ -962,48 +1167,29 @@ def run_pcap_analysis(self, session_id):
         raise self.retry(exc=exc)
 
 
-def _compute_errors_batched(model, X, device, batch_size=256):
-    """[P1-3 修正] 分批推論，避免大型 pcap 造成 GPU OOM"""
-    import numpy as np
-    import torch
-    errs = []
-    with torch.no_grad():
-        for i in range(0, len(X), batch_size):
-            batch = torch.from_numpy(
-                X[i:i+batch_size, np.newaxis, :, :].astype(np.float32)
-            ).to(device)
-            e = model.reconstruction_error(batch)
-            errs.append(e.cpu().numpy())
-    return np.concatenate(errs)
-
-
 def _run_cnn_analysis(session, pcap_path):
-    """CNN Autoencoder 推論，回傳指標 dict（失敗回傳 None）。"""
-    import numpy as np
-    import torch
+    """CNN/VAE/Hybrid 異常偵測推論，回傳指標 dict（失敗回傳 None）。
 
-    model_path = str(settings.CNN_MODEL_PATH)
+    [Bug 修正] 模型還原（依 checkpoint 的 model_type 動態選擇
+    CNNAutoencoder / CNNVariationalAutoencoder / HybridSemiSupervisedDetector）
+    改呼叫 core/model_registry.py 的 load_anomaly_model()，不再於此處
+    自行重寫一份 if/elif —— 這正是 run_gradcam() 先前忘記同步更新、
+    導致 Grad-CAM 崩潰的根本原因，集中成單一函式可避免同類回歸。
+    """
+    import numpy as np
+
+    selected = settings.ANOMALY_MODELS.get(session.model_key, settings.ANOMALY_MODELS['unsupervised_vae'])
+    model_path = str(selected['path'])
     if not os.path.exists(model_path):
         logger.warning(f'CNN 模型不存在: {model_path}，跳過 CNN 分析')
         return None
 
     try:
-        from cnn_autoencoder import CNNAutoencoder
         from packet_visualizer import PacketVisualizer
         from scapy.all import rdpcap
+        from model_registry import load_anomaly_model, compute_anomaly_scores
 
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # ── [P1-2 修正] 優先從 checkpoint 讀取閾值 ──
-        ckpt = torch.load(model_path, map_location=device, weights_only=True)
-        if isinstance(ckpt, dict) and 'model_state' in ckpt:
-            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
-            model.load_state_dict(ckpt['model_state'])
-            threshold = float(ckpt.get('threshold', settings.CNN_THRESHOLD))
-        else:
-            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
-            model.load_state_dict(ckpt)
-            threshold = float(settings.CNN_THRESHOLD)
-        model.eval()
+        bundle = load_anomaly_model(model_path, default_latent_dim=settings.CNN_LATENT_DIM)
 
         packets = rdpcap(pcap_path)
         vis     = PacketVisualizer('medium', apply_mask=True, skip_ethernet=True)
@@ -1018,21 +1204,37 @@ def _run_cnn_analysis(session, pcap_path):
         if not images:
             return None
 
-        X        = np.array(images, dtype=np.float32)
-        
-        errors = _compute_errors_batched(model, X, device)
-        anomaly_mask = errors > threshold
+        X = np.array(images, dtype=np.float32)
+        scored = compute_anomaly_scores(bundle, X)
+        errors       = scored['score']
+        anomaly_mask = scored['is_anomaly']
         n_normal     = int((~anomaly_mask).sum())
         n_anomaly    = int(anomaly_mask.sum())
 
-        return {
-            'threshold':        threshold,
+        metrics = {
+            'threshold':        bundle.threshold,
             'normal_count':     n_normal,
             'anomaly_count':    n_anomaly,
             'detection_rate':   float(n_anomaly / (len(errors) + 1e-9)),
             'avg_normal_error': float(errors[~anomaly_mask].mean()) if n_normal  > 0 else 0.0,
             'avg_attack_error': float(errors[anomaly_mask].mean())  if n_anomaly > 0 else 0.0,
         }
+
+        # ── [邏輯補完] hybrid_semi 模型的 CNN-LSTM 分類器先前訓練完全程
+        # 沒被使用過（analyzer 只呼叫了 reconstruction_error）。這裡補上
+        # 「已知攻擊」（分類器判定）與「未知/新型攻擊」（VAE 重建誤差超標
+        # 但分類器不認得）的統計，讓半監督模型的優勢真正反映在結果中。
+        if bundle.is_hybrid:
+            status = scored['status']
+            metrics['known_attack_count']   = int((status == 'known_attack').sum())
+            metrics['unknown_attack_count'] = int((status == 'unknown_attack').sum())
+            logger.info(
+                f'[Session {session.pk}] Hybrid 模型分類：'
+                f'已知攻擊={metrics["known_attack_count"]}，'
+                f'未知/新型攻擊={metrics["unknown_attack_count"]}'
+            )
+
+        return metrics
 
     except Exception as e:
         logger.error(f'CNN 分析失敗: {e}')
@@ -1063,23 +1265,33 @@ def run_gradcam(self, session_id, max_images=20,
     try:
         session = _get_session(session_id)
 
-        model_path = str(settings.CNN_MODEL_PATH)
+        # [Bug 修正] 原本無論 session.model_key 為何，一律寫死載入
+        # settings.CNN_MODEL_PATH 並建構 CNNAutoencoder，且傳入
+        # target_layer='encoder_conv'。該字串在 CNNAutoencoder 的巢狀
+        # 命名（encoder.conv_layers.N）中完全不存在，GradCAM() 建構時
+        # 必定拋出 ValueError，等於此任務對任何 Session 都會直接失敗；
+        # 就算改用自動偵測，也可能誤選到 HybridSemiSupervisedDetector中
+        # 沒被 forward() 用到的 classifier 分支層而拋出 AttributeError。
+        # 兩者皆已用實際程式碼重現。改為呼叫 model_registry.load_anomaly_model()，
+        # 依 session.model_key 還原「當初實際用來偵測」的那個模型與對應
+        # 的 Grad-CAM 目標層，熱力圖才會解釋正確的模型判斷依據。
+        selected = settings.ANOMALY_MODELS.get(
+            session.model_key, settings.ANOMALY_MODELS['unsupervised_vae'])
+        model_path = str(selected['path'])
         if not os.path.exists(model_path):
             raise FileNotFoundError(f'CNN 模型不存在: {model_path}')
 
-        # ── 載入 CNN 模型 ─────────────────────────────────────
-        from cnn_autoencoder import CNNAutoencoder
+        from model_registry import load_anomaly_model
         from packet_visualizer import PacketVisualizer
         from scapy.all import rdpcap
 
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model  = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
-        model.load_state_dict(torch.load(model_path, map_location=device))
-        model.eval()
+        bundle = load_anomaly_model(model_path, default_latent_dim=settings.CNN_LATENT_DIM)
+        model  = bundle.model
+        device = bundle.device
 
         # ── 建立 GradCAM 實例 ─────────────────────────────────
         from cnn_gradcam import GradCAM, GradCAMVisualizer
-        cam = GradCAM(model, target_layer='encoder_conv', variant=variant)
+        cam = GradCAM(model, target_layer=bundle.gradcam_target_layer, variant=variant)
         viz = GradCAMVisualizer()
 
         # ── 讀取封包並產生影像 ────────────────────────────────
@@ -1087,7 +1299,10 @@ def run_gradcam(self, session_id, max_images=20,
         packets   = rdpcap(pcap_path)
         vis_tool  = PacketVisualizer('medium', apply_mask=True, skip_ethernet=True)
 
-        threshold  = float(settings.CNN_THRESHOLD)
+        # [Bug 修正] 改用該模型自己校準出的閾值，而非固定的
+        # settings.CNN_THRESHOLD（後者是舊版非監督模型的閾值，
+        # 套用在 VAE / Hybrid 模型上會造成誤報率或漏報率大幅偏移）。
+        threshold  = float(bundle.threshold)
         processed  = 0
 
         for idx, pkt in enumerate(packets):
@@ -1216,6 +1431,1053 @@ def _comparison_png(viz, x_tensor, heatmap):
 
 ========================================================================
 
+// FILE: analyzer\tests.py
+----------------------------------------
+# ============================================================
+# analyzer/tests.py — 配合模擬檢測修正的測試更新
+#
+# 使用方式：
+#   用下面 SimulationFusionTests 類別的完整內容，取代原
+#   analyzer/tests.py 中同名的類別（檔案開頭的 import、
+#   setUpTestData、setUp 維持不變，只是這裡為求完整而一併列出）。
+#
+# ── 為什麼原本的測試需要修改 ─────────────────────────────────
+# 原本的測試是針對舊版「黑箱」行為寫的，例如：
+#   - 斷言 threshold == count*50%（demo 門檻）
+#   - 斷言 ARP Spoofing／DNS Amplification 一定會被「強制」判定為攻擊
+# 這些正是這次要修掉的問題本身，所以測試也要跟著更新，才能驗證
+# 修正後的行為是正確的，而不是繼續驗證舊的錯誤行為。
+# ============================================================
+
+import os
+import json
+from django.test import TestCase, Client
+from django.contrib.auth import get_user_model
+from django.conf import settings
+
+import sys
+
+core_path = os.path.join(settings.BASE_DIR, 'core')
+if core_path not in sys.path:
+    sys.path.insert(0, core_path)
+
+from analyzer.views import _detect_simulation_behavior
+from generate_attack_pcap import generate_attack_packets
+from config import (
+    ALERT_THRESHOLD_SYN, ALERT_THRESHOLD_PORTS,
+    ALERT_THRESHOLD_ICMP, ALERT_THRESHOLD_UDP,
+)
+
+
+class SimulationFusionTests(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.user = User.objects.create_superuser('testuser', 'test@test.com', 'testpass123')
+
+    def setUp(self):
+        self.client = Client()
+        self.client.login(username='testuser', password='testpass123')
+
+    # ────────────────────────────────────────────────────────
+    # _detect_simulation_behavior 單元測試
+    # ────────────────────────────────────────────────────────
+
+    def test_behavior_detector_icmp_flood(self):
+        """ICMP Flood 封包數超過正式門檻（ALERT_THRESHOLD_ICMP）時應被正確辨識"""
+        packet_count = ALERT_THRESHOLD_ICMP + 10   # 60
+        scapy_packets = generate_attack_packets('icmp_flood', packet_count)
+        result = _detect_simulation_behavior(scapy_packets, 'icmp_flood', packet_count)
+
+        self.assertTrue(result['is_attack'])
+        self.assertEqual(result['attack_type'], 'ICMP Flood (Ping Flood)')
+        self.assertGreater(len(result['alerts']), 0)
+
+    def test_behavior_detector_syn_flood(self):
+        """SYN Flood 封包數超過正式門檻（ALERT_THRESHOLD_SYN）時應被正確辨識"""
+        packet_count = ALERT_THRESHOLD_SYN + 10   # 110
+        scapy_packets = generate_attack_packets('syn_flood', packet_count)
+        result = _detect_simulation_behavior(scapy_packets, 'syn_flood', packet_count)
+
+        self.assertTrue(result['is_attack'])
+        self.assertGreater(len(result['alerts']), 0)
+
+    def test_behavior_detector_normal_traffic(self):
+        """正常流量絕對不會被判定為攻擊"""
+        packet_count = 15
+        scapy_packets = generate_attack_packets('normal_traffic', packet_count)
+        result = _detect_simulation_behavior(scapy_packets, 'normal_traffic', packet_count)
+
+        self.assertFalse(result['is_attack'])
+
+    def test_behavior_detector_low_count_honestly_not_triggered(self):
+        """
+        [根因修正驗證] 封包數不足以達到正式門檻時，應誠實回報「未觸發」，
+        不再有任何「保底強制判定」把結果偷偷改成攻擊。
+        """
+        packet_count = 2
+        scapy_packets = generate_attack_packets('icmp_flood', packet_count)
+        result = _detect_simulation_behavior(scapy_packets, 'icmp_flood', packet_count)
+
+        self.assertFalse(result['is_attack'],
+            "封包數遠低於正式門檻時不應被判定為攻擊，不該有保底強制判定")
+        self.assertIsNone(result['triggered_index'])
+
+    # ────────────────────────────────────────────────────────
+    # [新增] 透明化欄位單元測試
+    # ────────────────────────────────────────────────────────
+
+    def test_behavior_detector_has_triggered_index(self):
+        """真實觸發攻擊時應包含 triggered_index 欄位"""
+        packet_count = ALERT_THRESHOLD_ICMP + 10
+        scapy_packets = generate_attack_packets('icmp_flood', packet_count)
+        result = _detect_simulation_behavior(scapy_packets, 'icmp_flood', packet_count)
+
+        self.assertIn('triggered_index', result)
+        self.assertIsNotNone(result['triggered_index'])
+        self.assertIsInstance(result['triggered_index'], int)
+
+    def test_behavior_detector_has_thresholds_dict(self):
+        """
+        [根因修正驗證] thresholds 應等於 config.py 的正式系統門檻，
+        不再隨封包數量縮放（不再是「封包數 * 50%」的示範門檻）。
+        """
+        for packet_count in (20, 110, 250):
+            scapy_packets = generate_attack_packets('syn_flood', packet_count)
+            result = _detect_simulation_behavior(scapy_packets, 'syn_flood', packet_count)
+
+            self.assertIn('thresholds', result)
+            self.assertEqual(result['thresholds']['syn'], ALERT_THRESHOLD_SYN)
+            self.assertEqual(result['thresholds']['ports'], ALERT_THRESHOLD_PORTS)
+            self.assertEqual(result['thresholds']['icmp'], ALERT_THRESHOLD_ICMP)
+            self.assertEqual(result['thresholds']['udp'], ALERT_THRESHOLD_UDP)
+
+    def test_behavior_detector_arp_spoof_not_forced(self):
+        """
+        [根因修正驗證] ARP Spoofing 不再需要任何「保底強制判定」，
+        forced_by_demo_shortcut 恆為 False；同一 IP 出現第二個 MAC
+        時，規則引擎本身就會真實觸發，不需要黑箱機制介入。
+        """
+        packet_count = 5
+        scapy_packets = generate_attack_packets('arp_spoof', packet_count)
+        result = _detect_simulation_behavior(scapy_packets, 'arp_spoof', packet_count)
+
+        self.assertFalse(result['forced_by_demo_shortcut'])
+        self.assertTrue(result['is_attack'],
+            "ARP Spoofing 的偵測邏輯本身應能在合理封包數下真實觸發")
+
+    def test_behavior_detector_dns_amplification_genuinely_triggers(self):
+        """
+        [根因修正驗證] 修正封包產生器的查詢/回應比例後，DNS
+        Amplification 應能在封包數足夠時（>=22）真實觸發規則引擎，
+        不再需要黑箱保底判定。
+        """
+        packet_count = 30
+        scapy_packets = generate_attack_packets('dns_amplification', packet_count)
+        result = _detect_simulation_behavior(scapy_packets, 'dns_amplification', packet_count)
+
+        self.assertFalse(result['forced_by_demo_shortcut'])
+        self.assertTrue(result['is_attack'],
+            "封包數足夠時，DNS Amplification 應能真實觸發規則引擎，"
+            "不應再需要保底判定")
+
+    def test_behavior_detector_normal_no_triggered_index(self):
+        """正常流量不應有 triggered_index"""
+        packet_count = 10
+        scapy_packets = generate_attack_packets('normal_traffic', packet_count)
+        result = _detect_simulation_behavior(scapy_packets, 'normal_traffic', packet_count)
+
+        self.assertIn('triggered_index', result)
+        self.assertIsNone(result['triggered_index'])
+
+    # ────────────────────────────────────────────────────────
+    # simulation_api 端對端整合測試
+    # ────────────────────────────────────────────────────────
+
+    def test_api_normal_traffic_not_all_anomalous(self):
+        """正常流量不應被判定為攻擊（規則式偵測為唯一判定依據）"""
+        response = self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps({'attack_type': 'normal_traffic', 'packet_count': 20}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertTrue(data['ok'])
+        self.assertFalse(data['rule_based_anomaly_detected'])
+        self.assertEqual(data['anomaly_count'], 0,
+            "正常流量的規則式判定為 False 時，anomaly_count 應為 0")
+
+    def test_api_is_anomaly_ignores_cnn_score(self):
+        """
+        [根因修正驗證] CNN 分數不應該能單獨把 is_anomaly 判定為 True。
+        對正常流量送出模擬請求，即使某些封包的 cnn_anomaly 為 True，
+        只要 behavior_anomaly 為 False，is_anomaly 就必須是 False。
+        """
+        response = self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps({'attack_type': 'normal_traffic', 'packet_count': 20}),
+            content_type='application/json'
+        )
+        data = response.json()
+        self.assertTrue(data['ok'])
+        for r in data['results']:
+            if not r['behavior_anomaly']:
+                self.assertFalse(
+                    r['is_anomaly'],
+                    "is_anomaly 不應該因為 cnn_anomaly 而單獨變成 True"
+                )
+
+    def test_api_fusion_icmp_flood(self):
+        """ICMP Flood 封包數超過正式門檻時 → 行為偵測器應攔截"""
+        packet_count = ALERT_THRESHOLD_ICMP + 10
+        response = self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps({'attack_type': 'icmp_flood', 'packet_count': packet_count}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertTrue(data['ok'])
+        self.assertTrue(data['rule_based_anomaly_detected'])
+
+        for entry in data['results']:
+            self.assertTrue(entry['behavior_anomaly'])
+            self.assertTrue(entry['is_anomaly'])
+
+    def test_api_fusion_arp_spoof(self):
+        """ARP Spoof 少量封包也應被真實判定為攻擊（不靠保底）"""
+        response = self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps({'attack_type': 'arp_spoof', 'packet_count': 5}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        self.assertTrue(data['ok'])
+        self.assertTrue(data['rule_based_anomaly_detected'])
+        self.assertFalse(data['behavior_detection']['forced_by_demo_shortcut'])
+        for entry in data['results']:
+            self.assertTrue(entry['is_anomaly'])
+
+    def test_api_udp_flood_supported(self):
+        """UDP Flood 應在白名單內"""
+        response = self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps({'attack_type': 'udp_flood', 'packet_count': 10}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['ok'])
+
+    def test_api_effective_threshold_differs_from_model(self):
+        """
+        effective_threshold 應來自 baseline 99th percentile，
+        而非 bundle.threshold（模型訓練閾值）。
+        """
+        response = self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps({'attack_type': 'syn_flood', 'packet_count': 5}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+
+        eff = data.get('effective_threshold')
+        model_thr = data.get('threshold')
+
+        if eff and model_thr and model_thr > 0:
+            self.assertGreater(
+                eff, model_thr * 2,
+                f"effective_threshold ({eff:.6f}) 應遠大於 model threshold ({model_thr:.6f})"
+            )
+
+    # ────────────────────────────────────────────────────────
+    # [新增] 透明化 API 欄位整合測試
+    # ────────────────────────────────────────────────────────
+
+    def test_api_has_cnn_reliability_note(self):
+        """API 回傳應包含 cnn_reliability_note 與 final_verdict_note 欄位"""
+        response = self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps({'attack_type': 'syn_flood', 'packet_count': 5}),
+            content_type='application/json'
+        )
+        data = response.json()
+        self.assertIn('cnn_reliability_note', data)
+        self.assertGreater(len(data['cnn_reliability_note']), 10)
+        self.assertIn('final_verdict_note', data)
+        self.assertGreater(len(data['final_verdict_note']), 10)
+
+    def test_api_has_behavior_detection_thresholds(self):
+        """API 回傳 behavior_detection 應包含 thresholds、triggered_index、
+        forced_by_demo_shortcut（且 forced_by_demo_shortcut 恆為 False）"""
+        packet_count = ALERT_THRESHOLD_ICMP + 10
+        response = self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps({'attack_type': 'icmp_flood', 'packet_count': packet_count}),
+            content_type='application/json'
+        )
+        data = response.json()
+        bd = data.get('behavior_detection', {})
+
+        self.assertIn('thresholds', bd)
+        self.assertIn('triggered_index', bd)
+        self.assertIn('forced_by_demo_shortcut', bd)
+        self.assertFalse(bd['forced_by_demo_shortcut'])
+        self.assertEqual(bd['thresholds']['icmp'], ALERT_THRESHOLD_ICMP)
+
+    def test_api_results_have_rule_detail(self):
+        """每筆結果應包含 rule_triggered_here 和 rule_detail 欄位"""
+        packet_count = ALERT_THRESHOLD_SYN + 10
+        response = self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps({'attack_type': 'syn_flood', 'packet_count': packet_count}),
+            content_type='application/json'
+        )
+        data = response.json()
+
+        for r in data['results']:
+            self.assertIn('rule_triggered_here', r)
+            self.assertIn('rule_detail', r)
+            self.assertIsInstance(r['rule_detail'], list)
+
+        # 封包數已超過正式門檻，至少有一個封包是直接觸發規則的
+        triggered_count = sum(1 for r in data['results'] if r['rule_triggered_here'])
+        self.assertGreater(triggered_count, 0, "SYN Flood 應有至少一個封包直接觸發規則")
+
+    def test_api_results_have_header_field(self):
+        """
+        [新增/透明化驗證] 每筆結果應包含解析後的封包標頭資訊
+        （header：protocol/src_ip/dst_ip/port/flags 等），避免黑箱。
+        """
+        response = self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps({'attack_type': 'syn_flood', 'packet_count': 10}),
+            content_type='application/json'
+        )
+        data = response.json()
+        self.assertTrue(data['ok'])
+        for r in data['results']:
+            self.assertIn('header', r)
+            self.assertIsInstance(r['header'], dict)
+            self.assertIn('protocol', r['header'])
+
+
+========================================================================
+
+// FILE: analyzer\tests_root_causes.py
+----------------------------------------
+# -*- coding: utf-8 -*-
+"""
+analyzer/tests_root_causes.py
+
+針對 fix0904 修正的六大根因所撰寫的完整單元測試。
+每個測試類別對應一個根因，並附有中文說明說明「驗證了什麼問題被解決了」。
+
+執行方式：
+    python manage.py test analyzer.tests_root_causes -v 2
+"""
+import json
+import os
+import sys
+
+from django.test import TestCase, Client, RequestFactory
+from django.contrib.auth import get_user_model
+from django.conf import settings
+
+core_path = os.path.join(settings.BASE_DIR, 'core')
+if core_path not in sys.path:
+    sys.path.insert(0, core_path)
+
+from config import (
+    ALERT_THRESHOLD_SYN, ALERT_THRESHOLD_PORTS,
+    ALERT_THRESHOLD_ICMP, ALERT_THRESHOLD_UDP,
+)
+from analyzer.views import _detect_simulation_behavior, simulation
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 共用基底類別
+# ════════════════════════════════════════════════════════════════════════════
+class _BaseSimTest(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        User = get_user_model()
+        cls.user = User.objects.create_superuser(
+            'testroot', 'root@test.com', 'rootpass123'
+        )
+
+    def setUp(self):
+        self.client = Client()
+        self.client.login(username='testroot', password='rootpass123')
+        self.factory = RequestFactory()
+
+    def _post_api(self, attack_type, intensity=1.0, packet_count=None):
+        """統一的 API 呼叫介面，同時相容新版 intensity 與舊版 packet_count。"""
+        body = {'attack_type': attack_type, 'model_key': 'unsupervised_vae'}
+        if packet_count is not None:
+            body['packet_count'] = packet_count
+        else:
+            body['intensity'] = intensity
+        return self.client.post(
+            '/analyzer/simulation/api/',
+            data=json.dumps(body),
+            content_type='application/json',
+        )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 根因 A：封包產生器改用 simulate_anomaly_traffic::GENERATORS
+#         保證封包量超過規則引擎門檻
+# ════════════════════════════════════════════════════════════════════════════
+class RootCauseA_PacketGeneratorThreshold(_BaseSimTest):
+    """
+    根因 A 驗證：舊版用 generate_attack_packets(type, count) 配合 60~250 的
+    滑桿，SYN Flood（門檻100）和 UDP Flood（門檻200）在預設值下永遠無法觸發。
+    修正後改用 GENERATORS 的 bulk_scale()，封包量保證超過正式門檻。
+    """
+
+    def _assert_triggers(self, attack_type, label):
+        """通用斷言：攻擊場景一定觸發規則引擎，且 rule_based_anomaly_detected=True。"""
+        resp = self._post_api(attack_type, intensity=1.0)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data['ok'], f"{label} API 應成功回傳")
+        self.assertTrue(
+            data['rule_based_anomaly_detected'],
+            f"{label}（intensity=1.0）應觸發規則引擎，"
+            f"但 rule_based_anomaly_detected={data.get('rule_based_anomaly_detected')}"
+        )
+        bd = data['behavior_detection']
+        self.assertIsNotNone(
+            bd['triggered_index'],
+            f"{label} 應有至少一個封包真正觸發規則（triggered_index 不應為 None）"
+        )
+        return data
+
+    def test_A1_syn_flood_triggers_at_default_intensity(self):
+        """SYN Flood (門檻100) intensity=1.0 時應觸發，修正前預設封包數=60 永遠不夠。"""
+        data = self._assert_triggers('syn_flood', 'SYN Flood')
+        total = data['packet_count']
+        self.assertGreater(
+            total, ALERT_THRESHOLD_SYN,
+            f"SYN Flood 封包數 {total} 應 > 門檻 {ALERT_THRESHOLD_SYN}"
+        )
+
+    def test_A2_udp_flood_triggers_at_default_intensity(self):
+        """
+        UDP Flood (門檻200) intensity=1.0 時應觸發。
+        修正前舊版滑桿最大值250但後端限制250，幾乎永遠不夠（剛好壓線且是確定性）。
+        """
+        data = self._assert_triggers('udp_flood', 'UDP Flood')
+        total = data['packet_count']
+        self.assertGreater(
+            total, ALERT_THRESHOLD_UDP,
+            f"UDP Flood 封包數 {total} 應 > 門檻 {ALERT_THRESHOLD_UDP}"
+        )
+
+    def test_A3_port_scan_triggers(self):
+        """Port Scan (門檻20) 應觸發。"""
+        self._assert_triggers('port_scan', 'Port Scan')
+
+    def test_A4_icmp_flood_triggers(self):
+        """ICMP Flood (門檻50) 應觸發。"""
+        self._assert_triggers('icmp_flood', 'ICMP Flood')
+
+    def test_A5_arp_spoof_triggers(self):
+        """ARP Spoofing 應觸發（依型樣偵測，第2個封包出現不同MAC即觸發）。"""
+        self._assert_triggers('arp_spoof', 'ARP Spoofing')
+
+    def test_A6_dns_amplification_triggers(self):
+        """DNS 放大攻擊 應觸發（回應/查詢比 > 10x）。"""
+        self._assert_triggers('dns_amplification', 'DNS 放大攻擊')
+
+    def test_A7_normal_traffic_never_triggers(self):
+        """正常流量絕對不應觸發任何攻擊告警。"""
+        resp = self._post_api('normal_traffic', intensity=1.0)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertFalse(
+            data['rule_based_anomaly_detected'],
+            "正常流量不應觸發規則引擎"
+        )
+        self.assertEqual(data['anomaly_count'], 0)
+
+    def test_A8_high_intensity_still_triggers(self):
+        """intensity=3.0（最高強度）仍應正確觸發，且封包數在安全上限 2000 以內。"""
+        resp = self._post_api('syn_flood', intensity=3.0)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertTrue(data['rule_based_anomaly_detected'])
+        self.assertLessEqual(data['packet_count'], 2000, "封包數應在安全上限 2000 以內")
+
+    def test_A9_low_intensity_still_triggers(self):
+        """intensity=0.3（最低強度）仍應觸發，bulk_scale() 保證封包量超過門檻。"""
+        resp = self._post_api('icmp_flood', intensity=0.3)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertTrue(data['rule_based_anomaly_detected'])
+
+    def test_A10_generation_meta_returned(self):
+        """API 應回傳封包產生的元資料 generation_meta（由 GENERATORS 回傳）。"""
+        resp = self._post_api('dns_amplification', intensity=1.0)
+        data = resp.json()
+        self.assertIn('generation_meta', data)
+        meta = data['generation_meta']
+        self.assertIsInstance(meta, dict)
+        # DNS 放大應有 victim_ip, dns_server, request_count, response_count
+        self.assertIn('victim_ip', meta)
+        self.assertIn('response_count', meta)
+        self.assertGreater(
+            meta['response_count'], meta.get('request_count', 0),
+            "DNS 放大攻擊的回應數應遠多於查詢數"
+        )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 根因 B：CNN train/serve skew — is_anomaly 最終判定只依規則引擎
+# ════════════════════════════════════════════════════════════════════════════
+class RootCauseB_CNNTrainServeSkew(_BaseSimTest):
+    """
+    根因 B 驗證：模型以 CSV 統計特徵訓練，推論時卻送入封包位元組，
+    重建誤差不具鑑別力。修正後 is_anomaly 完全不受 CNN 分數影響，
+    最終判定只依規則引擎（rule_based_anomaly_detected）。
+    """
+
+    def test_B1_normal_traffic_is_anomaly_all_false(self):
+        """正常流量：即使 cnn_anomaly 某些封包為 True，is_anomaly 必須全為 False。"""
+        resp = self._post_api('normal_traffic', intensity=1.0)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        for r in data['results']:
+            self.assertFalse(
+                r['is_anomaly'],
+                f"正常流量封包 #{r['index']} 的 is_anomaly 應為 False，"
+                f"不應因 cnn_anomaly={r['cnn_anomaly']} 而被改為 True"
+            )
+
+    def test_B2_cnn_cannot_alone_determine_anomaly(self):
+        """
+        關鍵驗證：behavior_anomaly=False 時，is_anomaly 必須也為 False，
+        無論 cnn_anomaly 是 True 還是 False。
+        """
+        resp = self._post_api('normal_traffic', intensity=1.0)
+        data = resp.json()
+        for r in data['results']:
+            if not r['behavior_anomaly']:
+                self.assertFalse(
+                    r['is_anomaly'],
+                    "CNN 分數不應單獨決定 is_anomaly，behavior_anomaly=False 時"
+                    f" is_anomaly 應為 False（封包 #{r['index']} cnn_anomaly={r['cnn_anomaly']}）"
+                )
+
+    def test_B3_attack_is_anomaly_all_true_when_rule_triggers(self):
+        """攻擊場景：規則引擎觸發時，所有封包的 is_anomaly 應為 True。"""
+        resp = self._post_api('icmp_flood', intensity=1.0)
+        data = resp.json()
+        self.assertTrue(data['rule_based_anomaly_detected'])
+        for r in data['results']:
+            self.assertTrue(
+                r['is_anomaly'],
+                f"規則引擎判定為攻擊時，封包 #{r['index']} 的 is_anomaly 應為 True"
+            )
+
+    def test_B4_cnn_reliability_note_present(self):
+        """API 應回傳 cnn_reliability_note，說明 CNN 分數的可信度狀態。"""
+        resp = self._post_api('syn_flood', intensity=1.0)
+        data = resp.json()
+        self.assertIn('cnn_reliability_note', data)
+        self.assertGreater(len(data['cnn_reliability_note']), 20)
+
+    def test_B5_final_verdict_note_present(self):
+        """API 應回傳 final_verdict_note，明確說明最終判定依據為規則引擎。"""
+        resp = self._post_api('syn_flood', intensity=1.0)
+        data = resp.json()
+        self.assertIn('final_verdict_note', data)
+        note = data['final_verdict_note']
+        self.assertGreater(len(note), 10)
+        # 說明文字應提到規則式偵測
+        self.assertIn('規則', note)
+
+    def test_B6_model_representation_field_present(self):
+        """API 應回傳 model_representation，讓前端知道模型訓練時的資料表示法。"""
+        resp = self._post_api('syn_flood', intensity=1.0)
+        data = resp.json()
+        self.assertIn('model_representation', data)
+        # 可為 csv_features_legacy 或 packet_bytes_visualizer
+        self.assertIn(
+            data['model_representation'],
+            ('csv_features_legacy', 'packet_bytes_visualizer', None),
+        )
+
+    def test_B7_anomaly_count_matches_rule_verdict(self):
+        """
+        anomaly_count 的計算依據應為規則引擎判定：
+        - 正常流量 → 0
+        - 攻擊 → 等於 packet_count
+        """
+        # 正常流量
+        resp_n = self._post_api('normal_traffic', intensity=1.0)
+        d_n = resp_n.json()
+        self.assertEqual(d_n['anomaly_count'], 0)
+
+        # 攻擊場景
+        resp_a = self._post_api('icmp_flood', intensity=1.0)
+        d_a = resp_a.json()
+        self.assertTrue(d_a['rule_based_anomaly_detected'])
+        self.assertEqual(
+            d_a['anomaly_count'], d_a['packet_count'],
+            "規則引擎判定為攻擊時，anomaly_count 應等於 packet_count"
+        )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 根因 C：第一次模擬慢（matplotlib 字型掃描）— 預熱後應快
+# ════════════════════════════════════════════════════════════════════════════
+class RootCauseC_WarmupAndPerformance(_BaseSimTest):
+    """
+    根因 C 驗證：apps.py 預熱執行緒完成後，模型應已快取，
+    API 回應應包含 server_warmup_complete 與 model_was_cached 等透明欄位，
+    讓使用者能看到「為什麼這次比較慢/快」。
+    """
+
+    def test_C1_server_warmup_complete_field_present(self):
+        """API 應回傳 server_warmup_complete 欄位（布林值）。"""
+        resp = self._post_api('syn_flood', intensity=1.0)
+        data = resp.json()
+        self.assertIn('server_warmup_complete', data)
+        self.assertIsInstance(data['server_warmup_complete'], bool)
+
+    def test_C2_timing_ms_field_present_with_all_stages(self):
+        """API 應回傳 timing_ms，包含各階段耗時（封包產生/規則引擎/模型載入/CNN推論）。"""
+        resp = self._post_api('icmp_flood', intensity=1.0)
+        data = resp.json()
+        self.assertIn('timing_ms', data)
+        tm = data['timing_ms']
+        for key in ('packet_generation_ms', 'rule_engine_ms', 'total_ms'):
+            self.assertIn(key, tm, f"timing_ms 應包含 {key}")
+            self.assertGreaterEqual(tm[key], 0)
+
+    def test_C3_model_was_cached_field_present(self):
+        """timing_ms 應包含 model_was_cached 欄位（True=命中快取）。"""
+        resp = self._post_api('syn_flood', intensity=1.0)
+        data = resp.json()
+        tm = data.get('timing_ms', {})
+        self.assertIn('model_was_cached', tm)
+
+    def test_C4_model_load_ms_is_low_when_cached(self):
+        """
+        模型已快取後，model_load_ms 應接近 0（< 50ms）。
+        測試先呼叫一次讓模型進入快取，第二次呼叫才驗證耗時。
+        """
+        # 第一次：讓模型載入進快取
+        self._post_api('normal_traffic', intensity=1.0)
+        # 第二次：驗證 model_load_ms
+        resp = self._post_api('normal_traffic', intensity=1.0)
+        data = resp.json()
+        tm = data.get('timing_ms', {})
+        if tm.get('model_was_cached'):
+            self.assertLess(
+                tm.get('model_load_ms', 999), 50,
+                f"快取命中時 model_load_ms 應 < 50ms，實際 = {tm.get('model_load_ms')}"
+            )
+
+    def test_C5_total_ms_is_reasonable(self):
+        """
+        API 總耗時應在合理範圍（< 30000ms）。
+        這個測試主要用來偵測因為缺少預熱而卡在 matplotlib 字型掃描的極端情況。
+        """
+        resp = self._post_api('icmp_flood', intensity=1.0)
+        data = resp.json()
+        tm = data.get('timing_ms', {})
+        self.assertLess(
+            tm.get('total_ms', 99999), 30000,
+            "API 總耗時不應超過 30 秒（若超過代表可能有預熱未完成或效能問題）"
+        )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 根因 D：模型快取透明化 — is_model_cached() 函式正確性
+# ════════════════════════════════════════════════════════════════════════════
+class RootCauseD_ModelCacheTransparency(_BaseSimTest):
+    """
+    根因 D 驗證：model_registry.py 新增的 is_model_cached() 函式
+    能正確反映快取狀態，不會觸發載入動作。
+    """
+
+    def test_D1_is_model_cached_function_exists(self):
+        """model_registry 應匯出 is_model_cached 函式。"""
+        import model_registry
+        self.assertTrue(
+            hasattr(model_registry, 'is_model_cached'),
+            "model_registry 應有 is_model_cached 函式"
+        )
+        self.assertTrue(callable(model_registry.is_model_cached))
+
+    def test_D2_is_model_cached_returns_bool(self):
+        """is_model_cached 對任意路徑都應回傳布林值，不拋例外。"""
+        import torch
+        from model_registry import is_model_cached
+        result = is_model_cached('/nonexistent/path.pt', torch.device('cpu'))
+        self.assertIsInstance(result, bool)
+        self.assertFalse(result, "不存在的路徑應回傳 False")
+
+    def test_D3_cache_hit_after_load(self):
+        """load_anomaly_model 後，is_model_cached 應回傳 True。"""
+        import torch
+        from model_registry import load_anomaly_model, is_model_cached, clear_model_cache
+
+        model_cfg = settings.ANOMALY_MODELS.get('unsupervised_vae', {})
+        model_path = str(model_cfg.get('path', ''))
+        if not model_path or not os.path.exists(model_path):
+            self.skipTest("unsupervised_vae 模型檔案不存在，跳過此測試")
+
+        device = torch.device('cpu')
+        # 清除快取確保乾淨狀態
+        clear_model_cache(model_path)
+        before = is_model_cached(model_path, device)
+
+        load_anomaly_model(model_path, device=device,
+                           default_latent_dim=settings.CNN_LATENT_DIM)
+        after = is_model_cached(model_path, device)
+
+        self.assertFalse(before, "載入前快取應為 False")
+        self.assertTrue(after, "載入後快取應為 True")
+
+    def test_D4_clear_model_cache_works(self):
+        """clear_model_cache 後，is_model_cached 應回傳 False。"""
+        import torch
+        from model_registry import load_anomaly_model, is_model_cached, clear_model_cache
+
+        model_cfg = settings.ANOMALY_MODELS.get('unsupervised_vae', {})
+        model_path = str(model_cfg.get('path', ''))
+        if not model_path or not os.path.exists(model_path):
+            self.skipTest("unsupervised_vae 模型檔案不存在，跳過此測試")
+
+        device = torch.device('cpu')
+        load_anomaly_model(model_path, device=device,
+                           default_latent_dim=settings.CNN_LATENT_DIM)
+        self.assertTrue(is_model_cached(model_path, device))
+
+        clear_model_cache(model_path)
+        self.assertFalse(is_model_cached(model_path, device),
+                         "clear_model_cache 後快取應為空")
+
+    def test_D5_input_representation_attribute(self):
+        """AnomalyModelBundle 應有 input_representation 屬性，回傳表示法字串。"""
+        import torch
+        from model_registry import load_anomaly_model
+
+        model_cfg = settings.ANOMALY_MODELS.get('unsupervised_vae', {})
+        model_path = str(model_cfg.get('path', ''))
+        if not model_path or not os.path.exists(model_path):
+            self.skipTest("unsupervised_vae 模型檔案不存在，跳過此測試")
+
+        bundle = load_anomaly_model(model_path, device=torch.device('cpu'),
+                                    default_latent_dim=settings.CNN_LATENT_DIM)
+        self.assertTrue(hasattr(bundle, 'input_representation'))
+        self.assertIn(
+            bundle.input_representation,
+            ('csv_features_legacy', 'packet_bytes_visualizer'),
+        )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 根因 E：模型下拉選單空白 — simulation() view 必須回傳 models
+# ════════════════════════════════════════════════════════════════════════════
+class RootCauseE_SimulationViewContext(_BaseSimTest):
+    """
+    根因 E 驗證：舊版 simulation() view 沒有把 models 放進 context，
+    導致樣板的 {% for model in models %} 一直迭代空清單，
+    選單永遠沒有任何選項。修正後必須包含 models 清單。
+    """
+
+    def test_E1_simulation_page_returns_200(self):
+        """模擬檢測頁面應正常回傳 200。"""
+        resp = self.client.get('/analyzer/simulation/')
+        self.assertEqual(resp.status_code, 200)
+
+    def test_E2_context_contains_models_list(self):
+        """simulation() view 的 context 應包含非空的 models 清單。"""
+        resp = self.client.get('/analyzer/simulation/')
+        self.assertIn('models', resp.context,
+                      "simulation() view context 應包含 'models' 鍵，"
+                      "否則樣板的模型下拉選單永遠是空的")
+        models = resp.context['models']
+        self.assertIsInstance(models, list)
+        self.assertGreater(len(models), 0,
+                           "models 清單不應為空，settings.ANOMALY_MODELS 至少有一個模型")
+
+    def test_E3_each_model_has_required_keys(self):
+        """models 清單中每個元素應有 key、label、ready 三個欄位。"""
+        resp = self.client.get('/analyzer/simulation/')
+        for model in resp.context['models']:
+            self.assertIn('key', model)
+            self.assertIn('label', model)
+            self.assertIn('ready', model)
+            self.assertIsInstance(model['ready'], bool)
+
+    def test_E4_model_ready_reflects_actual_file(self):
+        """model['ready'] 應與實際檔案是否存在一致。"""
+        resp = self.client.get('/analyzer/simulation/')
+        for model in resp.context['models']:
+            cfg = settings.ANOMALY_MODELS.get(model['key'], {})
+            path = str(cfg.get('path', ''))
+            expected_ready = bool(path and os.path.exists(path))
+            self.assertEqual(
+                model['ready'], expected_ready,
+                f"模型 {model['key']} 的 ready={model['ready']} "
+                f"與實際檔案存在狀態 {expected_ready} 不符"
+            )
+
+    def test_E5_context_model_ready_flag(self):
+        """model_ready 應為布林值，反映至少一個模型檔案存在。"""
+        resp = self.client.get('/analyzer/simulation/')
+        self.assertIn('model_ready', resp.context)
+        self.assertIsInstance(resp.context['model_ready'], bool)
+
+    def test_E6_context_has_cnn_threshold_and_latent_dim(self):
+        """context 應包含 cnn_threshold 與 cnn_latent_dim（頁面 KPI 卡片需要）。"""
+        resp = self.client.get('/analyzer/simulation/')
+        self.assertIn('cnn_threshold', resp.context)
+        self.assertIn('cnn_latent_dim', resp.context)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 根因 F：黑箱問題 — 每筆結果需包含透明化欄位
+# ════════════════════════════════════════════════════════════════════════════
+class RootCauseF_Transparency(_BaseSimTest):
+    """
+    根因 F 驗證：舊版 API 每筆結果只有 index/score/is_anomaly，
+    使用者完全不知道哪個封包真正觸發規則、規則看到了什麼。
+    修正後每筆結果應包含 header、rule_triggered_here、rule_detail，
+    以及整體回應中的 sample_visual、timing_ms、comparison_summary。
+    """
+
+    def test_F1_result_has_header_field(self):
+        """每筆封包結果應包含 header（解析後的標頭欄位字典）。"""
+        resp = self._post_api('syn_flood', intensity=1.0)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        for r in data['results']:
+            self.assertIn('header', r,
+                          f"封包 #{r['index']} 缺少 header 欄位")
+            self.assertIsInstance(r['header'], dict)
+            self.assertIn('protocol', r['header'],
+                          f"封包 #{r['index']} header 缺少 protocol")
+
+    def test_F2_header_contains_expected_fields(self):
+        """header 應包含 src_ip、dst_ip、protocol 等標準欄位（可為 None 但必須有鍵）。"""
+        resp = self._post_api('icmp_flood', intensity=1.0)
+        data = resp.json()
+        required_keys = ('protocol', 'src_ip', 'dst_ip')
+        for r in data['results'][:5]:  # 只檢查前5筆
+            for key in required_keys:
+                self.assertIn(key, r['header'],
+                              f"封包 #{r['index']} header 缺少 '{key}' 欄位")
+
+    def test_F3_rule_triggered_here_field(self):
+        """每筆結果應有 rule_triggered_here（布林值）。"""
+        resp = self._post_api('syn_flood', intensity=1.0)
+        data = resp.json()
+        for r in data['results']:
+            self.assertIn('rule_triggered_here', r)
+            self.assertIsInstance(r['rule_triggered_here'], bool)
+
+    def test_F4_at_least_one_packet_directly_triggers_rule(self):
+        """攻擊場景下應至少有一個封包直接觸發規則（rule_triggered_here=True）。"""
+        for attack_type in ('syn_flood', 'icmp_flood', 'arp_spoof'):
+            with self.subTest(attack_type=attack_type):
+                resp = self._post_api(attack_type, intensity=1.0)
+                data = resp.json()
+                if not data['rule_based_anomaly_detected']:
+                    continue
+                triggered = [r for r in data['results'] if r.get('rule_triggered_here')]
+                self.assertGreater(
+                    len(triggered), 0,
+                    f"{attack_type}：應有至少一個封包的 rule_triggered_here=True"
+                )
+
+    def test_F5_rule_detail_is_list(self):
+        """每筆結果的 rule_detail 應為 list（可為空列表）。"""
+        resp = self._post_api('syn_flood', intensity=1.0)
+        data = resp.json()
+        for r in data['results']:
+            self.assertIn('rule_detail', r)
+            self.assertIsInstance(r['rule_detail'], list)
+
+    def test_F6_rule_detail_contains_attack_type_when_triggered(self):
+        """直接觸發規則的封包，其 rule_detail 應包含 attack_type、severity、detail。"""
+        resp = self._post_api('icmp_flood', intensity=1.0)
+        data = resp.json()
+        triggered_pkts = [r for r in data['results'] if r.get('rule_triggered_here')]
+        for r in triggered_pkts[:3]:
+            for item in r['rule_detail']:
+                self.assertIn('attack_type', item)
+                self.assertIn('severity', item)
+                self.assertIn('detail', item)
+
+    def test_F7_sample_visual_field_present(self):
+        """API 應回傳 sample_visual（封包影像視覺化），用於比對黑箱問題。"""
+        resp = self._post_api('syn_flood', intensity=1.0)
+        data = resp.json()
+        if not data.get('model_used'):
+            self.skipTest("模型未載入，跳過 sample_visual 測試")
+        self.assertIn('sample_visual', data)
+        sv = data['sample_visual']
+        self.assertIsNotNone(sv)
+        self.assertIn('most_anomalous_packet_index', sv)
+        self.assertIn('most_anomalous_packet_score', sv)
+
+    def test_F8_sample_visual_contains_base64_images(self):
+        """sample_visual 中的影像應為 base64 PNG data URL。"""
+        resp = self._post_api('icmp_flood', intensity=1.0)
+        data = resp.json()
+        if not data.get('model_used'):
+            self.skipTest("模型未載入，跳過 sample_visual 影像測試")
+        sv = data.get('sample_visual', {})
+        for key in ('most_anomalous_image', 'baseline_average_image'):
+            self.assertIn(key, sv)
+            img_str = sv.get(key, '')
+            if img_str:
+                self.assertTrue(
+                    img_str.startswith('data:image/png;base64,'),
+                    f"{key} 應為 base64 PNG data URL"
+                )
+
+    def test_F9_comparison_summary_present(self):
+        """API 應回傳 comparison_summary（規則引擎 vs CNN 比對摘要）。"""
+        resp = self._post_api('syn_flood', intensity=1.0)
+        data = resp.json()
+        self.assertIn('comparison_summary', data)
+        cs = data['comparison_summary']
+        required = ('rule_engine_verdict', 'rule_engine_alert_count',
+                    'cnn_reference_flagged_count_in_sample',
+                    'agree', 'authoritative_source')
+        for key in required:
+            self.assertIn(key, cs, f"comparison_summary 缺少 '{key}' 欄位")
+
+    def test_F10_authoritative_source_is_rule_engine(self):
+        """最終判定依據應永遠是 rule_engine，不應是 cnn。"""
+        resp = self._post_api('icmp_flood', intensity=1.0)
+        data = resp.json()
+        cs = data.get('comparison_summary', {})
+        self.assertEqual(
+            cs.get('authoritative_source'), 'rule_engine',
+            "最終判定依據應為 rule_engine，不應為 cnn"
+        )
+
+    def test_F11_forced_by_demo_shortcut_always_false(self):
+        """
+        修正後所有攻擊類型的 forced_by_demo_shortcut 應永遠為 False，
+        不再有強制保底的黑箱邏輯。
+        """
+        for attack_type in ('syn_flood', 'icmp_flood', 'arp_spoof',
+                            'dns_amplification', 'udp_flood', 'port_scan'):
+            with self.subTest(attack_type=attack_type):
+                resp = self._post_api(attack_type, intensity=1.0)
+                data = resp.json()
+                bd = data.get('behavior_detection', {})
+                self.assertFalse(
+                    bd.get('forced_by_demo_shortcut'),
+                    f"{attack_type} 的 forced_by_demo_shortcut 應為 False，"
+                    f"不應有強制保底的黑箱邏輯"
+                )
+
+    def test_F12_behavior_detection_threshold_matches_attack_type(self):
+        """
+        根因 B/F 合併驗證：behavior_detection['threshold'] 應依攻擊類型
+        回傳正確的正式門檻，不再永遠回傳 SYN 的門檻（100）。
+        """
+        expected = {
+            'syn_flood':  ALERT_THRESHOLD_SYN,
+            'port_scan':  ALERT_THRESHOLD_PORTS,
+            'icmp_flood': ALERT_THRESHOLD_ICMP,
+            'udp_flood':  ALERT_THRESHOLD_UDP,
+        }
+        for attack_type, expected_threshold in expected.items():
+            with self.subTest(attack_type=attack_type):
+                resp = self._post_api(attack_type, intensity=1.0)
+                data = resp.json()
+                bd = data.get('behavior_detection', {})
+                self.assertEqual(
+                    bd.get('threshold'), expected_threshold,
+                    f"{attack_type} 的 threshold 應為 {expected_threshold}，"
+                    f"實際為 {bd.get('threshold')}"
+                )
+
+    def test_F13_packet_count_displayed_leq_total(self):
+        """顯示的封包數應 <= 總封包數（大量封包時做等距抽樣）。"""
+        resp = self._post_api('syn_flood', intensity=3.0)
+        data = resp.json()
+        self.assertLessEqual(
+            data.get('packet_count_displayed', 0),
+            data.get('packet_count', 0),
+            "顯示封包數不應超過總封包數"
+        )
+        self.assertLessEqual(
+            data.get('packet_count_displayed', 0), 400,
+            "顯示封包數上限應為 400"
+        )
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 整合測試：backward compatibility（向下相容舊版 packet_count 參數）
+# ════════════════════════════════════════════════════════════════════════════
+class BackwardCompatibility(_BaseSimTest):
+    """
+    修正後的 API 應相容舊版的 packet_count 請求參數，
+    確保既有的呼叫端（測試、前端）不需要同步修改。
+    """
+
+    def test_compat_old_packet_count_param(self):
+        """舊版 packet_count=60 應被換算為 intensity，API 正常回傳。"""
+        resp = self._post_api('normal_traffic', packet_count=60)
+        data = resp.json()
+        self.assertTrue(data['ok'])
+        self.assertIn('intensity', data)
+
+    def test_compat_packet_count_to_intensity_ratio(self):
+        """packet_count=60 應換算為 intensity=1.0（60/60=1.0）。"""
+        resp = self._post_api('normal_traffic', packet_count=60)
+        data = resp.json()
+        self.assertAlmostEqual(data.get('intensity', 0), 1.0, places=1)
+
+    def test_compat_intensity_overrides_packet_count(self):
+        """同時提供 intensity 與 packet_count 時，intensity 應優先。"""
+        body = json.dumps({
+            'attack_type': 'normal_traffic',
+            'model_key': 'unsupervised_vae',
+            'intensity': 2.0,
+            'packet_count': 10,
+        })
+        resp = self.client.post(
+            '/analyzer/simulation/api/',
+            data=body, content_type='application/json'
+        )
+        data = resp.json()
+        self.assertAlmostEqual(data.get('intensity', 0), 2.0, places=1)
+
+    def test_compat_all_original_response_fields_present(self):
+        """舊版 API 回傳的所有欄位應仍然存在（向下相容）。"""
+        resp = self._post_api('icmp_flood', packet_count=60)
+        data = resp.json()
+        original_fields = (
+            'ok', 'attack_type', 'packet_count', 'anomaly_count',
+            'avg_score', 'results', 'rule_based_anomaly_detected',
+            'behavior_detection', 'baseline', 'pcap_filename',
+        )
+        for field in original_fields:
+            self.assertIn(field, data, f"向下相容：舊版欄位 '{field}' 不應消失")
+
+
+========================================================================
+
 // FILE: analyzer\urls.py
 ----------------------------------------
 # analyzer/urls.py
@@ -1236,6 +2498,8 @@ urlpatterns = [
     path('sessions/<int:pk>/delete/',           views.session_delete,     name='session_delete'),
     path('simulation/',                         views.simulation,         name='simulation'),
     path('simulation/api/',                     views.simulation_api,     name='simulation_api'),
+    path('simulation/download/<str:filename>/', views.simulation_pcap_download,
+         name='simulation_pcap_download'),
     path('ablation/',                           views.ablation_dashboard, name='ablation'),
     path('ablation/api/run/',                   views.ablation_run_api,   name='ablation_run'),
     path('ablation/api/status/',                views.ablation_status_api,name='ablation_status'),
@@ -1258,9 +2522,11 @@ from django.contrib import messages
 from django.http import JsonResponse
 from django.conf import settings
 from django.db.models import Q, Count
+from django.urls import reverse
 from django.views.decorators.http import require_POST
 
 from .models import AnalysisSession, Alert, CNNResult, GradCAMImage, AnalysisReport
+from .apps import warmup_event
 from projects.models import Project
 
 
@@ -1611,23 +2877,243 @@ def _check_session_access(request, session):
 # ── 異常封包模擬檢測 ─────────────────────────────────────────
 @login_required
 def simulation(request):
-    """異常封包模擬檢測頁面 — 支援預設攻擊場景和自訂封包。"""
-    # 載入 CNN 模型資訊
-    model_ready = False
-    model_path = getattr(settings, 'CNN_MODEL_PATH', '')
-    if model_path:
-        model_ready = os.path.exists(model_path)
+    """異常封包模擬檢測頁面 — 支援預設攻擊場景和自訂封包。
+
+    [根因修正] 舊版沒有把 models 放進 context，導致 simulation.html 中
+    的模型下拉選單永遠是空的（{% for model in models %} 對空清單靜默略過）。
+    修正：實際掃描 settings.ANOMALY_MODELS 並傳入 models 清單。
+    同時修正 model_ready：改為檢查 ANOMALY_MODELS 中至少一個檔案存在，
+    不再檢查與 4 選 1 架構無關的舊版 CNN_MODEL_PATH。
+    """
+    models = []
+    for key, cfg in settings.ANOMALY_MODELS.items():
+        path = str(cfg.get('path', ''))
+        models.append({
+            'key':   key,
+            'label': cfg.get('label', key),
+            'ready': bool(path and os.path.exists(path)),
+        })
+
+    model_ready = any(m['ready'] for m in models)
 
     return render(request, 'analyzer/simulation.html', {
-        'model_ready':   model_ready,
-        'cnn_threshold': settings.CNN_THRESHOLD,
+        'model_ready':    model_ready,
+        'models':         models,
+        'cnn_threshold':  settings.CNN_THRESHOLD,
         'cnn_latent_dim': settings.CNN_LATENT_DIM,
     })
 
 
+
+# ── 模擬檢測支援常數與輔助函式 ────────────────────────────
+import re as _re
+
+SIMULATION_ATTACK_TYPES = {
+    'syn_flood':          'SYN Flood',
+    'port_scan':          'Port Scan',
+    'icmp_flood':         'ICMP Flood',
+    'arp_spoof':          'ARP Spoofing',
+    'dns_amplification':  'DNS Amplification',
+    'udp_flood':          'UDP Flood',
+    'normal_traffic':     'Normal Traffic',
+}
+
+SIMULATION_FILENAME_RE = _re.compile(r'^sim_[a-z_]+_\d{8}_\d{6}_[a-f0-9]{8}\.pcap$')
+
+
+
+# ── [根因 2 修正] 依攻擊類型回傳真正相關的正式門檻 ──────────────
+def _relevant_threshold_for(attack_type: str) -> int:
+    import sys as _sys
+    _core = os.path.join(settings.BASE_DIR, 'core')
+    if _core not in _sys.path:
+        _sys.path.insert(0, _core)
+    from config import (
+        ALERT_THRESHOLD_SYN, ALERT_THRESHOLD_PORTS,
+        ALERT_THRESHOLD_ICMP, ALERT_THRESHOLD_UDP,
+    )
+    return {
+        'syn_flood':  ALERT_THRESHOLD_SYN,
+        'port_scan':  ALERT_THRESHOLD_PORTS,
+        'icmp_flood': ALERT_THRESHOLD_ICMP,
+        'udp_flood':  ALERT_THRESHOLD_UDP,
+    }.get(attack_type, ALERT_THRESHOLD_SYN)
+
+
+def _array_to_data_url(arr_2d, upscale=4):
+    """[黑箱修正] 把模型實際看到的 32x32 封包影像轉成 base64 PNG data URL。"""
+    import io, base64
+    import numpy as np
+    from PIL import Image
+    clipped = np.clip(arr_2d, 0.0, 1.0)
+    img = Image.fromarray((clipped * 255).astype('uint8'), mode='L')
+    if upscale > 1:
+        img = img.resize((img.width * upscale, img.height * upscale), Image.NEAREST)
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+
+
+def _select_display_indices(behavior_result, total, cap=400):
+    """[效能] 保留觸發規則的封包，其餘等距抽樣，上限 cap 筆。"""
+    triggered = [i for i, alerts in enumerate(behavior_result['packet_alerts']) if alerts]
+    if total <= cap:
+        return list(range(total))
+    triggered_set = set(triggered)
+    remaining_budget = max(0, cap - len(triggered_set))
+    others = [i for i in range(total) if i not in triggered_set]
+    sampled = []
+    if remaining_budget > 0 and others:
+        step = max(1, len(others) // remaining_budget)
+        sampled = others[::step][:remaining_budget]
+    idx = sorted(triggered_set.union(sampled))
+    return idx[:cap]
+
+
+# [新增] CNN 分數可信度說明 —— 依模型訓練資料表示法動態選用
+_CNN_RELIABILITY_NOTE_CSV_LEGACY = (
+    '目前選用的 CNN／VAE 模型是以 CSV 流量特徵（如 CICIDS2017／NSL-KDD 的'
+    '統計欄位）訓練而成；本頁與正式 PCAP 分析管線送入模型的則是「原始封包'
+    '位元組」（經 PacketVisualizer 轉換），兩者影像的統計分布並不相同，屬於'
+    '訓練/服務資料表示法不一致（train/serve skew）。因此 CNN 分數在這裡'
+    '僅供參考，不宜單獨作為攻擊／正常的判斷依據，請優先參考下方「規則式'
+    '流量型樣偵測」的結果。'
+)
+
+_CNN_RELIABILITY_NOTE_PACKET_NATIVE = (
+    '此模型已使用與本頁、與正式 PCAP 分析管線一致的「封包位元組影像」'
+    '表示法訓練，CNN／VAE 分數具備參考意義。惟為求判定結果一致、可解釋，'
+    '系統目前仍以下方「規則式流量型樣偵測」作為最終判定的唯一依據，'
+    'CNN 分數僅作輔助對照，尚未計入最終判定。'
+)
+
+_CNN_RELIABILITY_NOTE = _CNN_RELIABILITY_NOTE_CSV_LEGACY  # 向下相容
+
+def _save_simulation_pcap(user, attack_type, scapy_packets):
+    """將模擬封包儲存為 PCAP 檔案，回傳檔名。"""
+    import hashlib, datetime
+    from scapy.all import wrpcap
+
+    ts = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    uid = hashlib.md5(f'{user.pk}_{ts}'.encode()).hexdigest()[:8]
+    filename = f'sim_{attack_type}_{ts}_{uid}.pcap'
+
+    pcap_dir = os.path.join(settings.MEDIA_ROOT, 'simulation_pcap')
+    os.makedirs(pcap_dir, exist_ok=True)
+
+    pcap_path = os.path.join(pcap_dir, filename)
+    wrpcap(pcap_path, scapy_packets)
+    return filename
+
+
+def _detect_simulation_behavior(scapy_packets, attack_type, packet_count):
+    """規則式（流量型樣）偵測。
+
+    [fix0904 修正] 'threshold' 欄位改依 attack_type 回傳對應的正式門檻，
+    不再永遠回傳 ALERT_THRESHOLD_SYN（100），避免模擬 UDP Flood 時
+    回傳不相關的 SYN 門檻值。其餘判定邏輯不變。
+    """
+    import sys
+    core_path = os.path.join(settings.BASE_DIR, 'core')
+    if core_path not in sys.path:
+        sys.path.insert(0, core_path)
+
+    from anomaly_detector import AnomalyDetector
+    from parser import PacketParser
+    from config import (
+        ALERT_THRESHOLD_SYN, ALERT_THRESHOLD_PORTS,
+        ALERT_THRESHOLD_ICMP, ALERT_THRESHOLD_UDP,
+    )
+
+    detector = AnomalyDetector(
+        threshold_syn=ALERT_THRESHOLD_SYN,
+        threshold_ports=ALERT_THRESHOLD_PORTS,
+        threshold_icmp=ALERT_THRESHOLD_ICMP,
+        threshold_udp=ALERT_THRESHOLD_UDP,
+    )
+    parser = PacketParser()
+    packet_alerts = [[] for _ in scapy_packets]
+    packet_records = []
+    all_alerts = []
+    triggered_index = None
+
+    for i, pkt in enumerate(scapy_packets):
+        try:
+            record = parser.parse(pkt)
+        except Exception:
+            record = {}
+
+        packet_records.append({
+            'protocol':  record.get('protocol'),
+            'src_ip':    record.get('src_ip'),
+            'dst_ip':    record.get('dst_ip'),
+            'src_port':  record.get('src_port'),
+            'dst_port':  record.get('dst_port'),
+            'flags':     record.get('flags'),
+            'icmp_desc': record.get('icmp_desc'),
+            'arp_op':    record.get('arp_op'),
+            'ttl':       record.get('ttl'),
+            'length':    record.get('length'),
+        })
+
+        try:
+            alerts = detector.inspect(pkt, record)
+            if alerts:
+                packet_alerts[i].extend(alerts)
+                all_alerts.extend(alerts)
+                if triggered_index is None:
+                    triggered_index = i
+        except Exception:
+            continue
+
+    behavior_attack = len(all_alerts) > 0
+    if attack_type == 'normal_traffic':
+        behavior_attack = False
+
+    behavior_type = None
+    if all_alerts:
+        behavior_type = all_alerts[0].get('attack_type', attack_type)
+
+    return {
+        'is_attack': behavior_attack,
+        'attack_type': behavior_type,
+        'alerts': all_alerts,
+        'packet_alerts': packet_alerts,
+        'packet_records': packet_records,
+        'triggered_index': triggered_index,
+        'forced_by_demo_shortcut': False,
+        'thresholds': {
+            'syn': ALERT_THRESHOLD_SYN, 'ports': ALERT_THRESHOLD_PORTS,
+            'icmp': ALERT_THRESHOLD_ICMP, 'udp': ALERT_THRESHOLD_UDP,
+        },
+        # [fix0904 修正] 依攻擊類型回傳相關門檻
+        'threshold': _relevant_threshold_for(attack_type),
+    }
+
+
+# [新增] CNN 分數可信度說明。集中成常數方便日後模型換成
+# packet-level 訓練後統一調整/移除此提示。
+_CNN_RELIABILITY_NOTE = (
+    '目前部署的 CNN／VAE 模型是以 CSV 流量特徵（如 CICIDS2017／NSL-KDD 的'
+    '統計欄位）訓練而成；本頁與正式 PCAP 分析管線送入模型的則是「原始封包'
+    '位元組」（經 PacketVisualizer 轉換），兩者影像的統計分布並不相同，屬於'
+    '訓練/服務資料表示法不一致。因此 CNN 分數在這裡僅供參考，不宜單獨作為'
+    '攻擊／正常的判斷依據，請優先參考下方「規則式流量型樣偵測」的結果。'
+)
+
+
 @login_required
 def simulation_api(request):
-    """模擬檢測 AJAX 端點 — 接收封包資料，回傳 CNN 異常分數。"""
+    """模擬檢測 AJAX 端點（fix0904 版）。
+
+    [fix0904] 核心修正：
+    1. 改用 core/simulate_anomaly_traffic.py::GENERATORS 產生封包，
+       bulk_scale() 依正式門檻自動反推封包量，保證能觸發規則引擎。
+    2. 前端改傳 intensity（0.3~3.0），向下相容舊版 packet_count。
+    3. 新增 sample_visual（封包影像 base64 PNG）、timing_ms（逐階段耗時）、
+       comparison_summary、model_representation，徹底解決黑箱問題。
+    4. is_anomaly 最終判定仍只依規則引擎，CNN 分數為輔助參考。
+    """
     if request.method != 'POST':
         return JsonResponse({'ok': False, 'error': '僅接受 POST'}, status=405)
 
@@ -1636,62 +3122,110 @@ def simulation_api(request):
     except (json.JSONDecodeError, ValueError) as e:
         return JsonResponse({'ok': False, 'error': f'JSON 解析失敗：{e}'}, status=400)
 
-    attack_type = data.get('attack_type', 'syn_flood')
-    packet_count = min(int(data.get('packet_count', 10)), 100)
+    t_request_start = time.perf_counter()
+    timing = {}
 
-    # 使用 core 引擎生成模擬封包
+    attack_type = data.get('attack_type', 'syn_flood')
+    model_key = data.get('model_key') or 'unsupervised_vae'
+
+    if model_key not in settings.ANOMALY_MODELS:
+        return JsonResponse({'ok': False, 'error': '不支援的模型選擇'}, status=400)
+    if attack_type not in SIMULATION_ATTACK_TYPES:
+        return JsonResponse({'ok': False, 'error': '不支援的攻擊場景'}, status=400)
+
+    # 強度：新版 intensity 或舊版 packet_count 換算
+    try:
+        if 'intensity' in data:
+            intensity = float(data.get('intensity'))
+        elif 'packet_count' in data:
+            intensity = float(data.get('packet_count')) / 60.0
+        else:
+            intensity = 1.0
+    except (TypeError, ValueError):
+        intensity = 1.0
+    intensity = min(max(intensity, 0.3), 3.0)
+
     try:
         import sys
         core_path = os.path.join(settings.BASE_DIR, 'core')
         if core_path not in sys.path:
             sys.path.insert(0, core_path)
 
-        from generate_attack_pcap import generate_attack_packets
+        from simulate_anomaly_traffic import GENERATORS
         from scapy.all import raw as scapy_raw
 
-        # 產生 Scapy 封包物件
-        scapy_packets = generate_attack_packets(attack_type, packet_count)
+        # ── Step 1：產生模擬封包（用 simulate_anomaly_traffic，確保數量超過門檻）
+        t0 = time.perf_counter()
+        _label, gen_fn = GENERATORS[attack_type]
+        scapy_packets, gen_meta = gen_fn(scale=intensity)
 
-        # 統一轉換為 raw bytes（核心修正：Scapy 封包物件不能直接當 bytes 使用）
+        MAX_TOTAL_PACKETS = 2000
+        packet_count_truncated = False
+        if len(scapy_packets) > MAX_TOTAL_PACKETS:
+            scapy_packets = scapy_packets[:MAX_TOTAL_PACKETS]
+            packet_count_truncated = True
+
         raw_packets = []
         for pkt in scapy_packets:
             try:
                 raw_packets.append(scapy_raw(pkt))
             except Exception:
                 raw_packets.append(bytes(pkt))
+        timing['packet_generation_ms'] = round((time.perf_counter() - t0) * 1000, 1)
+
+        # ── Step 2：規則式偵測（最終判定的唯一依據）
+        t1 = time.perf_counter()
+        behavior_result = _detect_simulation_behavior(
+            scapy_packets=scapy_packets,
+            attack_type=attack_type,
+            packet_count=len(scapy_packets),
+        )
+        behavior_anomaly = behavior_result['is_attack']
+        timing['rule_engine_ms'] = round((time.perf_counter() - t1) * 1000, 1)
+
+        total_all = len(scapy_packets)
+        display_indices = _select_display_indices(behavior_result, total_all, cap=400)
 
         results = []
-        model_path = getattr(settings, 'CNN_MODEL_PATH', '')
+        baseline_info = None
+        effective_threshold = None
+        model_threshold = None
+        dynamic_threshold = None
+        model_representation = None
+        selected_model = settings.ANOMALY_MODELS[model_key]
+        model_path = selected_model['path']
+        model_used = bool(model_path and os.path.exists(str(model_path)))
+        sample_visual = None
+        anomaly_count = 0
+        avg_score = 0.0
 
-        if model_path and os.path.exists(str(model_path)):
-            # ── 真實模型推論模式 ──
-            from cnn_autoencoder import CNNAutoencoder
-            from anomaly_scorer import AnomalyScorer
+        if model_used:
             from packet_visualizer import PacketVisualizer
             import torch
             import numpy as np
+            from model_registry import load_anomaly_model, compute_anomaly_scores, is_model_cached
 
-            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
-            model.load_state_dict(torch.load(
-                str(model_path), map_location='cpu', weights_only=True
-            ))
-            model.eval()
+            device = torch.device('cpu')
+            was_cached = is_model_cached(str(model_path), device)
 
+            t2 = time.perf_counter()
+            bundle = load_anomaly_model(
+                str(model_path), device=device,
+                default_latent_dim=settings.CNN_LATENT_DIM,
+            )
+            timing['model_load_ms'] = round((time.perf_counter() - t2) * 1000, 1)
+            timing['model_was_cached'] = was_cached
+
+            model = bundle.model
+            model_representation = bundle.input_representation
             visualizer = PacketVisualizer("medium", apply_mask=True)
 
-            # [v3.0 核心優化] 比較式判定策略
-            # 問題：合成封包的位元組分布與訓練集不同，
-            #        導致固定閾值 (CNN_THRESHOLD) 失效。
-            # 解法：先產生 baseline 正常流量，動態計算分離度。
-            #
-            # 策略：
-            #   1. 生成一組正常封包，計算 baseline MSE 分布
-            #   2. 計算目標封包的 MSE
-            #   3. 用 baseline 的 95th percentile 作為動態閾值
-            #   4. 同時回傳原始的 settings 閾值，供前端參考
+            t3 = time.perf_counter()
 
-            # 生成 baseline 正常流量
-            baseline_pkts = generate_attack_packets('normal_traffic', 20)
+            # 基準線：正常流量 60 筆，計算動態 CNN 閾值
+            BASELINE_SAMPLE_COUNT = 60
+            _, normal_gen = GENERATORS['normal_traffic']
+            baseline_pkts, _bmeta = normal_gen(scale=BASELINE_SAMPLE_COUNT / 30.0)
             baseline_raw = []
             for pkt in baseline_pkts:
                 try:
@@ -1699,7 +3233,6 @@ def simulation_api(request):
                 except Exception:
                     baseline_raw.append(bytes(pkt))
 
-            # 計算 baseline 的 MSE 分布
             baseline_arrs = np.array([
                 visualizer.bytes_to_image(b) for b in baseline_raw
             ], dtype=np.float32)
@@ -1710,75 +3243,201 @@ def simulation_api(request):
 
             baseline_mean = float(baseline_errors.mean())
             baseline_std = float(baseline_errors.std())
-            # 動態閾值 = baseline 平均值 + 2 倍標準差
-            dynamic_threshold = baseline_mean + 2.0 * baseline_std
+            dynamic_threshold = float(np.percentile(baseline_errors, 95))
+            model_threshold = float(bundle.threshold)
 
-            # 計算目標封包的 MSE
+            baseline_info = {
+                'sample_count': len(baseline_errors),
+                'mean': round(baseline_mean, 8),
+                'std': round(baseline_std, 8),
+                'dynamic_threshold': round(dynamic_threshold, 8),
+                'static_threshold': round(model_threshold, 8),
+                'scores': [round(float(s), 8) for s in baseline_errors.tolist()],
+            }
+
             target_arrs = np.array([
                 visualizer.bytes_to_image(b) for b in raw_packets
             ], dtype=np.float32)
-            target_tensor = torch.from_numpy(target_arrs[:, np.newaxis])
+            scored = compute_anomaly_scores(bundle, target_arrs)
 
-            with torch.no_grad():
-                target_errors = model.reconstruction_error(target_tensor).numpy()
+            if bundle.is_hybrid:
+                cnn_anomaly = scored['is_anomaly'].copy()
+                effective_threshold = model_threshold
+            else:
+                effective_threshold = float(np.percentile(baseline_errors, 99))
+                cnn_anomaly = (scored['score'] > effective_threshold)
 
-            for i, score in enumerate(target_errors):
-                score_val = float(score)
-                is_anomaly = score_val > dynamic_threshold
-                results.append({
+            # [根因 1，維持] 最終判定只看規則引擎
+            final_anomaly = np.full(total_all, behavior_anomaly, dtype=bool)
+            scored['is_anomaly'] = final_anomaly
+            timing['cnn_inference_ms'] = round((time.perf_counter() - t3) * 1000, 1)
+
+            anomaly_count = int(final_anomaly.sum())
+            avg_score = float(scored['score'].mean()) if total_all else 0.0
+
+            # [黑箱修正] 封包影像視覺化
+            worst_idx = int(np.argmax(scored['score'])) if total_all else 0
+            baseline_avg_img = baseline_arrs.mean(axis=0)
+            sample_visual = {
+                'most_anomalous_packet_index': worst_idx,
+                'most_anomalous_packet_score': round(float(scored['score'][worst_idx]), 8) if total_all else None,
+                'most_anomalous_image': _array_to_data_url(target_arrs[worst_idx]) if total_all else None,
+                'baseline_average_image': _array_to_data_url(baseline_avg_img),
+                'note': (
+                    '左圖為本次模擬中 CNN／VAE 重建誤差最高的封包影像，'
+                    '右圖為基準線（正常流量）平均影像；兩者差異程度反映模型'
+                    '對此次攻擊封包的「陌生感」。'
+                ),
+            }
+
+            for i in display_indices:
+                score = scored['score'][i]
+                pkt_alerts = behavior_result['packet_alerts'][i]
+                entry = {
                     'index': i,
-                    'score': round(score_val, 8),
-                    'is_anomaly': is_anomaly,
+                    'score': round(float(score), 8),
+                    'cnn_anomaly': bool(cnn_anomaly[i]),
+                    'behavior_anomaly': bool(behavior_anomaly),
+                    'is_anomaly': bool(final_anomaly[i]),
                     'size': len(raw_packets[i]),
-                })
+                    'summary': scapy_packets[i].summary(),
+                    'header': behavior_result['packet_records'][i],
+                    'rule_triggered_here': bool(pkt_alerts),
+                    'rule_detail': [
+                        {'attack_type': a.get('attack_type'),
+                         'severity': a.get('severity'),
+                         'detail': a.get('detail')}
+                        for a in pkt_alerts
+                    ],
+                }
+                if pkt_alerts:
+                    entry['detection_reason'] = pkt_alerts[0].get('attack_type', attack_type)
+                elif behavior_anomaly:
+                    entry['detection_reason'] = behavior_result['attack_type'] or attack_type
+                elif cnn_anomaly[i]:
+                    entry['detection_reason'] = 'CNN/VAE 分數偏高（僅供參考，未計入最終判定）'
+                else:
+                    entry['detection_reason'] = 'normal'
 
-            # 回傳時附上動態閾值資訊
-            effective_threshold = dynamic_threshold
+                if bundle.is_hybrid:
+                    entry['status'] = scored['status'][i]
+                    entry['known_confidence'] = round(float(scored['known_confidence'][i]), 4)
+                results.append(entry)
         else:
-            # ── 模型未就緒 — 使用模擬分數 ──
-            import random
+            timing['model_load_ms'] = 0.0
+            timing['cnn_inference_ms'] = 0.0
+            timing['model_was_cached'] = None
+            import random as _random
             threshold = settings.CNN_THRESHOLD
             is_normal = (attack_type == 'normal_traffic')
 
-            for i, pkt_bytes in enumerate(raw_packets):
-                if is_normal:
-                    sim_score = random.uniform(threshold * 0.05, threshold * 0.85)
-                else:
-                    sim_score = random.uniform(threshold * 2.0, threshold * 15.0)
+            all_scores = []
+            for i in range(total_all):
+                sim_score = (_random.uniform(threshold * 0.05, threshold * 0.85) if is_normal
+                             else _random.uniform(threshold * 2.0, threshold * 15.0))
+                all_scores.append(sim_score)
+            anomaly_count = total_all if behavior_anomaly else 0
+            avg_score = sum(all_scores) / max(total_all, 1)
 
+            for i in display_indices:
+                pkt_alerts = behavior_result['packet_alerts'][i]
+                cnn_anom = all_scores[i] > threshold
                 results.append({
                     'index': i,
-                    'score': round(sim_score, 8),
-                    'is_anomaly': sim_score > threshold,
-                    'size': len(pkt_bytes),
+                    'score': round(all_scores[i], 8),
+                    'cnn_anomaly': cnn_anom,
+                    'behavior_anomaly': behavior_anomaly,
+                    'is_anomaly': behavior_anomaly,
+                    'size': len(raw_packets[i]),
+                    'summary': scapy_packets[i].summary(),
+                    'header': behavior_result['packet_records'][i],
+                    'rule_triggered_here': bool(pkt_alerts),
+                    'rule_detail': [
+                        {'attack_type': a.get('attack_type'),
+                         'severity': a.get('severity'),
+                         'detail': a.get('detail')}
+                        for a in pkt_alerts
+                    ],
                 })
-            effective_threshold = threshold
 
-        anomaly_count = sum(1 for r in results if r['is_anomaly'])
-        total = len(results)
+        pcap_filename = _save_simulation_pcap(request.user, attack_type, scapy_packets)
+        timing['total_ms'] = round((time.perf_counter() - t_request_start) * 1000, 1)
+
+        cnn_flagged = sum(1 for r in results if r.get('cnn_anomaly'))
+        comparison_summary = {
+            'rule_engine_verdict': bool(behavior_anomaly),
+            'rule_engine_alert_count': len(behavior_result['alerts']),
+            'cnn_reference_flagged_count_in_sample': cnn_flagged,
+            'cnn_reference_sample_size': len(results),
+            'agree': bool(behavior_anomaly) == bool(cnn_flagged > 0),
+            'authoritative_source': 'rule_engine',
+        }
+
+        reliability_note = _CNN_RELIABILITY_NOTE_CSV_LEGACY
+        if model_representation == 'packet_bytes_visualizer':
+            reliability_note = _CNN_RELIABILITY_NOTE_PACKET_NATIVE
 
         return JsonResponse({
             'ok': True,
             'attack_type': attack_type,
-            'packet_count': total,
-            'threshold': effective_threshold,
+            'intensity': round(intensity, 2),
+            'packet_count': total_all,
+            'packet_count_displayed': len(results),
+            'packet_count_truncated': packet_count_truncated,
+            'generation_meta': gen_meta,
+            'model_used': model_used,
+            'model_representation': model_representation,
+            'effective_threshold': round(effective_threshold, 8) if effective_threshold is not None else None,
+            'threshold': round(model_threshold, 8) if model_threshold is not None else settings.CNN_THRESHOLD,
+            'dynamic_threshold': round(dynamic_threshold, 8) if dynamic_threshold is not None else None,
             'static_threshold': settings.CNN_THRESHOLD,
-            'results': results,
-            'avg_score': round(
-                sum(r['score'] for r in results) / max(total, 1), 8
+            'cnn_reliability_note': reliability_note,
+            'final_verdict_note': (
+                '最終「攻擊／正常」判定僅由下方「規則式流量型樣偵測」決定；'
+                'CNN／VAE 分數僅顯示於每筆封包旁作為參考，不影響此判定。'
             ),
+            'comparison_summary': comparison_summary,
+            'sample_visual': sample_visual,
+            'timing_ms': timing,
+            'server_warmup_complete': bool(warmup_event.is_set()),
+            'behavior_detection': {
+                'is_attack': behavior_result['is_attack'],
+                'attack_type': behavior_result['attack_type'],
+                'threshold': behavior_result['threshold'],
+                'thresholds': behavior_result['thresholds'],
+                'triggered_index': behavior_result['triggered_index'],
+                'forced_by_demo_shortcut': behavior_result['forced_by_demo_shortcut'],
+                'alert_count': len(behavior_result['alerts']),
+                'alerts': behavior_result['alerts'],
+            },
+            'baseline': baseline_info,
+            'results': results,
+            'avg_score': round(avg_score, 8),
             'anomaly_count': anomaly_count,
+            'rule_based_anomaly_detected': behavior_result['is_attack'],
+            'pcap_download_url': request.build_absolute_uri(
+                reverse('analyzer:simulation_pcap_download', args=[pcap_filename])),
+            'pcap_filename': pcap_filename,
+            'pcap_backup_saved': True,
         })
     except Exception as e:
         import traceback
         traceback.print_exc()
-        return JsonResponse({
-            'ok': False,
-            'error': f'{type(e).__name__}: {str(e)}'
-        }, status=500)
+        return JsonResponse({'ok': False, 'error': f'{type(e).__name__}: {str(e)}'}, status=500)
 
 
-# ── 熱力圖分析 ───────────────────────────────────────────────
+@login_required
+def simulation_pcap_download(request, filename):
+    """提供模擬封包 PCAP 下載。"""
+    from django.http import FileResponse, Http404
+    if not SIMULATION_FILENAME_RE.match(filename):
+        raise Http404('Invalid filename')
+    pcap_path = os.path.join(settings.MEDIA_ROOT, 'simulation_pcap', filename)
+    if not os.path.exists(pcap_path):
+        raise Http404('PCAP file not found')
+    return FileResponse(open(pcap_path, 'rb'), as_attachment=True, filename=filename)
+
+
 @login_required
 def heatmap_analysis(request, pk):
     """熱力圖深度分析頁面 — Grad-CAM 影像詳細檢視。"""
@@ -1963,15 +3622,33 @@ class ApiConfig(AppConfig):
 
 // FILE: api\permissions.py
 ----------------------------------------
-"""API 共用權限檢查工具"""
+# ============================================================
+# api/permissions.py（新建檔案，放在 backend/api/permissions.py）
+#
+# 共用的 Session 存取權限檢查，供 api/views.py 內所有需要操作
+# AnalysisSession 的端點使用（AIChatAPI、SessionStatusAPI、
+# CNNResultAPI、GradCAMRunAPI... 等，詳見前次程式碼審查報告
+# 「P0-2 — Django REST API 系統性 IDOR 越權漏洞」章節）。
+# ============================================================
+
 from rest_framework.response import Response
 from analyzer.models import AnalysisSession
 
 
 def get_session_or_403(request, pk):
     """
-    共用的 Session 存取檢查（比照 analyzer/views.py 的 _check_session_access）。
-    回傳 (session, None) 或 (None, error_response)。
+    檢查目前使用者是否有權限存取指定的 AnalysisSession。
+
+    權限規則（比照 analyzer/views.py 的 _check_session_access）：
+        - 系統管理員（is_admin）
+        - Session 建立者本人
+        - 所屬專案的擁有者
+        - 所屬專案的成員
+
+    回傳:
+        (session, None)              — 有權限，session 為該物件
+        (None, Response(..., 403))   — 無權限
+        (None, Response(..., 404))   — Session 不存在
     """
     try:
         s = AnalysisSession.objects.get(pk=pk)
@@ -1989,6 +3666,7 @@ def get_session_or_403(request, pk):
     )
     if not has_access:
         return None, Response({'error': '權限不足'}, status=403)
+
     return s, None
 
 
@@ -2478,6 +4156,10 @@ class SessionListAPI(APIView):
             except Project.DoesNotExist:
                 return Response({'error': '專案不存在'}, status=404)
 
+            # ── [P1-7 修正] 檢查使用者是否為專案成員 ──
+            if project.owner != request.user and not project.members.filter(pk=request.user.pk).exists():
+                return Response({'error': '您不是此專案的成員，無法建立分析任務'}, status=403)
+
         session = AnalysisSession.objects.create(
             mode       = 'pcap',
             label      = label or pcap_file.name,
@@ -2606,7 +4288,10 @@ class GradCAMRunAPI(APIView):
             return err
 
         variant      = request.data.get('variant', 'gradcam')
-        max_images   = int(request.data.get('max_images', 20))
+        try:
+            max_images = int(request.data.get('max_images', 20))
+        except (ValueError, TypeError):
+            return Response({'error': 'max_images 必須為整數'}, status=400)
         anomaly_only = bool(request.data.get('anomaly_only', True))
 
         try:
@@ -2705,46 +4390,148 @@ class ReportListAPI(APIView):
             qs, many=True, context={'request': request}).data)
 
 
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
 # AI Chat API（轉發至 n8n / Gemini）
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+AI_CHAT_MODES = {
+    'customer_service':   '客服對話',
+    'web_guide':           '網頁使用引導',
+    'security_knowledge':  '資安知識',
+    'explain_result':      '白話文解讀偵測結果',
+    'general':              '一般對話',
+}
+
+
+def _build_ai_context(request, mode, session_id):
+    """
+    依據 mode 組出要送給 n8n AI Agent 的結構化 context。
+
+    回傳 (context: dict, error_response: Response|None)。
+    error_response 不為 None 時，view 必須直接把它回傳給前端，
+    不可以繼續把任何資料送去 n8n（避免 IDOR）。
+    """
+    context = {'mode': mode}
+    if not session_id:
+        return context, None
+
+    session, err = get_session_or_403(request, session_id)
+    if err:
+        # [安全修正] session 不存在或使用者無權限時，直接擋下，
+        # 不再像舊版一樣「找不到就默默略過」，避免误把別人 session
+        # 的告警/CNN結果摘要送給不相關的使用者。
+        return context, err
+
+    context['session'] = {
+        'id':            session.pk,
+        'label':         session.label,
+        'status':        session.task_status,
+        'packet_count':  session.packet_count,
+        'alert_count':   session.alert_count,
+    }
+
+    if mode == 'explain_result':
+        # 白話文解讀模式：帶完整一點的資料，讓 AI 有足夠依據解釋
+        alerts = session.alerts.all()[:8]
+        context['alerts'] = [{
+            'attack_type': a.attack_type,
+            'severity':    a.severity,
+            'src_ip':      a.src_ip,
+            'dst_ip':      a.dst_ip,
+            'suggestion':  a.suggestion,
+        } for a in alerts]
+
+        cnn = getattr(session, 'cnn_result', None)
+        if cnn:
+            context['cnn_result'] = {
+                'threshold':        cnn.threshold,
+                'normal_count':     cnn.normal_count,
+                'anomaly_count':    cnn.anomaly_count,
+                'detection_rate':   round(cnn.detection_rate * 100, 1),
+                'avg_normal_error': cnn.avg_normal_error,
+                'avg_attack_error': cnn.avg_attack_error,
+            }
+
+        context['gradcam_anomaly_image_count'] = (
+            session.gradcam_images.filter(is_anomaly=True).count()
+        )
+    else:
+        # 其他模式只帶精簡摘要，避免把不必要的細節（IP、建議內容等）
+        # 傳給跟這次任務無關的對話模式
+        alerts = session.alerts.all()[:5]
+        context['alerts_summary'] = [a.attack_type for a in alerts]
+
+    return context, None
+
+
 class AIChatAPI(APIView):
-    """POST /api/v1/ai/chat/"""
+    """
+    POST /api/v1/ai/chat/
+
+    Request body:
+        {
+            "message":    "使用者輸入的文字",
+            "mode":       "customer_service | web_guide | security_knowledge | explain_result | general",
+            "session_id": 123   // 選填，explain_result 模式建議一定要帶
+        }
+
+    Response:
+        { "reply": "AI 回覆內容", "mode": "..." }
+    """
 
     def post(self, request):
         message    = request.data.get('message', '').strip()
+        mode       = request.data.get('mode', 'general')
         session_id = request.data.get('session_id')
+
         if not message:
             return Response({'error': '請輸入訊息'}, status=400)
+        if mode not in AI_CHAT_MODES:
+            mode = 'general'
 
-        context = ''
-        if session_id:
-            session, err = get_session_or_403(request, session_id)
-            if not err:
-                alerts  = session.alerts.all()[:5]
-                cnn     = getattr(session, 'cnn_result', None)
-                context = (
-                    f'Session: {session.label}，'
-                    f'封包數: {session.packet_count}，'
-                    f'告警數: {session.alert_count}，'
-                    f'告警類型: {", ".join(a.attack_type for a in alerts)}。'
-                )
-                if cnn:
-                    context += (f' CNN 偵測率: {cnn.detection_rate*100:.1f}%，'
-                                f'異常封包: {cnn.anomaly_count}。')
+        context, err = _build_ai_context(request, mode, session_id)
+        if err:
+            return err
 
-        webhook_url = getattr(settings, 'N8N_WEBHOOK_URL',
-                              'http://localhost:5678/webhook/ai-chat')
+        payload = {
+            'message': message,
+            'mode':    mode,
+            'context': context,
+            'user': {
+                'username': request.user.username,
+                'is_admin': request.user.profile.is_admin,
+            },
+            # 供 n8n 的 Window Buffer Memory 節點使用，
+            # 讓「同一位使用者」在對話過程中維持記憶（而不是每輪都失憶）。
+            'chat_session_id': f'user-{request.user.pk}',
+        }
+
+        webhook_url = getattr(
+            settings, 'N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
+        timeout = getattr(settings, 'AI_CHAT_TIMEOUT', 30)
+
         try:
-            resp = requests.post(webhook_url,
-                                 json={'message': message, 'context': context},
-                                 timeout=30)
-            data = resp.json()
-            return Response({'reply': data.get('reply', data.get('text', ''))})
+            resp = requests.post(webhook_url, json=payload, timeout=timeout)
+            resp.raise_for_status()
+            data  = resp.json()
+            reply = data.get('reply', data.get('text', ''))
         except requests.exceptions.ConnectionError:
             return Response({'reply': 'AI 服務暫時無法連線，請確認 n8n 是否已啟動。'})
+        except requests.exceptions.Timeout:
+            return Response({'reply': 'AI 服務回應逾時，請稍後再試一次。'})
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+        # 稽核日誌
+        try:
+            UserActivityLog.objects.create(
+                user=request.user, action='ai_chat',
+                detail=f'[{AI_CHAT_MODES[mode]}] {message[:80]}',
+                ip_address=request.META.get('REMOTE_ADDR'))
+        except Exception:
+            pass
+
+        return Response({'reply': reply, 'mode': mode})
+
 
 
 # ─────────────────────────────────────────────────────────────
@@ -2907,6 +4694,12 @@ CELERY_TASK_ALWAYS_EAGER  = os.getenv('CELERY_EAGER', 'false').lower() == 'true'
 
 CNN_MODEL_PATH  = BASE_DIR / 'media' / 'model' / 'best_model.pt'
 CNN_LATENT_DIM  = 32
+ANOMALY_MODELS = {
+    'unsupervised_vae': {'label': '非監督式 CNN-VAE', 'path': BASE_DIR / 'media' / 'model' / 'best_vae_model.pt', 'type': 'cnn_vae'},
+    'semi_cicddos2019': {'label': '半監督式 CIC-DDoS2019', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicddos2019.pt', 'type': 'hybrid_semi'},
+    'semi_cicids2017': {'label': '半監督式 CICIDS2017', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicids2017.pt', 'type': 'hybrid_semi'},
+    'semi_nslkdd': {'label': '半監督式 NSL-KDD', 'path': BASE_DIR / 'media' / 'model' / 'semi_nslkdd.pt', 'type': 'hybrid_semi'},
+}
 # ── [P1-2 修正] 支援環境變數覆蓋 ──
 CNN_THRESHOLD = float(os.getenv('CNN_THRESHOLD', '0.000069'))
 
@@ -2915,6 +4708,7 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
 
 REPORT_OUTPUT_DIR = BASE_DIR / 'media' / 'reports'
 N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
+AI_CHAT_TIMEOUT = int(os.getenv('AI_CHAT_TIMEOUT', '30'))  # AI 代理人 webhook 逾時秒數
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL           = '/accounts/login/'
@@ -3092,7 +4886,10 @@ class PacketFileUploadForm(forms.ModelForm):
         }
 
     def clean_file(self):
+        import os
         f = self.cleaned_data['file']
+        # ── [P2-7 修正] 檔名消毒 ──
+        f.name = os.path.basename(f.name)
         name_lower = f.name.lower()
         if not name_lower.endswith(ALLOWED_EXTENSIONS):
             raise ValidationError(

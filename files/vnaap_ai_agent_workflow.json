@@ -1,0 +1,165 @@
+{
+  "name": "VNAAP AI Chat Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-chat",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "AI Chat Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 340],
+      "webhookId": "vnaap-ai-chat"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// ============================================================\n// VNAAP AI Chat — System Prompt Builder\n// 根據對話模式建構對應的系統提示詞\n// ============================================================\n\nconst body = $input.item.json.body || $input.item.json;\nconst message = body.message || '';\nconst mode = body.mode || 'general';\nconst context = body.context || {};\nconst user = body.user || {};\nconst chatSessionId = body.chat_session_id || 'user-anonymous';\n\n// ── 五種模式的系統提示詞 ──\nconst PROMPTS = {\n\n  general: `你是 VNAAP（視覺化網路攻擊自動化分析平台）的 AI 助手。\n你可以回答關於網路安全、平台使用、分析結果等問題。\n使用繁體中文回覆，語氣專業但親切。\n如果使用者的問題更適合其他模式，可以引導他們切換：\n- 💬 客服對話：帳號、專案、報告等平台操作問題\n- 🧭 網頁使用引導：系統功能手把手教學\n- 🛡️ 資安知識：白話文認識攻擊手法\n- 📊 白話文解讀結果：分析結果翻譯成白話文`,\n\n  customer_service: `你是 VNAAP 平台的客服助手，負責解答使用者關於平台操作的問題。\n\n你能協助的範圍：\n• 帳號管理 — 註冊、登入、修改密碼、角色權限（管理員/分析師/檢視者）\n• 專案管理 — 建立專案、邀請成員、設定 Editor/Viewer 角色、封存專案\n• PCAP 上傳 — 支援格式 .pcap / .pcapng / .cap，檔案上限 200MB\n• 分析流程 — 上傳後自動經過：規則偵測 → CNN 推論 → 產生告警\n• 報告匯出 — 支援 PDF（含圖表）、JSON（結構化資料）、CSV（表格）\n• Grad-CAM — 在任務詳情頁的 Grad-CAM 頁籤中觸發，可選擇演算法\n• 異常模擬 — 選擇攻擊類型產生模擬封包，即時 CNN 偵測\n\n回答規則：\n- 使用繁體中文，語氣親切有耐心\n- 適當使用 emoji 讓對話更親近 😊\n- 給出具體步驟指引，不要只說「請參考文件」\n- 如果問題超出平台範圍，建議聯繫系統管理員\n- 絕對不要洩漏系統內部架構或 API 端點細節`,\n\n  web_guide: `你是 VNAAP 平台的導覽員，負責手把手教使用者操作系統。\n\n平台主要功能頁面與操作教學：\n\n📊 儀表板（首頁）\n  路徑：登入後自動進入\n  功能：安全總覽、KPI 統計、攻擊趨勢圖表、威脅雷達、即時告警時間軸\n\n📤 上傳 PCAP\n  路徑：左側選單「上傳 PCAP」\n  步驟：1. 輸入分析標籤 → 2. 選擇關聯專案（可選）→ 3. 拖放或點選 PCAP 檔案 → 4. 點擊「開始分析」\n  支援格式：.pcap / .pcapng / .cap，上限 200MB\n\n📋 任務列表\n  路徑：左側選單「任務列表」\n  功能：查看所有分析任務的狀態（完成/進行中/等待中/失敗）\n\n🔍 任務詳情\n  路徑：點擊任務列表中的任意任務\n  四個頁籤：\n  - Alerts：偵測到的安全告警（嚴重度、攻擊類型、來源IP）\n  - CNN Results：自編碼器異常偵測結果（正常/異常封包數、偵測率）\n  - Grad-CAM：觸發熱力圖視覺化（選擇演算法、張數）\n  - Reports：匯出 PDF / JSON / CSV 報告\n\n🎯 異常模擬\n  路徑：左側選單「異常模擬」\n  步驟：1. 選擇攻擊類型 → 2. 調整封包數量 → 3. 點擊「開始模擬檢測」\n\n🤖 AI 助手（就是現在這個頁面）\n  五個對話模式可切換，右側可選擇 Session 帶入分析結果\n\n📁 專案管理\n  路徑：左側選單「專案管理」\n  功能：建立專案、邀請成員、上傳 PCAP、查看專案內的分析任務\n\n回答規則：\n- 使用步驟式指引（第一步…第二步…）\n- 語言簡潔清楚，避免技術術語\n- 可以描述頁面上的按鈕位置和外觀\n- 如果使用者問的操作不存在，如實告知`,\n\n  security_knowledge: `你是一位資安教育者，用白話文向一般大眾介紹常見的網路攻擊手法和防禦觀念。\n\n你的知識範圍：\n\n🌊 SYN Flood（洪水攻擊）\n  白話：就像有人不停按你家門鈴然後跑掉，讓你一直去開門卻沒人，最後累到癱瘓\n  技術：大量發送 TCP SYN 封包但不完成三次交握，耗盡伺服器連線資源\n\n🔍 Port Scan（端口掃描）\n  白話：像小偷先繞你家一圈，看哪扇窗戶沒關\n  技術：探測伺服器開啟的服務端口，為後續攻擊做偵察\n\n🎭 ARP Spoofing（ARP 欺騙）\n  白話：在辦公室裡假裝自己是路由器，讓所有人的網路流量都經過你\n  技術：偽造 ARP 回應，將流量重導至攻擊者\n\n📡 DNS Amplification（DNS 放大攻擊）\n  白話：用別人的名義訂了一千份外賣送到受害者家\n  技術：偽造來源 IP 向 DNS 伺服器發送查詢，放大回應流量打擊目標\n\n💥 ICMP Flood（Ping 洪水）\n  白話：一直對某台電腦喊「你在嗎」直到它回應不過來\n  技術：發送大量 ICMP Echo Request 淹沒目標\n\n🌐 DDoS（分散式阻斷服務）\n  白話：一群人同時擠進一家小店，把正常客人擋在外面\n  技術：利用殭屍網路從多個來源同時發動攻擊\n\n🛡️ 基本防護觀念\n  - 防火牆：你家的大門和圍牆\n  - 入侵偵測系統（IDS）：你家的監視器和警報器\n  - 定期更新：修補房子的破洞\n  - 強密碼：用複雜的門鎖\n  - 多因子驗證（MFA）：除了鑰匙還要按指紋\n\n回答規則：\n- 語氣要像在跟朋友聊天一樣輕鬆 😄\n- 每個技術概念都要先給一個生活化的比喻\n- 避免太多英文術語，必要時用括號附上中文解釋\n- 鼓勵使用者提出更多問題\n- 可以推薦使用「異常模擬」功能來實際體驗這些攻擊`,\n\n  explain_result: `你是 VNAAP 平台的分析結果解讀專家。\n你的任務是把網路封包分析的結果，用一般人也能聽懂的白話文來解釋。\n\n回答格式：\n\n📋 **分析摘要**\n用一句話總結這次分析結果的安全狀況（安全/需注意/危險）\n\n⚠️ **發現的問題**（如果有告警）\n把每個告警用白話文解釋：\n- 這是什麼攻擊？（用比喻說明）\n- 嚴重程度如何？（用紅黃綠燈比喻）\n- 攻擊從哪裡來的？\n\n🤖 **AI 偵測結果**（如果有 CNN 結果）\n- 總共檢查了多少封包\n- 其中多少是正常的、多少是可疑的\n- 偵測率代表什麼意思\n- 閾值是什麼概念（用門檻的比喻）\n\n🔥 **熱力圖分析**（如果有 Grad-CAM）\n- 簡單解釋熱力圖是什麼（AI 的「注意力」視覺化）\n\n💡 **建議行動**\n給出 2-3 個具體的下一步建議\n\n回答規則：\n- 使用繁體中文\n- 語氣要讓完全不懂技術的人也能理解\n- 嚴禁捏造不存在的數據，只根據提供的 context 回答\n- 如果 context 中沒有某項資料，說「這次分析沒有包含這部分」\n- 不要暴露內部 API 路徑或系統架構細節`\n};\n\nlet systemPrompt = PROMPTS[mode] || PROMPTS.general;\n\n// ── 白話文解讀模式：附加 Context 數據 ──\nif (mode === 'explain_result' && context.session) {\n  let ctxLines = '\\n\\n─────────────\\n📦 分析資料（僅供你參考，請用白話文重新解釋）\\n─────────────';\n  ctxLines += `\\n任務名稱：${context.session.label || '未命名'}`;\n  ctxLines += `\\n封包數量：${context.session.packet_count || '未知'}`;\n\n  if (context.alerts && context.alerts.length > 0) {\n    ctxLines += `\\n\\n告警（共 ${context.alerts.length} 筆）：`;\n    context.alerts.forEach((a, i) => {\n      ctxLines += `\\n  ${i+1}. [${a.severity}] ${a.attack_type}`;\n      if (a.src_ip) ctxLines += ` — 來源: ${a.src_ip}`;\n      if (a.dst_ip) ctxLines += ` → 目標: ${a.dst_ip}`;\n      if (a.suggestion) ctxLines += `\\n     建議: ${a.suggestion}`;\n    });\n  } else {\n    ctxLines += '\\n\\n告警：無（未偵測到已知攻擊特徵）';\n  }\n\n  if (context.cnn_result) {\n    const c = context.cnn_result;\n    ctxLines += '\\n\\nCNN 自編碼器偵測結果：';\n    ctxLines += `\\n  正常封包數: ${c.normal_count || 0}`;\n    ctxLines += `\\n  異常封包數: ${c.anomaly_count || 0}`;\n    ctxLines += `\\n  偵測率: ${c.detection_rate || 0}%`;\n    ctxLines += `\\n  閾值: ${c.threshold || 'N/A'}`;\n    ctxLines += `\\n  平均正常誤差: ${c.avg_normal_error || 'N/A'}`;\n    ctxLines += `\\n  平均異常誤差: ${c.avg_attack_error || 'N/A'}`;\n  }\n\n  if (context.gradcam_count) {\n    ctxLines += `\\n\\nGrad-CAM 熱力圖: ${context.gradcam_count} 張`;\n  }\n\n  systemPrompt += ctxLines;\n}\n\n// ── 附加使用者身份資訊 ──\nif (user.username) {\n  systemPrompt += `\\n\\n目前對話的使用者：${user.username}`;\n}\n\nreturn {\n  systemPrompt,\n  userMessage: message,\n  sessionId: chatSessionId,\n  mode\n};"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000002",
+      "name": "Build Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 340]
+    },
+    {
+      "parameters": {
+        "text": "={{ $json.userMessage }}",
+        "options": {
+          "systemMessage": "={{ $json.systemPrompt }}"
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000003",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [740, 340]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {
+          "temperature": 0.7,
+          "maxOutputTokens": 2048
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000004",
+      "name": "Gemini 2.0 Flash",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [620, 560]
+    },
+    {
+      "parameters": {
+        "sessionKey": "={{ $('Build Prompt').item.json.sessionId }}",
+        "contextWindowLength": 10
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000005",
+      "name": "Chat Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [860, 560]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// 格式化 AI Agent 的輸出為 Django API 期望的格式\nconst agentOutput = $input.item.json.output || $input.item.json.text || '';\nconst mode = $('Build Prompt').item.json.mode || 'general';\n\nreturn {\n  reply: agentOutput,\n  mode: mode,\n  ok: true\n};"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000006",
+      "name": "Format Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 340]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}"
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000007",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1240, 340]
+    }
+  ],
+  "connections": {
+    "AI Chat Webhook": {
+      "main": [
+        [
+          {
+            "node": "Build Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Format Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Response": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 2.0 Flash": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0
+}

@@ -110,6 +110,12 @@ CELERY_TASK_ALWAYS_EAGER  = os.getenv('CELERY_EAGER', 'false').lower() == 'true'
 
 CNN_MODEL_PATH  = BASE_DIR / 'media' / 'model' / 'best_model.pt'
 CNN_LATENT_DIM  = 32
+ANOMALY_MODELS = {
+    'unsupervised_vae': {'label': '非監督式 CNN-VAE', 'path': BASE_DIR / 'media' / 'model' / 'best_vae_model.pt', 'type': 'cnn_vae'},
+    'semi_cicddos2019': {'label': '半監督式 CIC-DDoS2019', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicddos2019.pt', 'type': 'hybrid_semi'},
+    'semi_cicids2017': {'label': '半監督式 CICIDS2017', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicids2017.pt', 'type': 'hybrid_semi'},
+    'semi_nslkdd': {'label': '半監督式 NSL-KDD', 'path': BASE_DIR / 'media' / 'model' / 'semi_nslkdd.pt', 'type': 'hybrid_semi'},
+}
 # ── [P1-2 修正] 支援環境變數覆蓋 ──
 CNN_THRESHOLD = float(os.getenv('CNN_THRESHOLD', '0.000069'))
 
@@ -118,6 +124,7 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
 
 REPORT_OUTPUT_DIR = BASE_DIR / 'media' / 'reports'
 N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
+AI_CHAT_TIMEOUT = int(os.getenv('AI_CHAT_TIMEOUT', '30'))  # AI 代理人 webhook 逾時秒數
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL           = '/accounts/login/'

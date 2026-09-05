@@ -46,6 +46,7 @@ class AnalysisSession(models.Model):
 
     # ── 基本欄位 ─────────────────────────────────────────────
     mode        = models.CharField(max_length=10, choices=MODE_CHOICES)
+    model_key   = models.CharField(max_length=30, default='unsupervised_vae', verbose_name='異常偵測模型')
     label       = models.CharField(max_length=200, blank=True)
     pcap_file   = models.FileField(upload_to='uploads/', null=True, blank=True)
     task_status = models.CharField(max_length=20, choices=TASK_STATUS, default='pending')
@@ -106,7 +107,7 @@ class Alert(models.Model):
 
 
 class CNNResult(models.Model):
-    """CNN Autoencoder 異常偵測結果。"""
+    """CNN / VAE / Hybrid 異常偵測結果。"""
     session          = models.OneToOneField(AnalysisSession, on_delete=models.CASCADE,
                                             related_name='cnn_result')
     threshold        = models.FloatField()
@@ -115,6 +116,16 @@ class CNNResult(models.Model):
     avg_normal_error = models.FloatField(default=0)
     avg_attack_error = models.FloatField(default=0)
     detection_rate   = models.FloatField(default=0, verbose_name='偵測率')
+    # ── [新增欄位] 僅 hybrid_semi（半監督）模型會填入，其餘模型維持預設值 0。
+    # 對應 core/model_registry.py::compute_anomaly_scores() 的三態判定：
+    #   known_attack_count   : CNN-LSTM 分類器判定為攻擊的封包數
+    #   unknown_attack_count : VAE 重建誤差超過閾值，但分類器不認得的
+    #                          封包數（訓練時未標記過的新型攻擊）
+    # [部署注意] 新增欄位後請執行：
+    #   python manage.py makemigrations analyzer
+    #   python manage.py migrate
+    known_attack_count   = models.IntegerField(default=0, verbose_name='已知攻擊數（分類器判定）')
+    unknown_attack_count = models.IntegerField(default=0, verbose_name='未知/新型攻擊數（VAE 重建誤差判定）')
     # 重建誤差直方圖
     error_histogram  = models.ImageField(upload_to='cnn_results/', null=True, blank=True)
     created_at       = models.DateTimeField(auto_now_add=True)

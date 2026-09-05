@@ -149,8 +149,15 @@ class PacketVisualizer:
             return data
 
         masked = bytearray(data)
-
         # 1. IPv4 Header 遮罩
+        # [新增修正] ID（bytes 4~5）－ Scapy 對未指定的欄位預設使用 RandShort()，
+        # 若不遮罩，同一種語意的流量（例如兩次呼叫
+        # generate_attack_packets('normal_traffic', ...)）會因為隨機 IP ID
+        # 產生不同的封包影像，導致「模擬用的正常流量基準線」與
+        # 「同一種流量的檢測樣本」重建誤差無法穩定對齊，造成分數飄動。
+        if len(masked) > 5:
+            masked[4:6] = b"\x00" * 2
+
         # Checksum（bytes 10~11）
         if len(masked) > 11:
             masked[10:12] = b"\x00" * 2
@@ -159,11 +166,24 @@ class PacketVisualizer:
             masked[12:20] = b"\x00" * 8
 
         # 2. 動態計算 Transport Header 位置
-        ihl = (masked[0] & 0x0F) * 4
+        # ── [P0-2 修正] IPv6 固定表頭長度 ──
+        version = masked[0] >> 4
+        if version == 6:
+            ihl = 40  # IPv6 固定表頭長度
+            # IPv6 來源/目標位址遮罩（offset 8-39）
+            if len(masked) > 8:
+                end = min(40, len(masked))
+                masked[8:end] = b"\x00" * (end - 8)
+        else:
+            ihl = (masked[0] & 0x0F) * 4
         if ihl < 20: ihl = 20
 
         # 3. Transport Layer 遮罩（依協議）
-        proto = masked[9] if len(masked) > 9 else 0
+        # ── [修正] IPv6 Next Header 在 offset 6 ──
+        if version == 6:
+            proto = masked[6] if len(masked) > 6 else 0
+        else:
+            proto = masked[9] if len(masked) > 9 else 0
 
         # src/dst Port (TCP=6, UDP=17)
         if proto in (6, 17):

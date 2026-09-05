@@ -254,6 +254,10 @@ class SessionListAPI(APIView):
             except Project.DoesNotExist:
                 return Response({'error': '專案不存在'}, status=404)
 
+            # ── [P1-7 修正] 檢查使用者是否為專案成員 ──
+            if project.owner != request.user and not project.members.filter(pk=request.user.pk).exists():
+                return Response({'error': '您不是此專案的成員，無法建立分析任務'}, status=403)
+
         session = AnalysisSession.objects.create(
             mode       = 'pcap',
             label      = label or pcap_file.name,
@@ -382,7 +386,10 @@ class GradCAMRunAPI(APIView):
             return err
 
         variant      = request.data.get('variant', 'gradcam')
-        max_images   = int(request.data.get('max_images', 20))
+        try:
+            max_images = int(request.data.get('max_images', 20))
+        except (ValueError, TypeError):
+            return Response({'error': 'max_images 必須為整數'}, status=400)
         anomaly_only = bool(request.data.get('anomaly_only', True))
 
         try:
@@ -481,46 +488,148 @@ class ReportListAPI(APIView):
             qs, many=True, context={'request': request}).data)
 
 
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
 # AI Chat API（轉發至 n8n / Gemini）
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────
+AI_CHAT_MODES = {
+    'customer_service':   '客服對話',
+    'web_guide':           '網頁使用引導',
+    'security_knowledge':  '資安知識',
+    'explain_result':      '白話文解讀偵測結果',
+    'general':              '一般對話',
+}
+
+
+def _build_ai_context(request, mode, session_id):
+    """
+    依據 mode 組出要送給 n8n AI Agent 的結構化 context。
+
+    回傳 (context: dict, error_response: Response|None)。
+    error_response 不為 None 時，view 必須直接把它回傳給前端，
+    不可以繼續把任何資料送去 n8n（避免 IDOR）。
+    """
+    context = {'mode': mode}
+    if not session_id:
+        return context, None
+
+    session, err = get_session_or_403(request, session_id)
+    if err:
+        # [安全修正] session 不存在或使用者無權限時，直接擋下，
+        # 不再像舊版一樣「找不到就默默略過」，避免误把別人 session
+        # 的告警/CNN結果摘要送給不相關的使用者。
+        return context, err
+
+    context['session'] = {
+        'id':            session.pk,
+        'label':         session.label,
+        'status':        session.task_status,
+        'packet_count':  session.packet_count,
+        'alert_count':   session.alert_count,
+    }
+
+    if mode == 'explain_result':
+        # 白話文解讀模式：帶完整一點的資料，讓 AI 有足夠依據解釋
+        alerts = session.alerts.all()[:8]
+        context['alerts'] = [{
+            'attack_type': a.attack_type,
+            'severity':    a.severity,
+            'src_ip':      a.src_ip,
+            'dst_ip':      a.dst_ip,
+            'suggestion':  a.suggestion,
+        } for a in alerts]
+
+        cnn = getattr(session, 'cnn_result', None)
+        if cnn:
+            context['cnn_result'] = {
+                'threshold':        cnn.threshold,
+                'normal_count':     cnn.normal_count,
+                'anomaly_count':    cnn.anomaly_count,
+                'detection_rate':   round(cnn.detection_rate * 100, 1),
+                'avg_normal_error': cnn.avg_normal_error,
+                'avg_attack_error': cnn.avg_attack_error,
+            }
+
+        context['gradcam_anomaly_image_count'] = (
+            session.gradcam_images.filter(is_anomaly=True).count()
+        )
+    else:
+        # 其他模式只帶精簡摘要，避免把不必要的細節（IP、建議內容等）
+        # 傳給跟這次任務無關的對話模式
+        alerts = session.alerts.all()[:5]
+        context['alerts_summary'] = [a.attack_type for a in alerts]
+
+    return context, None
+
+
 class AIChatAPI(APIView):
-    """POST /api/v1/ai/chat/"""
+    """
+    POST /api/v1/ai/chat/
+
+    Request body:
+        {
+            "message":    "使用者輸入的文字",
+            "mode":       "customer_service | web_guide | security_knowledge | explain_result | general",
+            "session_id": 123   // 選填，explain_result 模式建議一定要帶
+        }
+
+    Response:
+        { "reply": "AI 回覆內容", "mode": "..." }
+    """
 
     def post(self, request):
         message    = request.data.get('message', '').strip()
+        mode       = request.data.get('mode', 'general')
         session_id = request.data.get('session_id')
+
         if not message:
             return Response({'error': '請輸入訊息'}, status=400)
+        if mode not in AI_CHAT_MODES:
+            mode = 'general'
 
-        context = ''
-        if session_id:
-            session, err = get_session_or_403(request, session_id)
-            if not err:
-                alerts  = session.alerts.all()[:5]
-                cnn     = getattr(session, 'cnn_result', None)
-                context = (
-                    f'Session: {session.label}，'
-                    f'封包數: {session.packet_count}，'
-                    f'告警數: {session.alert_count}，'
-                    f'告警類型: {", ".join(a.attack_type for a in alerts)}。'
-                )
-                if cnn:
-                    context += (f' CNN 偵測率: {cnn.detection_rate*100:.1f}%，'
-                                f'異常封包: {cnn.anomaly_count}。')
+        context, err = _build_ai_context(request, mode, session_id)
+        if err:
+            return err
 
-        webhook_url = getattr(settings, 'N8N_WEBHOOK_URL',
-                              'http://localhost:5678/webhook/ai-chat')
+        payload = {
+            'message': message,
+            'mode':    mode,
+            'context': context,
+            'user': {
+                'username': request.user.username,
+                'is_admin': request.user.profile.is_admin,
+            },
+            # 供 n8n 的 Window Buffer Memory 節點使用，
+            # 讓「同一位使用者」在對話過程中維持記憶（而不是每輪都失憶）。
+            'chat_session_id': f'user-{request.user.pk}',
+        }
+
+        webhook_url = getattr(
+            settings, 'N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
+        timeout = getattr(settings, 'AI_CHAT_TIMEOUT', 30)
+
         try:
-            resp = requests.post(webhook_url,
-                                 json={'message': message, 'context': context},
-                                 timeout=30)
-            data = resp.json()
-            return Response({'reply': data.get('reply', data.get('text', ''))})
+            resp = requests.post(webhook_url, json=payload, timeout=timeout)
+            resp.raise_for_status()
+            data  = resp.json()
+            reply = data.get('reply', data.get('text', ''))
         except requests.exceptions.ConnectionError:
             return Response({'reply': 'AI 服務暫時無法連線，請確認 n8n 是否已啟動。'})
+        except requests.exceptions.Timeout:
+            return Response({'reply': 'AI 服務回應逾時，請稍後再試一次。'})
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+        # 稽核日誌
+        try:
+            UserActivityLog.objects.create(
+                user=request.user, action='ai_chat',
+                detail=f'[{AI_CHAT_MODES[mode]}] {message[:80]}',
+                ip_address=request.META.get('REMOTE_ADDR'))
+        except Exception:
+            pass
+
+        return Response({'reply': reply, 'mode': mode})
+
 
 
 # ─────────────────────────────────────────────────────────────

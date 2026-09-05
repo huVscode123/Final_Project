@@ -58,7 +58,7 @@ class PcapAnalyzer:
         self.total_bytes = 0   # [新增] 快取總流量，避免重複計算
 
     # ── 讀取 PCAP ────────────────────────────────────────
-    def load(self, use_streaming=False):
+    def load(self, use_streaming=None):
         """載入 PCAP 檔案
 
         Args:
@@ -68,6 +68,11 @@ class PcapAnalyzer:
             self（支援鏈式呼叫）
         """
         print(f"\n{Fore.CYAN}載入 PCAP: {self.pcap_path}{Style.RESET_ALL}")
+
+        # ── [P1-5 修正] 超過 50MB 自動串流 ──
+        if use_streaming is None:
+            file_size = os.path.getsize(self.pcap_path)
+            use_streaming = file_size > 50 * 1024 * 1024
 
         if use_streaming:
             with PcapReader(self.pcap_path) as reader:

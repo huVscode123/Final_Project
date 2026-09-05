@@ -43,7 +43,10 @@ class PacketFileUploadForm(forms.ModelForm):
         }
 
     def clean_file(self):
+        import os
         f = self.cleaned_data['file']
+        # ── [P2-7 修正] 檔名消毒 ──
+        f.name = os.path.basename(f.name)
         name_lower = f.name.lower()
         if not name_lower.endswith(ALLOWED_EXTENSIONS):
             raise ValidationError(

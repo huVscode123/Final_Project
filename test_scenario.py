@@ -179,10 +179,10 @@ def run_all_tests():
                          anomaly_count <= 5,
                          f"anomaly={anomaly_count}/10 avg={avg_score:.8f} thr={dynamic_threshold:.8f}")
                 else:
-                    # 攻擊流量的 MSE 分布應與正常流量不同
-                    test(f"{atk_type}: 與 baseline 有分離度",
-                         True,  # 記錄分離度
-                         f"anomaly={anomaly_count}/10 avg={avg_score:.8f}")
+                    detection_rate = anomaly_count / len(target_errors)
+                    test(f"{atk_type}: 偵測率應 >= 50%",
+                         detection_rate >= 0.5,
+                         f"anomaly={anomaly_count}/10 rate={detection_rate:.0%} avg={avg_score:.8f}")
 
             except Exception as e:
                 test(f"{atk_type}: 無例外", False, str(e))

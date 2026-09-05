@@ -112,11 +112,18 @@ class DatasetBuilder:
             packets = packets[:self.max_packets]
 
         # 建立輸出子目錄
+        # ── [P1-6 修正] 防止路徑遍歷 ──
+        import re
+        label = re.sub(r'[^a-zA-Z0-9_\-]', '_', os.path.basename(label))
         label_dir = os.path.join(self.output_dir, label)
         os.makedirs(label_dir, exist_ok=True)
 
         pcap_name = os.path.basename(pcap_path).replace(".pcap", "")
         count = 0
+        # [Bug 8 修正 — 2026] 統計失敗封包的數量與原因，結束後印出摘要，
+        # 而不是完全靜默地吞掉例外。
+        failed = 0
+        failure_reasons = defaultdict(int)
 
         print(f"\n  [資料集] 處理 {pcap_path}（{len(packets)} 個封包, label={label}）")
 
@@ -147,9 +154,23 @@ class DatasetBuilder:
                     print(f"    進度: {count}/{len(packets)}")
 
             except Exception as e:
-                pass   # 跳過損壞的封包
+                # [Bug 8 修正 — 2026] 舊版 `except Exception: pass` 完全沒有
+                # 任何記錄（連 print 都沒有），一旦 bytes_to_image() 本身有
+                # bug，或某類封包格式有問題，使用者只會看到轉換數量比預期
+                # 少，卻完全無從得知是哪個封包、什麼原因失敗，難以除錯。
+                # 修正：記錄失敗數量與錯誤類型摘要，並印出前幾筆詳細訊息。
+                failed += 1
+                failure_reasons[f"{type(e).__name__}: {e}"] += 1
+                if failed <= 5:
+                    print(f"    [警告] 封包 {i} 轉換失敗（{type(e).__name__}: {e}），已跳過")
 
-        print(f"  [資料集] 完成：{count} 個影像 → {label_dir}")
+        if failed:
+            print(f"  [資料集] 警告：共 {failed} 個封包轉換失敗並被跳過，錯誤摘要：")
+            for reason, n in sorted(failure_reasons.items(), key=lambda kv: -kv[1])[:10]:
+                print(f"    {n:>5} 次 - {reason}")
+
+        print(f"  [資料集] 完成：{count} 個影像 → {label_dir}"
+              + (f"（另有 {failed} 個封包失敗被跳過）" if failed else ""))
         return count
 
     # ──────────────────────────────────────────────────────
@@ -225,7 +246,15 @@ class DatasetBuilder:
 
         # 合併全部
         if all_arrays:
-            X_all = np.concatenate(all_arrays, axis=0)
+            # ── [P2-4 修正] 降低記憶體峰值 ──
+            total = sum(a.shape[0] for a in all_arrays)
+            X_all = np.empty((total, *all_arrays[0].shape[1:]), dtype=all_arrays[0].dtype)
+            offset = 0
+            for a in all_arrays:
+                X_all[offset:offset+a.shape[0]] = a
+                offset += a.shape[0]
+                del a  # 釋放原始陣列
+            all_arrays.clear()
             y_all = np.array(all_labels, dtype=np.int32)
 
             x_path = os.path.join(self.output_dir, "X_all.npy")

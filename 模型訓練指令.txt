@@ -1,0 +1,13 @@
+訓練方式
+
+1. 非監督模型（VAE）— 三個資料集各自獨立訓練
+
+python core/run_training.py --dataset cicddos2019 --data-dir data/cic-ddos2019 --epochs 50 --patience 50
+python core/run_training.py --dataset cicids2017  --data-dir data/cicids2017   --epochs 50 --patience 50
+python core/run_training.py --dataset nslkdd      --data-dir data/nsl-kdd      --epochs 50 --patience 50
+
+
+2. 半監督模型（Hybrid VAE + CNN-LSTM）— 80/20 切分，三個資料集各自獨立訓練
+python core/run_semi_supervised.py --dataset cicddos2019 --data-dir data/cic-ddos2019 --pretrain-epochs 50 --finetune-epochs 50 --attack-ratio 0.2
+python core/run_semi_supervised.py --dataset cicids2017  --data-dir data/cicids2017   --pretrain-epochs 50 --finetune-epochs 50 --attack-ratio 0.2
+python core/run_semi_supervised.py --dataset nslkdd      --data-dir data/nsl-kdd      --pretrain-epochs 50 --finetune-epochs 50 --attack-ratio 0.2

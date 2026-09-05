@@ -1,0 +1,21 @@
+{
+    "precision": 0.9733083377967351,
+    "recall": 0.9298140883505944,
+    "f1": 0.9510642004771495,
+    "accuracy": 0.9554673546338179,
+    "auc": 0.9890964776229766,
+    "tp": 10903,
+    "tn": 13170,
+    "fp": 299,
+    "fn": 823,
+    "threshold": 0.0007480335584841676,
+    "dataset": "nslkdd",
+    "split": {
+        "train_ratio": 0.8,
+        "labelled_attack_ratio": 0.2,
+        "normal_train": 53874,
+        "attack_train_pool": 46904,
+        "normal_test": 13469,
+        "attack_test": 11726
+    }
+}

@@ -83,23 +83,19 @@ def gen_syn_flood():
     attacker = "10.10.10.10"
     victim   = "192.168.1.1"
     pkts = []
-
-    # 模擬 200 個不同來源 Port 的 SYN（偽造 IP）
+    # 使用固定來源 IP 發送 200 個 SYN（確保超過 ALERT_THRESHOLD_SYN=100）
     for i in range(200):
-        spoofed_src = f"172.16.{i // 256}.{i % 256}"
         pkts.append(
-            IP(src=spoofed_src, dst=victim)
+            IP(src=attacker, dst=victim)
             / TCP(sport=10000+i, dport=80, flags="S", seq=1000+i)
         )
-
-    # 加入少量正常流量
+    # 少量正常流量
     for i in range(5):
         pkts.append(
             IP(src="192.168.1.100", dst=victim)
             / TCP(dport=80, flags="PA")
             / b"GET / HTTP/1.1\r\n\r\n"
         )
-
     wrpcap(f"{TESTS_DIR}/syn_flood.pcap", pkts)
     ok("syn_flood.pcap", len(pkts))
 
@@ -367,23 +363,25 @@ def generate_attack_packets(attack_type, count):
 
     if attack_type == 'syn_flood':
         for i in range(count):
-            spoofed_src = f"172.16.{i // 256}.{i % 256}"
             pkts.append(
-                IP(src=spoofed_src, dst=victim)
+                Ether(src="02:00:00:00:00:01", dst="02:00:00:00:00:02")
+                / IP(src=attacker, dst=victim)
                 / TCP(sport=10000 + (i % 50000), dport=80, flags="S", seq=1000 + i)
             )
 
     elif attack_type == 'port_scan':
         for i in range(count):
             pkts.append(
-                IP(src=attacker, dst=victim)
+                Ether(src="02:00:00:00:00:01", dst="02:00:00:00:00:02")
+                / IP(src=attacker, dst=victim)
                 / TCP(dport=20 + (i % 1000), flags="S")
             )
 
     elif attack_type == 'icmp_flood':
         for i in range(count):
             pkts.append(
-                IP(src=attacker, dst=victim, id=i)
+                Ether(src="02:00:00:00:00:01", dst="02:00:00:00:00:02")
+                / IP(src=attacker, dst=victim, id=i)
                 / ICMP(type=8, code=0, id=1, seq=i)
                 / (b"X" * 56)
             )
@@ -391,13 +389,22 @@ def generate_attack_packets(attack_type, count):
     elif attack_type == 'udp_flood':
         for i in range(count):
             pkts.append(
-                IP(src=attacker, dst=victim)
+                Ether(src="02:00:00:00:00:01", dst="02:00:00:00:00:02")
+                / IP(src=attacker, dst=victim)
                 / UDP(sport=10000 + (i % 50000), dport=80)
                 / (b"\x00" * 512)
             )
 
     elif attack_type == 'arp_spoof':
+        legit_mac = "00:11:22:33:44:55"
         atk_mac = "ff:ee:dd:cc:bb:aa"
+        # 先建立合法 MAC 記錄（讓偵測器有比對基準）
+        pkts.append(
+            Ether(src=legit_mac, dst="ff:ff:ff:ff:ff:ff")
+            / ARP(op=1, psrc="192.168.1.1", pdst=victim,
+                  hwsrc=legit_mac)
+        )
+        # 攻擊者偽造不同 MAC
         for i in range(count):
             pkts.append(
                 Ether(src=atk_mac, dst="aa:bb:cc:dd:ee:ff")
@@ -406,14 +413,23 @@ def generate_attack_packets(attack_type, count):
             )
 
     elif attack_type == 'dns_amplification':
-        # DNS 放大反射攻擊：偽造來源 IP 向 DNS 伺服器發送大量 ANY 查詢
-        # qtype=255 即 ANY 查詢類型（Scapy 不接受字串 'ANY'）
-        for i in range(count):
-            spoofed_src = f"172.16.{i // 256}.{i % 256}"
+        dns_server = "8.8.8.8"
+        n_queries = 1
+        n_responses = max(0, count - n_queries)
+        for i in range(n_queries):
             pkts.append(
-                IP(src=spoofed_src, dst="8.8.8.8")
-                / UDP(sport=10000 + (i % 50000), dport=53)
+                Ether(src="02:00:00:00:00:01", dst="02:00:00:00:00:02")
+                / IP(src=victim, dst=dns_server)
+                / UDP(sport=10000 + i, dport=53)
                 / DNS(rd=1, qd=DNSQR(qname=f"amplify{i}.com", qtype=255))
+            )
+        for i in range(n_responses):
+            pkts.append(
+                Ether(src="02:00:00:00:00:02", dst="02:00:00:00:00:01")
+                / IP(src=dns_server, dst=victim)
+                / UDP(sport=53, dport=10000 + (i % n_queries))
+                / DNS(qr=1, qd=DNSQR(qname=f"amplify{i % n_queries}.com"),
+                      an=DNSRR(rrname=f"amplify{i % n_queries}.com", rdata="1.2.3.4"))
             )
 
     else:
@@ -423,27 +439,31 @@ def generate_attack_packets(attack_type, count):
             if variant == 0:
                 # 正常 HTTP 請求
                 pkts.append(
-                    IP(src=victim, dst="93.184.216.34")
+                    Ether(src="02:00:00:00:00:01", dst="02:00:00:00:00:02")
+                    / IP(src=victim, dst="93.184.216.34")
                     / TCP(sport=50000 + (i % 5000), dport=80, flags="PA")
                     / b"GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n"
                 )
             elif variant == 1:
                 # DNS 查詢
                 pkts.append(
-                    IP(src=victim, dst="8.8.8.8")
+                    Ether(src="02:00:00:00:00:01", dst="02:00:00:00:00:02")
+                    / IP(src=victim, dst="8.8.8.8")
                     / UDP(sport=55000 + (i % 5000), dport=53)
                     / DNS(rd=1, qd=DNSQR(qname="google.com"))
                 )
             elif variant == 2:
                 # ICMP Ping
                 pkts.append(
-                    IP(src=victim, dst="8.8.8.8")
+                    Ether(src="02:00:00:00:00:01", dst="02:00:00:00:00:02")
+                    / IP(src=victim, dst="8.8.8.8")
                     / ICMP(type=8, code=0, id=1, seq=i)
                 )
             else:
                 # HTTPS 連線
                 pkts.append(
-                    IP(src=victim, dst="93.184.216.34")
+                    Ether(src="02:00:00:00:00:01", dst="02:00:00:00:00:02")
+                    / IP(src=victim, dst="93.184.216.34")
                     / TCP(sport=50000 + (i % 5000), dport=443, flags="PA")
                     / b"\x16\x03\x03\x00\x05\x01\x00\x00\x01\x00"
                 )

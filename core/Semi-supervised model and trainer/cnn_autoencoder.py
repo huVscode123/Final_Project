@@ -185,12 +185,31 @@ class UnsupervisedTrainer:
 # 評估工具
 # ──────────────────────────────────────────────────────────
 
-def evaluate(model: CNNAutoencoder,
+# [Bug 7 修正 — 2026] 移除本檔重複定義的 evaluate()。
+#
+# 舊版問題：第 44 行 `evaluate = _mod.evaluate` 已經從根目錄
+# cnn_autoencoder.py 匯入了 evaluate，但這裡又重新 `def evaluate(...)`
+# 一次，兩份實作內容目前雖然完全相同（只是複製貼上），但這個
+# 重新定義會「悄悄覆蓋」掉上面的 import（pyflakes 也會標示
+# redefinition of unused 'evaluate'）。這是明顯的維護風險：
+# 未來若只更新了根目錄版本（例如新增指標），本檔會在不知不覺間
+# 繼續使用這份已過時的複本，兩邊行為就會產生落差卻難以察覺。
+#
+# 修正：直接刪除本檔的重複定義，只保留檔案開頭的
+# `evaluate = _mod.evaluate`，確保全專案永遠只有單一套評估邏輯。
+#
+# 若需要在此檔查看 evaluate() 的完整實作，請參考根目錄
+# core/cnn_autoencoder.py 中的同名函式。
+def _removed_duplicate_evaluate(model: CNNAutoencoder,
              X_normal: np.ndarray,
              X_attack: np.ndarray,
              threshold: float,
              device: Optional[torch.device] = None) -> dict:
-    """快速評估模型效能（Precision / Recall / F1 / AUC）"""
+    """[已停用] 請改用檔案開頭 import 的 evaluate（來自根目錄版本）。"""
+    raise NotImplementedError(
+        "此函式已停用，請使用本檔頂部 `evaluate = _mod.evaluate` "
+        "所匯入的根目錄版本，避免兩份實作各自漂移。"
+    )
     from sklearn.metrics import roc_auc_score, precision_recall_fscore_support
 
     device = device or next(model.parameters()).device

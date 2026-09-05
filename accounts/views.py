@@ -6,6 +6,7 @@ from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
+import json
 
 from .forms import RegisterForm, LoginForm, UserProfileForm
 from .models import UserActivityLog
@@ -131,10 +132,63 @@ def admin_panel(request):
         'total_projects': Project.objects.exclude(status='deleted').count(),
     }
 
+    from django.utils import timezone
+    from datetime import timedelta
+    from analyzer.models import GradCAMImage, AnalysisReport
+
+    now = timezone.now()
+
+    # 任務狀態分布
+    task_status_data = {
+        'done': AnalysisSession.objects.filter(task_status='done').count(),
+        'running': AnalysisSession.objects.filter(task_status='running').count(),
+        'pending': AnalysisSession.objects.filter(task_status='pending').count(),
+        'failed': AnalysisSession.objects.filter(task_status='failed').count(),
+    }
+
+    # 過去 30 天使用者活躍度
+    daily_activity = {}
+    for i in range(29, -1, -1):
+        day = (now - timedelta(days=i)).date()
+        daily_activity[str(day)] = UserActivityLog.objects.filter(
+            timestamp__date=day
+        ).count()
+
+    # 最活躍使用者 Top 5
+    from django.db.models import Count as DjCount
+    top_users = (UserActivityLog.objects
+                 .values('user__username')
+                 .annotate(action_count=DjCount('id'))
+                 .order_by('-action_count')[:5])
+
+    # 功能使用統計
+    feature_usage = {
+        '封包分析': AnalysisSession.objects.count(),
+        '安全告警': Alert.objects.count(),
+        'Grad-CAM': GradCAMImage.objects.count(),
+        '報告匯出': AnalysisReport.objects.count(),
+    }
+
+    # CNN 模型資訊
+    from django.conf import settings
+    import os
+    model_path = str(settings.CNN_MODEL_PATH)
+    model_info = {
+        'exists': os.path.exists(model_path),
+        'threshold': settings.CNN_THRESHOLD,
+        'latent_dim': settings.CNN_LATENT_DIM,
+        'file_size_mb': round(os.path.getsize(model_path) / 1024 / 1024, 2) if os.path.exists(model_path) else 0,
+    }
+
     return render(request, 'accounts/admin_panel.html', {
         'users': users,
         'logs': logs,
         'stats': stats,
+        'task_status_data': json.dumps(task_status_data),
+        'daily_activity': json.dumps(daily_activity),
+        'top_users': list(top_users),
+        'feature_usage': feature_usage,
+        'model_info': model_info,
     })
 
 

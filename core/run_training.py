@@ -112,7 +112,7 @@ def main():
     # 注意：移除 os.chdir(BASE_DIR)，保持在專案根目錄執行，
     # 這樣傳入的相對路徑 (如 data/cicids2017) 才能正確對應。
     
-    from trainer import Trainer
+    from variational_autoencoder import VAETrainer
     from anomaly_scorer import AnomalyScorer
     from dataset_loader import DatasetFactory
  
@@ -141,23 +141,40 @@ def main():
  
     print(f"  正常流量: {len(X_normal):,} 筆  攻擊流量: {len(X_attack):,} 筆")
  
+    # ── [修正 P0-1] 在訓練前先將 X_normal 做 train/test 切分 ──
+    rng = np.random.default_rng(42)
+    idx = rng.permutation(len(X_normal))
+    split = int(len(X_normal) * 0.8)
+    X_normal_train = X_normal[idx[:split]]
+    X_normal_test = X_normal[idx[split:]]
+    
+    # X_attack 因為並未參與無監督訓練，沒有洩漏問題，所以不須切分，全部作為測試集
+    X_attack_test = X_attack
+
+    # 同步調整 y，以符合 save_as_npy 的長度要求
+    y_train = np.concatenate([
+        np.zeros(len(X_normal_train), dtype=int),
+        np.ones(len(X_attack_test), dtype=int)
+    ])
+
     # 儲存為 .npy（供 Trainer 使用）
     print("\n[Step 2] 儲存影像矩陣")
     dataset_dir = f"output/dataset_{args.dataset}"
-    paths = DatasetFactory.save_as_npy(X_normal, X_attack, y, dataset_dir)
+    paths = DatasetFactory.save_as_npy(X_normal_train, X_attack_test, y_train, dataset_dir)
     normal_npy = paths["normal"]
     attack_npy = paths["attack"]
  
     # ── Step 3：訓練或載入模型 ────────────────────────────
-    model_path  = args.model or os.path.join(args.output, f"best_model_{model_name}.pt")
+    model_path  = args.model or os.path.join(args.output, f"best_vae_{model_name}.pt")
     config_path = os.path.join(args.output, f"training_result_{model_name}.json")
  
     if args.eval_only:
         print(f"\n[Step 3] 載入模型: {args.model or model_path}")
-        model, threshold = Trainer.load_model(
-            args.model or model_path, config_path, args.latent
-        )
-        scorer = AnomalyScorer(model, threshold=threshold)
+        checkpoint = torch.load(args.model or model_path, map_location='cpu', weights_only=True)
+        trainer = VAETrainer(checkpoint.get('config'), args.output, model_name)
+        trainer.model.load_state_dict(checkpoint['model_state'])
+        trainer.threshold = checkpoint['threshold']
+        scorer = AnomalyScorer(trainer.model, threshold=trainer.threshold)
     else:
         print("\n[Step 3] 訓練 CNN Autoencoder")
         config = {
@@ -168,7 +185,8 @@ def main():
             "patience":             args.patience,
             "threshold_percentile": args.pct,
         }
-        trainer = Trainer(config=config, output_dir=args.output, model_name=model_name)
+        config['threshold_percentile'] = max(args.pct, 99)
+        trainer = VAETrainer(config=config, output_dir=args.output, model_name=model_name)
         trainer.load_data(normal_npy)
         trainer.train()
         trainer.plot_training_curve()
@@ -185,18 +203,13 @@ def main():
     if os.path.exists(attack_npy):
         print("\n[Step 6] 模型效能評估")
 
-        # [修正] 分離測試集，避免資料洩漏
-        # 原版使用完整的 X_normal（包含訓練集）進行評估，
-        # 模型在自己見過的資料上被評估，導致指標過度樂觀。
-        # 現在只使用 20% 的正常流量作為測試集（與訓練時的 val_split 一致）。
-        n_test = max(1, int(len(X_normal) * 0.2))
-        X_normal_test = X_normal[-n_test:]    # 取最後 20% 作為測試（不與訓練集重疊）
-        X_test = np.concatenate([X_normal_test, X_attack])
+        # 評估時只用模型未見過的 X_test（X_normal_test 與 X_attack_test）
+        X_test = np.concatenate([X_normal_test, X_attack_test])
         y_test = np.concatenate([
             np.zeros(len(X_normal_test), dtype=int),
-            np.ones(len(X_attack),       dtype=int)
+            np.ones(len(X_attack_test),  dtype=int)
         ])
-        print(f"  測試集: {len(X_normal_test)} 正常 + {len(X_attack)} 攻擊 = {len(X_test)} 樣本")
+        print(f"  測試集: {len(X_normal_test)} 正常 + {len(X_attack_test)} 攻擊 = {len(X_test)} 樣本")
         results = scorer.evaluate(X_test, y_test, output_dir=args.output)
  
         errors_normal = scorer.score_npy(normal_npy)

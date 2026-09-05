@@ -30,6 +30,13 @@
         </select>
       </div>
 
+      <div class="form-group">
+        <label class="form-label">異常偵測模型</label>
+        <select name="model_key" class="form-input">
+          {% for model in models %}<option value="{{ model.key }}" {% if not model.ready %}disabled{% endif %}>{{ model.label }}{% if not model.ready %}（尚未訓練）{% endif %}</option>{% endfor %}
+        </select>
+      </div>
+
       <!-- 拖放上傳區 -->
       <div class="dropzone" id="dropZone" onclick="document.getElementById('pcap_file').click()">
         <div class="dropzone-icon">

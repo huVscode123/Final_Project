@@ -80,6 +80,7 @@ class _SlidingWindowCounter:
         self.window = window_seconds
         # {key: deque([timestamp, ...])} — 每個 key（如 src_ip）各自維護時間戳佇列
         self._data = defaultdict(deque)
+        self._last_evict_time = {}
 
     def add(self, key: str, timestamp: float = None):
         """新增一筆事件
@@ -109,14 +110,20 @@ class _SlidingWindowCounter:
 
     def _evict(self, key: str, now: float):
         """清除指定 key 中超出時間窗口的過期事件"""
-        dq = self._data[key]
+        # ── [修正] 改用 dict 取代 setattr，避免動態屬性膨脹 ──
+        if now - self._last_evict_time.get(key, 0) < 1.0:
+            return
+        self._last_evict_time[key] = now
         cutoff = now - self.window
-        while dq and dq[0] < cutoff:
-            dq.popleft()
+        dq = self._data.get(key)
+        if dq:
+            while dq and dq[0] < cutoff:
+                dq.popleft()
 
     def clear(self):
         """重置所有計數器"""
         self._data.clear()
+        self._last_evict_time.clear()
 
 
 class AnomalyDetector:
@@ -178,10 +185,15 @@ class AnomalyDetector:
         # Port Scan 仍需記錄不重複 Port 集合
         self.port_scan     = defaultdict(set)
 
-        # ARP / DNS 計數器（保持原有邏輯，ARP Spoofing 本身需全程追蹤）
-        self.arp_map   = defaultdict(dict)       # {ip: {mac: first_seen}}
+        # ARP / DNS 計數器
+        # [Bug 5 修正 — 2026] 舊版註解宣稱 ARP Spoofing 需全程追蹤、不使用
+        # 滑動窗口，但 config.py 明明定義了 ALERT_ARP_SPOOF_WINDOW 且從未
+        # 被使用（形成 dead import）。改為使用 ALERT_ARP_SPOOF_WINDOW 秒的
+        # 滑動窗口：{ip: {mac: last_seen}}，last_seen 超過窗口的 MAC 會被
+        # 視為過期並剔除，避免 (a) 字典無限增長 (b) 合法 MAC 變更被永久誤判。
+        self.arp_map   = defaultdict(dict)       # {ip: {mac: last_seen}}
         self.dns_req   = defaultdict(int)         # {src_ip: dns_request_count}
-        self.dns_resp  = defaultdict(int)         # {src_ip: dns_response_count}
+        self.dns_resp  = defaultdict(int)         # {dst_ip(受害者): dns_response_count}
 
         # [新增] DNS Tunneling 計數器
         self.dns_tunnel_counter = _SlidingWindowCounter(window_seconds)
@@ -191,6 +203,10 @@ class AnomalyDetector:
 
         # 所有告警歷史記錄
         self.alert_history = []
+
+        # 定期清理設定（避免 port_scan / dns 字典無限增長）
+        self._cleanup_interval = window_seconds * 2  # 兩個窗口週期清一次
+        self._last_cleanup = time.time()
 
     # ── 主要入口 ──────────────────────────────────────────
     def inspect(self, pkt, record: dict) -> list:
@@ -204,6 +220,17 @@ class AnomalyDetector:
         Returns:
             list[dict]: 本次觸發的告警（可能為空列表）
         """
+        # ── [修正] 定期清理累計計數器，防止長時間運行誤報 ──
+        now = time.time()
+        if now - self._last_cleanup > self._cleanup_interval:
+            self._last_cleanup = now
+            self.port_scan.clear()
+            self.dns_req.clear()
+            self.dns_resp.clear()
+            # [Bug 5 修正 — 2026] 舊版遺漏了 arp_map 的定期清理，
+            # 導致長時間執行時 IP→MAC 對應表無限增長。
+            self._cleanup_arp_map(now)
+
         alerts = []
         alerts += self._check_syn_flood(pkt, record)
         alerts += self._check_port_scan(record)
@@ -377,8 +404,20 @@ class AnomalyDetector:
     def _check_arp_spoof(self, record) -> list:
         """偵測 ARP Spoofing（ARP 欺騙）
 
-        同一 IP 出現多個 MAC 地址時觸發告警。
-        ARP Spoofing 需要全程追蹤，不使用滑動窗口。
+        同一 IP 在 ALERT_ARP_SPOOF_WINDOW 秒內出現多個 MAC 地址時觸發告警。
+
+        [Bug 5 修正 — 2026]
+        舊版註解宣稱「不使用滑動窗口」，但完全沒有任何機制清除
+        self.arp_map 內過期的 MAC 記錄，實際造成兩個問題：
+          1) IP→MAC 對應表無限增長，長時間執行有記憶體洩漏風險；
+          2) 合法的 MAC 變更（DHCP 續約、裝置漫遊、VM 遷移等，
+             只要間隔超過設定的時間窗口）理論上不該被視為攻擊，
+             但舊 MAC 永遠不會過期，導致該 IP 一旦被標記過，
+             之後永久被視為「多重 MAC」而持續誤報。
+        修正：比照 _SlidingWindowCounter 的精神，只保留窗口內
+        （ALERT_ARP_SPOOF_WINDOW 秒）的 MAC 紀錄，超過窗口的舊紀錄
+        會在每次檢查時被剔除，同一 MAC 持續出現則視為活躍並更新
+        last_seen（不會被誤判為過期）。
         """
         if record.get("protocol") != "ARP":
             return []
@@ -392,23 +431,57 @@ class AnomalyDetector:
         now = time.time()
         ip_macs = self.arp_map[src_ip]
 
-        if src_mac not in ip_macs:
-            ip_macs[src_mac] = now
-            # 若同一 IP 出現第二個（或以上）MAC，觸發告警
-            if len(ip_macs) >= 2:
-                key = f"ARP_SPOOF_{src_ip}"
-                if not self._is_in_cooldown(key):
-                    self._mark_alerted(key)
-                    macs_str = ", ".join(ip_macs.keys())
-                    return [self._make_alert(
-                        attack_type="ARP Spoofing",
-                        severity=self.SEVERITY_CRITICAL,
-                        src_ip=src_ip,
-                        detail=(f"IP {src_ip} 對應到多個 MAC 地址:\n"
-                                f"  {macs_str}"),
-                        suggestion="確認哪個 MAC 為合法主機；啟用動態 ARP 檢測（DAI）",
-                    )]
+        # 先剔除超出時間窗口、已不活躍的舊 MAC 紀錄
+        expired_macs = [
+            mac for mac, last_seen in ip_macs.items()
+            if now - last_seen > ALERT_ARP_SPOOF_WINDOW
+        ]
+        for mac in expired_macs:
+            del ip_macs[mac]
+
+        is_new_mac = src_mac not in ip_macs
+        ip_macs[src_mac] = now   # 記錄/更新最後出現時間
+
+        if is_new_mac and len(ip_macs) >= 2:
+            # 窗口內同一 IP 出現第二個（或以上）MAC，觸發告警
+            key = f"ARP_SPOOF_{src_ip}"
+            if not self._is_in_cooldown(key):
+                self._mark_alerted(key)
+                macs_str = ", ".join(ip_macs.keys())
+                return [self._make_alert(
+                    attack_type="ARP Spoofing",
+                    severity=self.SEVERITY_CRITICAL,
+                    src_ip=src_ip,
+                    detail=(f"IP {src_ip} 在 {ALERT_ARP_SPOOF_WINDOW} 秒內"
+                            f"對應到多個 MAC 地址:\n  {macs_str}"),
+                    suggestion="確認哪個 MAC 為合法主機；啟用動態 ARP 檢測（DAI）",
+                )]
+
+        # 若清理後該 IP 已無任何 MAC 紀錄，移除空字典節省記憶體
+        if not self.arp_map[src_ip]:
+            del self.arp_map[src_ip]
+
         return []
+
+    # [Bug 5 修正 — 2026 新增] 定期清理 arp_map 中所有 IP 的過期 MAC 紀錄
+    def _cleanup_arp_map(self, now: float = None):
+        """
+        清除所有 IP 對應表中，超過 ALERT_ARP_SPOOF_WINDOW 秒未出現的 MAC 紀錄。
+
+        由 inspect() 的定期清理排程呼叫，確保即使某個 IP 之後不再送出
+        任何 ARP 封包，其過期紀錄仍會被回收，避免長時間執行時的記憶體洩漏。
+        """
+        now = now if now is not None else time.time()
+        stale_ips = []
+        for ip, macs in self.arp_map.items():
+            expired = [m for m, last_seen in macs.items()
+                       if now - last_seen > ALERT_ARP_SPOOF_WINDOW]
+            for m in expired:
+                del macs[m]
+            if not macs:
+                stale_ips.append(ip)
+        for ip in stale_ips:
+            del self.arp_map[ip]
 
     # ── 6. DNS Amplification ──────────────────────────────
     def _check_dns_amplification(self, pkt, record) -> list:
@@ -423,25 +496,30 @@ class AnomalyDetector:
 
         dns = pkt[DNS]
         src_ip = record.get("src_ip", "")
+        dst_ip = record.get("dst_ip", "")
 
         if dns.qr == 0:   # 查詢
             self.dns_req[src_ip] += 1
+            check_ip = src_ip
         else:              # 回應
-            self.dns_resp[src_ip] += 1
+            # ── [P1-4 修正] DNS 回應統計受害者（dst_ip） ──
+            if dst_ip:
+                self.dns_resp[dst_ip] += 1
+            check_ip = dst_ip or src_ip
 
-        # 回應/請求比例過高 -> 放大攻擊跡象
-        req   = self.dns_req.get(src_ip, 0)
-        resp  = self.dns_resp.get(src_ip, 0)
+        # 從受害者視角檢查：收到大量回應卻幾乎沒發出查詢 → 放大攻擊
+        req   = self.dns_req.get(check_ip, 0)
+        resp  = self.dns_resp.get(check_ip, 0)
         ratio = resp / max(req, 1)
 
-        key = f"DNS_AMP_{src_ip}"
+        key = f"DNS_AMP_{check_ip}"
         if (resp > 20 and ratio > ALERT_THRESHOLD_DNS_AMP
                 and not self._is_in_cooldown(key)):
             self._mark_alerted(key)
             return [self._make_alert(
                 attack_type="DNS Amplification",
                 severity=self.SEVERITY_HIGH,
-                src_ip=src_ip,
+                src_ip=check_ip,
                 detail=(f"DNS 回應數: {resp}，查詢數: {req}，"
                         f"回應/查詢比: {ratio:.1f}x (閾值: {ALERT_THRESHOLD_DNS_AMP}x)"),
                 suggestion="在 DNS 伺服器停用 ANY 查詢；限制 DNS 回應速率",

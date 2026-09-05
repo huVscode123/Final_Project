@@ -3,6 +3,8 @@
 # 分析 Session / CNN 結果 / GradCAM / 告警 / 視圖測試
 # ============================================================
 import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User
@@ -156,6 +158,42 @@ class UploadViewTest(TestCase):
         self.client.logout()
         r = self.client.get(reverse('analyzer:upload'))
         self.assertIn(r.status_code, [301, 302])
+
+
+# ─── Simulation View ───────────────────────────────────────
+class SimulationViewTest(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = make_user('simuser')
+        self.client.login(username='simuser', password='pass1234')
+
+    def test_simulation_creates_downloadable_pcap_and_backup(self):
+        with TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            with self.settings(
+                CNN_MODEL_PATH='',
+                MEDIA_ROOT=temp_root / 'media',
+                BASE_DIR=temp_root,
+            ):
+                response = self.client.post(
+                    reverse('analyzer:simulation_api'),
+                    data=json.dumps({'attack_type': 'syn_flood', 'packet_count': 5}),
+                    content_type='application/json',
+                )
+
+                self.assertEqual(response.status_code, 200)
+                payload = response.json()
+                self.assertTrue(payload['ok'])
+                self.assertTrue(payload['pcap_backup_saved'])
+                self.assertIn('pcap_download_url', payload)
+                self.assertTrue((
+                    temp_root / 'output' / 'simulation_backups'
+                    / f'user_{self.user.pk}' / payload['pcap_filename']
+                ).is_file())
+
+                download = self.client.get(payload['pcap_download_url'])
+                self.assertEqual(download.status_code, 200)
+                self.assertTrue(download['Content-Disposition'].startswith('attachment;'))
 
 
 # ─── Session List ────────────────────────────────────────────

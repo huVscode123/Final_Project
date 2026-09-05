@@ -135,9 +135,9 @@ class AnomalyScorer:
             for batch in loader:
                 x   = batch[0].to(self.device)
                 err = self.model.reconstruction_error(x)
-                all_errors.extend(err.cpu().numpy().tolist())
+                all_errors.append(err.cpu().numpy())
 
-        return np.array(all_errors)
+        return np.concatenate(all_errors)
 
     # ── 評估指標 ──────────────────────────────────────────
     def evaluate(self, X_test: np.ndarray, y_test: np.ndarray,
@@ -162,8 +162,8 @@ class AnomalyScorer:
             for batch in loader:
                 x   = batch[0].to(self.device)
                 err = self.model.reconstruction_error(x)
-                scores.extend(err.cpu().numpy().tolist())
-        scores = np.array(scores)
+                scores.append(err.cpu().numpy())
+        scores = np.concatenate(scores)
 
         # [修正] 前置檢查：threshold 為 None 時無法進行閾值判定
         if self.threshold is None:

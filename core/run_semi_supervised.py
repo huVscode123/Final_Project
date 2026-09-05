@@ -48,6 +48,30 @@ import numpy as np
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if BASE_DIR not in sys.path:
     sys.path.append(BASE_DIR)
+
+
+def split_semi_supervised_data(X_normal, X_attack, train_ratio=0.8, seed=42):
+    """Create independent 80/20 train/test partitions for one dataset.
+
+    The returned attack training pool is intentionally *not* pre-sampled.
+    ``SemiSupervisedDataLoader`` applies the labelled-attack ratio exactly once
+    during fine-tuning and retains the complement for threshold calibration.
+    """
+    if not 0.0 < train_ratio < 1.0:
+        raise ValueError('train_ratio 必須介於 0 與 1 之間')
+    if len(X_normal) < 2 or len(X_attack) < 2:
+        raise ValueError('正常與攻擊資料各至少需要 2 筆才能進行 80/20 切分')
+
+    rng = np.random.default_rng(seed)
+
+    def split(X):
+        indices = rng.permutation(len(X))
+        n_train = min(max(1, int(len(X) * train_ratio)), len(X) - 1)
+        return X[indices[:n_train]], X[indices[n_train:]]
+
+    X_train_normal, X_test_normal = split(X_normal)
+    X_train_attack, X_test_attack = split(X_attack)
+    return X_train_normal, X_test_normal, X_train_attack, X_test_attack
  
  
 def check_torch():
@@ -127,8 +151,8 @@ def main():
     parser.add_argument("--dataset",   default="simulate",
                         choices=["simulate", "nslkdd", "cicids2017", "cicddos2019"])
     parser.add_argument("--data-dir",  default=None)
-    parser.add_argument("--attack-ratio", type=float, default=0.1,
-                        help="訓練集中包含的攻擊流量比例 (0.0~0.5)")
+    parser.add_argument("--attack-ratio", type=float, default=0.2,
+                        help="訓練攻擊池中用於標記微調的比例（預設 20%%）")
     parser.add_argument("--augment",   action="store_true", help="啟用資料擴增")
  
     # 訓練相關
@@ -141,7 +165,7 @@ def main():
     parser.add_argument("--margin",          type=float, default=0.1, help="對比損失 Margin")
  
     # 評估相關
-    parser.add_argument("--threshold-method", default="percentile",
+    parser.add_argument("--threshold-method", default="optimal",
                         choices=["percentile", "optimal"], help="閾值計算方法")
     parser.add_argument("--pct",              type=int, default=95)
     parser.add_argument("--output",           default=None,
@@ -150,6 +174,8 @@ def main():
                         help="同時執行純無監督訓練以進行對比")
  
     args = parser.parse_args()
+    if not 0.0 < args.attack_ratio < 1.0:
+        parser.error('--attack-ratio 必須介於 0 與 1 之間')
  
     # 各資料集使用獨立輸出目錄與模型後綴
     DATASET_SUFFIX = {
@@ -172,7 +198,7 @@ def main():
     import torch
     from dataset_loader import DatasetFactory
     from data_augmentor import DataAugmentor
-    from semi_supervised_trainer import SemiSupervisedTrainer
+    from hybrid_semi_supervised import HybridSemiSupervisedTrainer
     from trainer import Trainer
     from anomaly_scorer import AnomalyScorer
  
@@ -194,25 +220,21 @@ def main():
         print(f"\n  錯誤：{e}")
         sys.exit(1)
  
-    # 切分訓練與測試集
-    np.random.seed(42)
-    idx_n = np.random.permutation(len(X_normal))
-    split_n = int(len(X_normal) * 0.8)
-    X_train_normal = X_normal[idx_n[:split_n]]
-    X_test_normal  = X_normal[idx_n[split_n:]]
- 
-    idx_a = np.random.permutation(len(X_attack))
-    split_a = int(len(X_attack) * 0.5)
-    X_train_attack_pool = X_attack[idx_a[:split_a]]
-    X_test_attack       = X_attack[idx_a[split_a:]]
- 
-    # 從攻擊池中挑選一部分加入訓練集（半監督關鍵）
-    n_attack_in_train = int(len(X_train_normal) * args.attack_ratio)
-    n_attack_in_train = min(n_attack_in_train, len(X_train_attack_pool))
-    X_train_attack = X_train_attack_pool[:n_attack_in_train]
- 
-    print(f"  訓練集: {len(X_train_normal):,} 正常 + {len(X_train_attack):,} 攻擊")
-    print(f"  測試集: {len(X_test_normal):,} 正常 + {len(X_test_attack):,} 攻擊")
+    # 每個資料集皆採用獨立且固定 seed 的 80/20 切分。攻擊訓練池交由
+    # SemiSupervisedDataLoader 只抽取一次 20% 作為標記微調資料，其餘
+    # 80% 留作與測試集隔離的閾值校準資料，避免資料重複使用與洩漏。
+    (X_train_normal, X_test_normal,
+     X_train_attack_pool, X_test_attack) = split_semi_supervised_data(
+        X_normal, X_attack, train_ratio=0.8, seed=42
+    )
+
+    n_labeled_attack = max(1, int(len(X_train_attack_pool) * args.attack_ratio))
+    print(f"  訓練集（80%）: {len(X_train_normal):,} 正常 + "
+          f"{len(X_train_attack_pool):,} 攻擊池")
+    print(f"    └─ 標記微調攻擊: {n_labeled_attack:,} "
+          f"（攻擊訓練池的 {args.attack_ratio:.0%}）")
+    print(f"  獨立測試集（20%）: {len(X_test_normal):,} 正常 + "
+          f"{len(X_test_attack):,} 攻擊")
  
     # ══════════════════════════════════════════════════════
     # Step 2：資料擴增
@@ -234,15 +256,16 @@ def main():
         "finetune_epochs": args.finetune_epochs,
         "alpha": args.alpha,
         "beta":  args.beta,
-        "margin": args.margin
+        "margin": args.margin,
+        "attack_ratio": args.attack_ratio,
     }
     
-    semi_trainer = SemiSupervisedTrainer(config=config, output_dir=args.output, model_name=model_name)
+    semi_trainer = HybridSemiSupervisedTrainer(config=config, output_dir=args.output, model_name=model_name)
     
     # train_full 內部會依序執行 load_data -> pretrain -> finetune -> plot_training_curve -> compute_threshold
     threshold = semi_trainer.train_full(
         X_normal=X_train_normal, 
-        X_attack=X_train_attack,
+        X_attack=X_train_attack_pool,
         threshold_method=args.threshold_method
     )
  
@@ -257,6 +280,15 @@ def main():
  
     results_semi = evaluate_model(model_semi, X_test_normal, X_test_attack, 
                                  threshold, device, args.output)
+    results_semi['dataset'] = args.dataset
+    results_semi['split'] = {
+        'train_ratio': 0.8,
+        'labelled_attack_ratio': args.attack_ratio,
+        'normal_train': len(X_train_normal),
+        'attack_train_pool': len(X_train_attack_pool),
+        'normal_test': len(X_test_normal),
+        'attack_test': len(X_test_attack),
+    }
     
     print(f"\n  [半監督結果]")
     print(f"    Precision: {results_semi['precision']:.4f}")
@@ -278,11 +310,17 @@ def main():
         unsup_trainer = Trainer(config=unsup_config, output_dir=unsup_output)
         
         # 只用正常流量訓練
-        unsup_trainer.from_numpy(X_train_normal)
+        # [Bug 3 修正 — 2026] 原本呼叫的 `unsup_trainer.from_numpy(...)` 與
+        # `unsup_trainer.compute_threshold_from_numpy(...)` 在 Trainer 類別中
+        # 從未被定義過（Trainer 只有讀取 .npy 檔案路徑的 load_data() /
+        # compute_threshold()），只要執行 --compare-unsupervised 就會直接
+        # 拋出 AttributeError 而中止。改用 trainer.py 中新增、對稱於
+        # load_data()/compute_threshold() 的陣列版本方法。
+        unsup_trainer.load_data_from_array(X_train_normal)
         unsup_trainer.train()
         
         # 評估
-        unsup_threshold = unsup_trainer.compute_threshold_from_numpy(X_test_normal, args.pct)
+        unsup_threshold = unsup_trainer.compute_threshold_from_array(X_test_normal, args.pct)
         results_unsup = evaluate_model(unsup_trainer.model, X_test_normal, X_test_attack,
                                       unsup_threshold, device, unsup_output)
         

@@ -51,9 +51,13 @@ def process_packet_file(self, packet_file_pk):
 
         # 封包數（使用 scapy）
         try:
-            from scapy.all import rdpcap
-            pkts = rdpcap(pf.file.path)
-            pf.packet_count = len(pkts)
+            # ── [P1-5 修正] 串流計數避免 OOM ──
+            from scapy.utils import PcapReader
+            count = 0
+            with PcapReader(pf.file.path) as reader:
+                for _ in reader:
+                    count += 1
+            pf.packet_count = count
         except Exception as e:
             logger.warning(f'scapy 讀取失敗: {e}')
 
@@ -150,48 +154,29 @@ def run_pcap_analysis(self, session_id):
         raise self.retry(exc=exc)
 
 
-def _compute_errors_batched(model, X, device, batch_size=256):
-    """[P1-3 修正] 分批推論，避免大型 pcap 造成 GPU OOM"""
-    import numpy as np
-    import torch
-    errs = []
-    with torch.no_grad():
-        for i in range(0, len(X), batch_size):
-            batch = torch.from_numpy(
-                X[i:i+batch_size, np.newaxis, :, :].astype(np.float32)
-            ).to(device)
-            e = model.reconstruction_error(batch)
-            errs.append(e.cpu().numpy())
-    return np.concatenate(errs)
-
-
 def _run_cnn_analysis(session, pcap_path):
-    """CNN Autoencoder 推論，回傳指標 dict（失敗回傳 None）。"""
-    import numpy as np
-    import torch
+    """CNN/VAE/Hybrid 異常偵測推論，回傳指標 dict（失敗回傳 None）。
 
-    model_path = str(settings.CNN_MODEL_PATH)
+    [Bug 修正] 模型還原（依 checkpoint 的 model_type 動態選擇
+    CNNAutoencoder / CNNVariationalAutoencoder / HybridSemiSupervisedDetector）
+    改呼叫 core/model_registry.py 的 load_anomaly_model()，不再於此處
+    自行重寫一份 if/elif —— 這正是 run_gradcam() 先前忘記同步更新、
+    導致 Grad-CAM 崩潰的根本原因，集中成單一函式可避免同類回歸。
+    """
+    import numpy as np
+
+    selected = settings.ANOMALY_MODELS.get(session.model_key, settings.ANOMALY_MODELS['unsupervised_vae'])
+    model_path = str(selected['path'])
     if not os.path.exists(model_path):
         logger.warning(f'CNN 模型不存在: {model_path}，跳過 CNN 分析')
         return None
 
     try:
-        from cnn_autoencoder import CNNAutoencoder
         from packet_visualizer import PacketVisualizer
         from scapy.all import rdpcap
+        from model_registry import load_anomaly_model, compute_anomaly_scores
 
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        # ── [P1-2 修正] 優先從 checkpoint 讀取閾值 ──
-        ckpt = torch.load(model_path, map_location=device, weights_only=True)
-        if isinstance(ckpt, dict) and 'model_state' in ckpt:
-            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
-            model.load_state_dict(ckpt['model_state'])
-            threshold = float(ckpt.get('threshold', settings.CNN_THRESHOLD))
-        else:
-            model = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
-            model.load_state_dict(ckpt)
-            threshold = float(settings.CNN_THRESHOLD)
-        model.eval()
+        bundle = load_anomaly_model(model_path, default_latent_dim=settings.CNN_LATENT_DIM)
 
         packets = rdpcap(pcap_path)
         vis     = PacketVisualizer('medium', apply_mask=True, skip_ethernet=True)
@@ -206,21 +191,37 @@ def _run_cnn_analysis(session, pcap_path):
         if not images:
             return None
 
-        X        = np.array(images, dtype=np.float32)
-        
-        errors = _compute_errors_batched(model, X, device)
-        anomaly_mask = errors > threshold
+        X = np.array(images, dtype=np.float32)
+        scored = compute_anomaly_scores(bundle, X)
+        errors       = scored['score']
+        anomaly_mask = scored['is_anomaly']
         n_normal     = int((~anomaly_mask).sum())
         n_anomaly    = int(anomaly_mask.sum())
 
-        return {
-            'threshold':        threshold,
+        metrics = {
+            'threshold':        bundle.threshold,
             'normal_count':     n_normal,
             'anomaly_count':    n_anomaly,
             'detection_rate':   float(n_anomaly / (len(errors) + 1e-9)),
             'avg_normal_error': float(errors[~anomaly_mask].mean()) if n_normal  > 0 else 0.0,
             'avg_attack_error': float(errors[anomaly_mask].mean())  if n_anomaly > 0 else 0.0,
         }
+
+        # ── [邏輯補完] hybrid_semi 模型的 CNN-LSTM 分類器先前訓練完全程
+        # 沒被使用過（analyzer 只呼叫了 reconstruction_error）。這裡補上
+        # 「已知攻擊」（分類器判定）與「未知/新型攻擊」（VAE 重建誤差超標
+        # 但分類器不認得）的統計，讓半監督模型的優勢真正反映在結果中。
+        if bundle.is_hybrid:
+            status = scored['status']
+            metrics['known_attack_count']   = int((status == 'known_attack').sum())
+            metrics['unknown_attack_count'] = int((status == 'unknown_attack').sum())
+            logger.info(
+                f'[Session {session.pk}] Hybrid 模型分類：'
+                f'已知攻擊={metrics["known_attack_count"]}，'
+                f'未知/新型攻擊={metrics["unknown_attack_count"]}'
+            )
+
+        return metrics
 
     except Exception as e:
         logger.error(f'CNN 分析失敗: {e}')
@@ -251,23 +252,33 @@ def run_gradcam(self, session_id, max_images=20,
     try:
         session = _get_session(session_id)
 
-        model_path = str(settings.CNN_MODEL_PATH)
+        # [Bug 修正] 原本無論 session.model_key 為何，一律寫死載入
+        # settings.CNN_MODEL_PATH 並建構 CNNAutoencoder，且傳入
+        # target_layer='encoder_conv'。該字串在 CNNAutoencoder 的巢狀
+        # 命名（encoder.conv_layers.N）中完全不存在，GradCAM() 建構時
+        # 必定拋出 ValueError，等於此任務對任何 Session 都會直接失敗；
+        # 就算改用自動偵測，也可能誤選到 HybridSemiSupervisedDetector中
+        # 沒被 forward() 用到的 classifier 分支層而拋出 AttributeError。
+        # 兩者皆已用實際程式碼重現。改為呼叫 model_registry.load_anomaly_model()，
+        # 依 session.model_key 還原「當初實際用來偵測」的那個模型與對應
+        # 的 Grad-CAM 目標層，熱力圖才會解釋正確的模型判斷依據。
+        selected = settings.ANOMALY_MODELS.get(
+            session.model_key, settings.ANOMALY_MODELS['unsupervised_vae'])
+        model_path = str(selected['path'])
         if not os.path.exists(model_path):
             raise FileNotFoundError(f'CNN 模型不存在: {model_path}')
 
-        # ── 載入 CNN 模型 ─────────────────────────────────────
-        from cnn_autoencoder import CNNAutoencoder
+        from model_registry import load_anomaly_model
         from packet_visualizer import PacketVisualizer
         from scapy.all import rdpcap
 
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        model  = CNNAutoencoder(latent_dim=settings.CNN_LATENT_DIM)
-        model.load_state_dict(torch.load(model_path, map_location=device))
-        model.eval()
+        bundle = load_anomaly_model(model_path, default_latent_dim=settings.CNN_LATENT_DIM)
+        model  = bundle.model
+        device = bundle.device
 
         # ── 建立 GradCAM 實例 ─────────────────────────────────
         from cnn_gradcam import GradCAM, GradCAMVisualizer
-        cam = GradCAM(model, target_layer='encoder_conv', variant=variant)
+        cam = GradCAM(model, target_layer=bundle.gradcam_target_layer, variant=variant)
         viz = GradCAMVisualizer()
 
         # ── 讀取封包並產生影像 ────────────────────────────────
@@ -275,7 +286,10 @@ def run_gradcam(self, session_id, max_images=20,
         packets   = rdpcap(pcap_path)
         vis_tool  = PacketVisualizer('medium', apply_mask=True, skip_ethernet=True)
 
-        threshold  = float(settings.CNN_THRESHOLD)
+        # [Bug 修正] 改用該模型自己校準出的閾值，而非固定的
+        # settings.CNN_THRESHOLD（後者是舊版非監督模型的閾值，
+        # 套用在 VAE / Hybrid 模型上會造成誤報率或漏報率大幅偏移）。
+        threshold  = float(bundle.threshold)
         processed  = 0
 
         for idx, pkt in enumerate(packets):

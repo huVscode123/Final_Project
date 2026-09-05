@@ -207,8 +207,12 @@ class PacketParser:
         dns = pkt[DNS]
         if pkt.haslayer(DNSQR):
             try:
-                record["dns_query"] = pkt[DNSQR].qname.decode(
-                    errors="replace").rstrip(".")
+                qname = pkt[DNSQR].qname
+                if isinstance(qname, bytes):
+                    qname = qname.decode(errors='replace')
+                else:
+                    qname = str(qname)
+                record["dns_query"] = qname.rstrip(".")
             except Exception:
                 pass
         if dns.qr == 1 and pkt.haslayer(DNSRR):

@@ -1,5 +1,5 @@
 # ============================================================
-# core/cnn_gradcam/gradcam_core.py  - Grad-CAM 核心演算法（修正版）
+# core/cnn_gradcam/gradcam_core.py  - Grad-CAM 核心演算法（修正版 v2）
 #
 # 修正清單：
 #   [Bug 6] _gradcam_pp：缺少 model.zero_grad() 呼叫。
@@ -8,6 +8,18 @@
 #           修正：在 backward 前加入 self.model.zero_grad()，
 #           並移除不必要的 create_graph=True（_gradcam_pp
 #           只需一階梯度，create_graph 會增加不必要的計算量）。
+#
+#   [Bug 1/2 修正 — 2026] 舊版 _DEFAULT_TARGET_LAYER = "encoder_conv"
+#           只符合 ablation_study.CNNAutoencoderFlex（扁平命名 "encoder_conv.N"）
+#           與測試用 fixture 模型，對正式訓練管線使用的
+#           core/cnn_autoencoder.py::CNNAutoencoder（巢狀命名
+#           "encoder.conv_layers.N"）完全找不到層，
+#           GradCAM(model) 在未手動指定 layer 時會直接拋 ValueError。
+#           修正：target_layer 預設改為 None = 自動偵測，
+#           _auto_detect_target_layer() 會在模型的 encoder 部分
+#           （名稱含 "encoder" 的子模組）尋找最後一個 Conv2d，
+#           同時相容扁平與巢狀兩種命名風格；找不到則退回全模型
+#           最後一個 Conv2d。使用者仍可透過 target_layer 手動覆寫。
 # ============================================================
 
 from __future__ import annotations
@@ -20,7 +32,8 @@ from typing import Optional, Tuple, Literal
 
 from .gradcam_hooks import HookManager
 
-_DEFAULT_TARGET_LAYER = "encoder_conv"
+# None = 自動偵測（建議）。仍可傳入字串手動指定特定層名稱。
+_DEFAULT_TARGET_LAYER = None
 
 
 class GradCAM:
@@ -31,7 +44,7 @@ class GradCAM:
     def __init__(
         self,
         model: nn.Module,
-        target_layer: str = _DEFAULT_TARGET_LAYER,
+        target_layer: Optional[str] = _DEFAULT_TARGET_LAYER,
         variant: Literal["gradcam", "gradcam++", "scorecam"] = "gradcam",
         target_type: Literal["mse", "pixel", "channel"] = "mse",
         device: Optional[torch.device] = None,
@@ -43,7 +56,10 @@ class GradCAM:
         self.device       = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model        = self.model.to(self.device)
 
-        self._resolved_layer = self._resolve_target_layer(target_layer)
+        if target_layer is None:
+            self._resolved_layer = self._auto_detect_target_layer()
+        else:
+            self._resolved_layer = self._resolve_target_layer(target_layer)
         self._hook_manager   = HookManager(self.model)
         self._hook_manager.attach([self._resolved_layer])
 
@@ -69,8 +85,36 @@ class GradCAM:
 
         raise ValueError(
             f"[GradCAM] 找不到目標層 '{layer_name}'。\n"
-            f"可用 Conv2d 層：{HookManager.list_available_layers(self.model)}"
+            f"可用 Conv2d 層：{HookManager.list_available_layers(self.model)}\n"
+            f"提示：若不確定層名稱，可將 target_layer 設為 None 以自動偵測。"
         )
+
+    # ── [新增] 自動偵測目標層 ────────────────────────────────
+    def _auto_detect_target_layer(self) -> str:
+        """
+        自動選取 Encoder 最後一個 Conv2d 層作為 Grad-CAM 目標層。
+
+        同時相容：
+          - 巢狀命名（core.cnn_autoencoder.CNNAutoencoder）："encoder.conv_layers.11"
+          - 扁平命名（ablation_study.CNNAutoencoderFlex / gradcam 測試 fixture）："encoder_conv.9"
+
+        邏輯：
+          1. 優先在名稱含 "encoder"（不分大小寫）的子模組中找最後一個 Conv2d。
+          2. 若模型完全沒有名為 encoder 的部分，退回整個模型最後一個 Conv2d
+             （對 Autoencoder 而言通常仍位於編碼路徑內，是合理預設）。
+        """
+        all_convs = [
+            n for n, m in self.model.named_modules() if isinstance(m, nn.Conv2d)
+        ]
+        if not all_convs:
+            raise ValueError(
+                f"[GradCAM] 模型中找不到任何 Conv2d 層，無法自動偵測目標層。\n"
+                f"請手動指定 target_layer。"
+            )
+
+        encoder_convs = [n for n in all_convs if "encoder" in n.lower()]
+        chosen = (encoder_convs or all_convs)[-1]
+        return chosen
 
     # ── 主要介面：generate ────────────────────────────────
     def generate(
@@ -194,15 +238,20 @@ class GradCAM:
         act_max  = act_up.view(B, C, -1).max(dim=2)[0].view(B, C, 1, 1)
         act_norm = (act_up - act_min) / (act_max - act_min + 1e-9)
 
-        weights = torch.zeros(B, C, device=self.device)
+        # ── [P3-5 修正] 批次推論取代串行迴圈 ──
+        # 將所有通道遮罩堆疊成單一批次
+        masked_inputs = []
+        for c in range(C):
+            mask = act_norm[:, c:c+1, :, :]
+            masked_inputs.append(x * mask)
+
+        masked_batch = torch.cat(masked_inputs, dim=0)  # (C*B, C_in, H, W)
         with torch.no_grad():
-            for c in range(C):
-                mask        = act_norm[:, c:c+1, :, :]
-                x_masked    = x * mask
-                x_hat_m, _  = self.model(x_masked)
-                score_m     = F.mse_loss(x_hat_m, x_masked,
-                                          reduction="none").mean(dim=[1, 2, 3])
-                weights[:, c] = score_m - baseline_score
+            x_hat_m, _ = self.model(masked_batch)
+            all_errors = F.mse_loss(x_hat_m, masked_batch, reduction="none").mean(dim=[1, 2, 3])
+
+        score_m = all_errors.view(C, B).t()  # 轉回 (B, C)
+        weights = score_m - baseline_score.unsqueeze(1)
 
         weights = F.relu(weights).view(B, C, 1, 1)
         cam     = (weights * activation).sum(dim=1)

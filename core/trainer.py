@@ -179,6 +179,28 @@ class Trainer:
         """
         print(f"\n  [Trainer] 載入資料: {npy_path}")
         dataset = PacketDataset.from_npy(npy_path)
+        self._load_dataset(dataset)
+
+    # [Bug 3 修正 — 2026] 新增：直接從記憶體中的 numpy array 載入資料，
+    # 不必先寫成 .npy 檔案再讀回來。
+    # 舊版 run_semi_supervised.py 的 --compare-unsupervised 流程呼叫了
+    # `Trainer.from_numpy(X_train_normal)`，但 Trainer 類別從未定義過
+    # from_numpy 這個方法（from_numpy 只存在於 PacketDataset），
+    # 導致只要使用者加上 --compare-unsupervised 就會直接拋出
+    # AttributeError 而中止。以下補上正確、對稱於 load_data() 的方法。
+    def load_data_from_array(self, X: np.ndarray):
+        """
+        從記憶體中的 numpy array 直接載入資料並切分訓練/驗證集
+
+        Args:
+            X: 正常流量影像矩陣，shape 為 (N, H, W) 或 (N, 1, H, W)
+        """
+        print(f"\n  [Trainer] 從記憶體陣列載入資料，shape={X.shape}")
+        dataset = PacketDataset.from_numpy(X)
+        self._load_dataset(dataset)
+
+    def _load_dataset(self, dataset: "PacketDataset"):
+        """load_data() 與 load_data_from_array() 共用的切分/建立 DataLoader 邏輯"""
         n_total = len(dataset)
  
         # 切分訓練集與驗證集
@@ -193,7 +215,7 @@ class Trainer:
         self.train_loader = DataLoader(
             self.train_set,
             batch_size=self.config["batch_size"],
-            shuffle=True,                # 訓練時打亂順序
+            shuffle=True,                # 訓練時打打亂順序
             num_workers=self._auto_num_workers(),
             pin_memory=(self.device.type == "cuda"),
         )
@@ -326,7 +348,7 @@ class Trainer:
                 total_loss += loss.item() * x.size(0)
  
         return total_loss / len(self.val_loader.dataset)
- 
+
     # ── 閾值計算 ──────────────────────────────────────────
     def compute_threshold(self, npy_path: str = None,
                           percentile: int = None) -> float:
@@ -347,7 +369,7 @@ class Trainer:
         self.model.eval()
  
         errors = []
-
+ 
         # [修正] 先判斷 npy_path，再 fallback 到 train_loader
         # 原版先存取 self.train_loader 再判斷 npy_path，
         # 若未呼叫 load_data() 就直接傳 npy_path 會觸發 AttributeError。
@@ -361,13 +383,40 @@ class Trainer:
                 "無法計算閾值：未提供 npy_path 且未呼叫 load_data() 載入訓練資料"
             )
  
+        return self._compute_threshold_from_loader(loader, pct)
+
+    # [Bug 3 修正 — 2026] 新增：直接對記憶體中的 numpy array 計算閾值，
+    # 對稱於 load_data_from_array()。修正 run_semi_supervised.py 呼叫
+    # 不存在的 `compute_threshold_from_numpy()` 而導致 AttributeError 的問題。
+    def compute_threshold_from_array(self, X: np.ndarray,
+                                      percentile: int = None) -> float:
+        """
+        直接對記憶體中的 numpy array 計算異常偵測閾值，不必先寫成 .npy 檔案。
+
+        Args:
+            X         : 用於計算閾值的正常流量矩陣，shape 為 (N, H, W) 或 (N, 1, H, W)
+            percentile: 百分位數（None 則使用 config 值）
+        Returns:
+            float: 閾值
+        """
+        pct = percentile if percentile is not None else self.config["threshold_percentile"]
+        self.model.eval()
+
+        dataset = PacketDataset.from_numpy(X)
+        loader  = DataLoader(dataset, batch_size=64, shuffle=False)
+        return self._compute_threshold_from_loader(loader, pct)
+
+    def _compute_threshold_from_loader(self, loader: DataLoader, pct: int) -> float:
+        """compute_threshold() 與 compute_threshold_from_array() 共用的核心邏輯"""
+        self.model.eval()
+        errors = []
         with torch.no_grad():
             for batch in loader:
                 x = batch[0].to(self.device)
                 err = self.model.reconstruction_error(x)
-                errors.extend(err.cpu().numpy().tolist())
+                errors.append(err.cpu().numpy())
  
-        errors = np.array(errors)
+        errors = np.concatenate(errors)
         self.threshold = float(np.percentile(errors, pct))
  
         print(f"\n  [Threshold] 重建誤差統計:")

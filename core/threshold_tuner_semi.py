@@ -122,8 +122,10 @@ class SemiSupervisedThresholdTuner(ThresholdTuner):
             # 額外計算 MCC（Matthews Correlation Coefficient）
             tp, tn, fp, fn = (metrics["tp"], metrics["tn"],
                                metrics["fp"], metrics["fn"])
-            denom = np.sqrt((tp+fp)*(tp+fn)*(tn+fp)*(tn+fn) + 1e-9)
-            mcc   = (tp*tn - fp*fn) / denom
+            # ── [P2-6 修正] 防止整數溢位 ──
+            tp_f, fp_f, tn_f, fn_f = float(tp), float(fp), float(tn), float(fn)
+            denom = np.sqrt((tp_f+fp_f)*(tp_f+fn_f)*(tn_f+fp_f)*(tn_f+fn_f) + 1e-9)
+            mcc = (tp_f*tn_f - fp_f*fn_f) / denom
             metrics["mcc"]          = float(mcc)
             metrics["threshold"]    = float(thr)
             results.append(metrics)

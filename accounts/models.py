@@ -81,6 +81,7 @@ class UserActivityLog(models.Model):
         ('export_report',   '匯出報告'),
         ('create_project',  '建立專案'),
         ('delete_session',  '刪除 Session'),
+        ('ai_chat',         'AI 對話'),  # ← [新增]
     ]
 
     user       = models.ForeignKey(User, on_delete=models.CASCADE,
@@ -97,3 +98,5 @@ class UserActivityLog(models.Model):
 
     def __str__(self):
         return f'[{self.timestamp:%Y-%m-%d %H:%M}] {self.user.username} - {self.get_action_display()}'
+
+

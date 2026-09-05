@@ -305,10 +305,12 @@ def gen_arp_spoof(scale=1.0):
 
 def gen_dns_amplification(scale=1.0):
     """
-    注意：core/anomaly_detector.py 的放大攻擊規則是用「當下封包的
-    src_ip」去查 dns_resp[src_ip]，也就是只要『同一個 IP 送出的
-    DNS 回應封包數』超過 20 且明顯多於它自己送出的查詢數，就會觸發。
-    因此關鍵是讓 dns_server 送出足量的回應封包（此處保證 >20）。
+    DNS 放大攻擊模擬。
+
+    偵測邏輯：core/anomaly_detector.py 從受害者視角檢查——
+    當某個 IP 收到大量 DNS 回應（dns_resp[dst_ip]）但幾乎沒有
+    發出查詢（dns_req[dst_ip]），且回應數 > 20，就會觸發告警。
+    因此關鍵是讓 victim_ip 收到足量的 DNS 回應封包。
     """
     victim_ip = rand_ip(VICTIM_POOL)     # 被偽造來源的受害者
     dns_server = rand_ip(DNS_SERVER_POOL)
@@ -340,6 +342,52 @@ def gen_dns_amplification(scale=1.0):
     }
 
 
+
+def gen_normal_traffic(scale=1.0):
+    """
+    產生隨機正常流量（HTTP / DNS 查詢 / ICMP Echo / TLS 混合）。
+
+    與其他六個 gen_* 函式風格一致：來源 IP 隨機取自私有／文件保留
+    網段、封包間隔加入抖動、回傳 (packets, meta)。刻意「不」呼叫
+    bulk_scale()，因為正常流量不需要保證超過任何門檻 —— 它的設計
+    目的正好相反：不管 scale 怎麼調，都不應該讓 AnomalyDetector
+    觸發任何告警。
+
+    scale 在這裡單純控制「產生幾個封包」。
+    """
+    count = max(5, int(30 * max(scale, 0.1)))
+    pkts = []
+    for i in range(count):
+        variant = i % 4
+        src = rand_ip(VICTIM_POOL)
+        if variant == 0:
+            pkts.append(eth_wrap(
+                IP(src=src, dst="93.184.216.34")
+                / TCP(sport=random.randint(1024, 65535), dport=80, flags="PA")
+                / b"GET /index.html HTTP/1.1\r\nHost: example.com\r\n\r\n"
+            ))
+        elif variant == 1:
+            pkts.append(eth_wrap(
+                IP(src=src, dst=rand_ip(DNS_SERVER_POOL))
+                / UDP(sport=random.randint(1024, 65535), dport=53)
+                / DNS(rd=1, qd=DNSQR(qname="example.com"))
+            ))
+        elif variant == 2:
+            pkts.append(eth_wrap(
+                IP(src=src, dst=rand_ip(DNS_SERVER_POOL))
+                / ICMP(type=8, code=0, id=random.randint(0, 65535), seq=i)
+            ))
+        else:
+            pkts.append(eth_wrap(
+                IP(src=src, dst="93.184.216.34")
+                / TCP(sport=random.randint(1024, 65535), dport=443, flags="PA")
+                / b"\x16\x03\x03\x00\x05\x01\x00\x00\x01\x00"
+            ))
+
+    jitter_times(pkts, mean_gap=0.02, jitter=0.6)
+    return pkts, {"packet_count": len(pkts)}
+
+
 GENERATORS = {
     "syn_flood":         ("SYN Flood",         gen_syn_flood),
     "port_scan":         ("Port Scan",         gen_port_scan),
@@ -347,6 +395,7 @@ GENERATORS = {
     "udp_flood":         ("UDP Flood",         gen_udp_flood),
     "arp_spoof":         ("ARP Spoofing",      gen_arp_spoof),
     "dns_amplification": ("DNS Amplification", gen_dns_amplification),
+    "normal_traffic":    ("Normal Traffic",    gen_normal_traffic),
 }
 
 
@@ -355,6 +404,10 @@ GENERATORS = {
 #  確認確實會觸發對應的告警（避免產生出偵測不到的無效測資）
 # ============================================================
 def verify_packets(key, pkts):
+    """把產生的封包餵給 PacketParser + AnomalyDetector，確認：
+        - 六種攻擊類型：確實觸發對應告警。
+        - normal_traffic：確實『不』觸發任何告警。
+    """
     parser = PacketParser()
     detector = AnomalyDetector(on_alert=lambda a: None)  # 靜音，只看回傳結果
 
@@ -364,6 +417,10 @@ def verify_packets(key, pkts):
         alerts = detector.inspect(pkt, record)
         for a in alerts:
             triggered_types.add(a["attack_type"])
+
+    if key == "normal_traffic":
+        matched = (len(triggered_types) == 0)
+        return matched, triggered_types
 
     expect_substr = {
         "syn_flood": "SYN Flood",

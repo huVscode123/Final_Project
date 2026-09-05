@@ -485,6 +485,8 @@ class SemiSupervisedTrainer_NSLKDD:
             X_train = X_normal
             early_stop = None
 
+        self._X_train_normal = X_train  # ── [P2-1 修正] 保存訓練子集 ──
+
         loader = DataLoader(
             TensorDataset(torch.from_numpy(X_train)),
             batch_size=bs, shuffle=True, drop_last=False,
@@ -657,7 +659,8 @@ class SemiSupervisedTrainer_NSLKDD:
                    attack_cats: Optional[np.ndarray] = None):
         t0 = time.time()
         self.pretrain(X_normal)
-        self.finetune(X_normal, X_attack, attack_cats)
+        # ── [P2-1 修正] 僅傳入訓練子集的正常樣本 ──
+        self.finetune(self._X_train_normal, X_attack, attack_cats)
         train_time = time.time() - t0
 
         # 設定閾值 (分批處理，避免 GPU OOM)
