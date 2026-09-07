@@ -149,6 +149,8 @@ def main():
                         help="選擇要執行的消融實驗子集（預設: all）")
     parser.add_argument("--ablation-epochs", type=int, default=25,
                         help="消融實驗每次訓練的 epoch 數（預設: 25，較少以節省時間）")
+    parser.add_argument("--ablation-repeats", type=int, default=3,
+                        help="每個設定重複訓練的次數（預設: 3，用於估計 mean/std/CI）")
     parser.add_argument("--ablation-output", default="output/ablation",
                         help="消融實驗輸出目錄（預設: output/ablation）")
 
@@ -287,6 +289,7 @@ def main():
             X_attack    = X_attack,
             output_dir  = args.ablation_output,
             epochs      = args.ablation_epochs,
+            n_repeats   = args.ablation_repeats,
         )
 
         run_all_exp = "all" in args.ablation_exp

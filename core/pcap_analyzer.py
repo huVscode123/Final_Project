@@ -358,7 +358,13 @@ class PcapAnalyzer:
         self.detector.reset()
 
         for pkt, record in zip(self.packets, self.records):
-            self.detector.inspect(pkt, record)
+            # 離線 PCAP 必須以原始擷取時間維持滑動窗口語意；若用
+            # 迴圈當下的 time.time()，整段流量會被錯當成同時發生。
+            try:
+                packet_time = float(getattr(pkt, 'time', 0.0))
+            except (TypeError, ValueError):
+                packet_time = 0.0
+            self.detector.inspect(pkt, record, timestamp=packet_time)
 
         print(f"\n  偵測完成")
         self.detector.print_history()

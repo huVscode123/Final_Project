@@ -1,37 +1,38 @@
 ========================================================================
-  Django 前端模板與佈局彙整 (HTML/Templates)
-  匯出時間 : 2026-09-05 10:12:09
-  總檔案數 : 22
+  Network Attack Automated Analysis Platform - Export
+  Export File : django_frontend_templates.txt
+  Total files : 22
 ========================================================================
 
-[檔案目錄]
-  01. templates\accounts\activity_logs.html
-  02. templates\accounts\admin_panel.html
-  03. templates\accounts\login.html
-  04. templates\accounts\profile.html
-  05. templates\accounts\register.html
-  06. templates\analyzer\ablation.html
-  07. templates\analyzer\ai_chat.html
-  08. templates\analyzer\dashboard.html
-  09. templates\analyzer\gradcam_gallery.html
-  10. templates\analyzer\heatmap_analysis.html
-  11. templates\analyzer\live.html
-  12. templates\analyzer\session_detail.html
-  13. templates\analyzer\session_list.html
-  14. templates\analyzer\sessions.html
-  15. templates\analyzer\simulation.html
-  16. templates\analyzer\upload.html
-  17. templates\base\base.html
-  18. templates\projects\packet_upload.html
-  19. templates\projects\project_detail.html
-  20. templates\projects\project_form.html
-  21. templates\projects\project_list.html
-  22. templates\reports\report_list.html
+[Table of Contents]
+  01. templates/accounts/activity_logs.html
+  02. templates/accounts/admin_panel.html
+  03. templates/accounts/login.html
+  04. templates/accounts/profile.html
+  05. templates/accounts/register.html
+  06. templates/analyzer/ablation.html
+  07. templates/analyzer/ai_chat.html
+  08. templates/analyzer/dashboard.html
+  09. templates/analyzer/gradcam_gallery.html
+  10. templates/analyzer/heatmap_analysis.html
+  11. templates/analyzer/live.html
+  12. templates/analyzer/session_detail.html
+  13. templates/analyzer/session_list.html
+  14. templates/analyzer/sessions.html
+  15. templates/analyzer/simulation.html
+  16. templates/analyzer/upload.html
+  17. templates/base/base.html
+  18. templates/projects/packet_upload.html
+  19. templates/projects/project_detail.html
+  20. templates/projects/project_form.html
+  21. templates/projects/project_list.html
+  22. templates/reports/report_list.html
+
 
 ========================================================================
+  [01/22]  templates/accounts/activity_logs.html
+========================================================================
 
-// FILE: templates\accounts\activity_logs.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — Activity Logs{% endblock %}
 {% block content %}
@@ -73,11 +74,10 @@
 </div>
 {% endblock %}
 
-
+========================================================================
+  [02/22]  templates/accounts/admin_panel.html
 ========================================================================
 
-// FILE: templates\accounts\admin_panel.html
-----------------------------------------
 {% extends 'base/base.html' %}
 {% block title %}管理員面板 — VNAAP{% endblock %}
 
@@ -390,11 +390,10 @@ async function toggleActive(userId) {
 </script>
 {% endblock %}
 
-
+========================================================================
+  [03/22]  templates/accounts/login.html
 ========================================================================
 
-// FILE: templates\accounts\login.html
-----------------------------------------
 {% load static %}
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -695,11 +694,10 @@ document.getElementById('loginForm').addEventListener('submit', function() {
 </body>
 </html>
 
-
+========================================================================
+  [04/22]  templates/accounts/profile.html
 ========================================================================
 
-// FILE: templates\accounts\profile.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — Profile{% endblock %}
 {% block extra_css %}
@@ -838,11 +836,10 @@ document.getElementById('loginForm').addEventListener('submit', function() {
 </div>
 {% endblock %}
 
-
+========================================================================
+  [05/22]  templates/accounts/register.html
 ========================================================================
 
-// FILE: templates\accounts\register.html
-----------------------------------------
 {% load static %}
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -1087,11 +1084,10 @@ function checkPwMatch(){
 </body>
 </html>
 
-
+========================================================================
+  [06/22]  templates/analyzer/ablation.html
 ========================================================================
 
-// FILE: templates\analyzer\ablation.html
-----------------------------------------
 {% extends 'base/base.html' %}
 {% load static %}
 
@@ -1500,11 +1496,10 @@ document.addEventListener('DOMContentLoaded', function() {
 </script>
 {% endblock %}
 
-
+========================================================================
+  [07/22]  templates/analyzer/ai_chat.html
 ========================================================================
 
-// FILE: templates\analyzer\ai_chat.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — AI 助手{% endblock %}
 
@@ -1812,11 +1807,10 @@ renderQuickButtons('general');
 </script>
 {% endblock %}
 
-
+========================================================================
+  [08/22]  templates/analyzer/dashboard.html
 ========================================================================
 
-// FILE: templates\analyzer\dashboard.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% load static %}
 {% block title %}VNAAP — 儀表板{% endblock %}
@@ -2258,11 +2252,10 @@ setTimeout(()=>location.reload(),60000);
 </script>
 {% endblock %}
 
-
+========================================================================
+  [09/22]  templates/analyzer/gradcam_gallery.html
 ========================================================================
 
-// FILE: templates\analyzer\gradcam_gallery.html
-----------------------------------------
 {% extends 'base/base.html' %}
 {% load static %}
 {% block title %}Grad-CAM 熱力圖 — {{ session.label }} — VNAAP{% endblock %}
@@ -2348,11 +2341,10 @@ setTimeout(()=>location.reload(),60000);
 {% endif %}
 {% endblock %}
 
-
+========================================================================
+  [10/22]  templates/analyzer/heatmap_analysis.html
 ========================================================================
 
-// FILE: templates\analyzer\heatmap_analysis.html
-----------------------------------------
 {% extends 'base/base.html' %}
 {% load static %}
 {% block title %}熱力圖分析 — {{ session.label }} — VNAAP{% endblock %}
@@ -2536,11 +2528,10 @@ document.getElementById('imageModal').addEventListener('click', function(e) {
 </script>
 {% endblock %}
 
-
+========================================================================
+  [11/22]  templates/analyzer/live.html
 ========================================================================
 
-// FILE: templates\analyzer\live.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — 即時監控{% endblock %}
 
@@ -2721,11 +2712,10 @@ document.getElementById('lastUpdate').textContent =
 </script>
 {% endblock %}
 
-
+========================================================================
+  [12/22]  templates/analyzer/session_detail.html
 ========================================================================
 
-// FILE: templates\analyzer\session_detail.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — Session #{{ session.pk }}{% endblock %}
 
@@ -3202,11 +3192,10 @@ async function triggerCNNRun() {
 </script>
 {% endblock %}
 
-
+========================================================================
+  [13/22]  templates/analyzer/session_list.html
 ========================================================================
 
-// FILE: templates\analyzer\session_list.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}歷史紀錄 — NetGuard{% endblock %}
 {% block content %}
@@ -3298,11 +3287,10 @@ async function triggerCNNRun() {
 </div>
 {% endblock %}
 
-
+========================================================================
+  [14/22]  templates/analyzer/sessions.html
 ========================================================================
 
-// FILE: templates\analyzer\sessions.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — 分析任務列表{% endblock %}
 
@@ -3427,11 +3415,10 @@ async function triggerCNNRun() {
 </div>
 {% endblock %}
 
-
+========================================================================
+  [15/22]  templates/analyzer/simulation.html
 ========================================================================
 
-// FILE: templates\analyzer\simulation.html
-----------------------------------------
 {% extends 'base/base.html' %}
 {% load static %}
 {% block title %}異常封包模擬檢測 — VNAAP{% endblock %}
@@ -3538,7 +3525,7 @@ async function triggerCNNRun() {
           沒有影響，只影響封包內容的隨機變化程度。
         </div>
       </div>
-      <button class="btn-primary btn-block" id="runBtn" onclick="runSimulation()">
+      <button class="btn-primary btn-block" id="runBtn" onclick="runSimulation()" {% if not model_ready %}disabled title="請先訓練並部署至少一個模型"{% endif %}>
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;">
           <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
           <path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -3587,7 +3574,7 @@ async function triggerCNNRun() {
         </div>
         <div style="background:var(--bg-base);border-radius:8px;padding:12px;text-align:center;">
           <div class="mono text-red" style="font-size:1.2rem;font-weight:700;" id="resAnomaly">0</div>
-          <div class="text-muted" style="font-size:0.68rem;">偵測異常</div>
+          <div class="text-muted" style="font-size:0.68rem;">直接觸發規則的封包</div>
         </div>
         <div style="background:var(--bg-base);border-radius:8px;padding:12px;text-align:center;">
           <div class="mono text-blue" style="font-size:1.2rem;font-weight:700;" id="resAvgScore">0</div>
@@ -3666,7 +3653,7 @@ async function triggerCNNRun() {
         <table>
           <thead><tr>
             <th>#</th><th>大小</th><th>封包標頭</th><th>內容摘要</th>
-            <th>規則判定<br><span style="font-weight:400;font-size:.62rem;color:var(--text-muted);">（最終結論）</span></th>
+            <th>規則直接觸發<br><span style="font-weight:400;font-size:.62rem;color:var(--text-muted);">（批次結論見上方）</span></th>
             <th>CNN 分數<br><span style="font-weight:400;font-size:.62rem;color:var(--text-muted);">（僅供參考）</span></th>
             <th>觸發依據</th>
           </tr></thead>
@@ -3806,10 +3793,11 @@ async function runSimulation() {
     document.getElementById('comparisonSummaryContent').innerHTML =
       `${agreeBadge}　規則引擎：<b style="color:${cs.rule_engine_verdict ? '#ef4444' : '#22c55e'}">${cs.rule_engine_verdict ? '攻擊' : '正常'}</b>` +
       `（${cs.rule_engine_alert_count ?? 0} 筆告警）　` +
-      `CNN 參考：本次顯示樣本中 ${cs.cnn_reference_flagged_count_in_sample ?? 0}/${cs.cnn_reference_sample_size ?? 0} 筆分數偏高` +
+      `CNN 參考：${cs.cnn_reference_flagged_count ?? 0}/${cs.cnn_reference_total ?? 0} 筆分數偏高；` +
+      `規則直接觸發 ${cs.rule_triggered_packet_count ?? 0} 筆` +
       `<div style="color:var(--text-muted);font-size:.68rem;margin-top:4px;">` +
-      `若兩者不一致，以規則引擎為準；不一致本身就是「CNN 分數在目前表示法下不具判斷力」的直接證據，` +
-      `而不是系統故障。</div>`;
+      `批次結論由流量型樣規則判定；表格只將實際跨越門檻、產生告警的封包標示為異常，` +
+      `不再把同一批每個封包誤標為異常。</div>`;
 
     // ── CNN 可信度說明（依模型訓練表示法動態切換樣式）──
     if (res.cnn_reliability_note) {
@@ -3837,14 +3825,16 @@ async function runSimulation() {
 
     const baselineEl = document.getElementById('baselineInfo');
     if (res.baseline) {
-      const effThr = res.effective_threshold || res.threshold;
+      const effThr = res.effective_threshold ?? res.threshold;
       const modelThr = res.threshold;
+      const thresholdSource = res.threshold_source === 'runtime_baseline_fallback'
+        ? '本次正常基準線 99 百分位（checkpoint 未提供閾值時的備援）'
+        : '訓練完成時寫入 checkpoint 的校準閾值';
       document.getElementById('baselineText').innerHTML =
-        `<b>CNN 判定閾值（模擬專用，基準線 99th percentile）</b>：<span class="text-accent">${effThr.toFixed(6)}</span>` +
-        ` — 分數超過此值即判定為 CNN 異常（僅供參考）<br>` +
+        `<b>CNN 判定閾值</b>：<span class="text-accent">${effThr.toFixed(6)}</span>` +
+        ` — ${thresholdSource}；分數超過此值即判定為 CNN 異常（僅供參考）<br>` +
         `<span style="color:var(--text-muted);">即時取樣 ${res.baseline.sample_count} 筆正常流量，` +
-        `平均分數 ${res.baseline.mean.toFixed(6)}` +
-        `（模型訓練閾值 ${modelThr.toFixed(6)}）</span>`;
+        `平均分數 ${res.baseline.mean.toFixed(6)}；模型 checkpoint 閾值 ${modelThr.toFixed(6)}。</span>`;
       baselineEl.style.display = 'block';
     } else {
       baselineEl.style.display = 'none';
@@ -3875,6 +3865,7 @@ async function runSimulation() {
       ruleContent.insertAdjacentHTML('beforeend', `
         <div style="margin-top:6px;font-size:.7rem;color:var(--text-muted);">
           正式系統門檻：SYN&gt;${th.syn} ・ Port Scan&gt;${th.ports} ・ ICMP&gt;${th.icmp} ・ UDP&gt;${th.udp}
+          ・ ARP：${th.arp_window_seconds}s 內同 IP 多 MAC ・ DNS：回應&gt;${th.dns_amp_min_responses} 且比值&gt;${th.dns_amp_ratio}x
           （封包產生器已依此自動反推所需封包數，見左側說明）
         </div>`);
     }
@@ -3929,7 +3920,7 @@ async function runSimulation() {
 
       const trigger = r.rule_triggered_here
         ? `★ ${(r.rule_detail && r.rule_detail[0]) ? r.rule_detail[0].attack_type || '' : ''}`
-        : r.behavior_anomaly ? '同批次規則判定' : (r.cnn_anomaly ? 'CNN 分數偏高（未計入判定）' : '—');
+        : r.behavior_anomaly ? '同批次已判定攻擊（此封包未直接觸發）' : (r.cnn_anomaly ? 'CNN 分數偏高（未計入判定）' : '—');
 
       tr.innerHTML = `
         <td class="mono">${r.index + 1}</td>
@@ -3946,7 +3937,7 @@ async function runSimulation() {
       tbody.appendChild(tr);
     });
 
-    showToast(`檢測完成：${res.anomaly_count}/${res.packet_count} 個異常封包`, res.anomaly_count > 0 ? 'warning' : 'success');
+    showToast(`檢測完成：直接觸發 ${res.anomaly_count} 筆；批次判定為 ${res.rule_based_anomaly_detected ? '攻擊' : '正常'}`, res.rule_based_anomaly_detected ? 'warning' : 'success');
   } catch(e) {
     document.getElementById('loadingResult').style.display = 'none';
     document.getElementById('emptyResult').style.display = 'block';
@@ -3987,10 +3978,10 @@ function renderScoreChart(results, threshold, baseline) {
   if (scoreChartInstance) scoreChartInstance.destroy();
 
   const datasets = [{
-    label: '本次模擬分數（顯示樣本）',
+    label: '本次模擬 CNN 分數（顯示樣本）',
     data: results.map(r => r.score),
-    backgroundColor: results.map(r => r.is_anomaly ? 'rgba(239,68,68,0.7)' : 'rgba(34,197,94,0.5)'),
-    borderColor: results.map(r => r.is_anomaly ? '#ef4444' : '#22c55e'),
+    backgroundColor: results.map(r => r.cnn_anomaly ? 'rgba(234,179,8,0.75)' : 'rgba(59,130,246,0.55)'),
+    borderColor: results.map(r => r.cnn_anomaly ? '#eab308' : '#3b82f6'),
     borderWidth: 1, borderRadius: 3, order: 2,
   }];
 
@@ -4031,11 +4022,10 @@ function renderScoreChart(results, threshold, baseline) {
 </script>
 {% endblock %}
 
-
+========================================================================
+  [16/22]  templates/analyzer/upload.html
 ========================================================================
 
-// FILE: templates\analyzer\upload.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% load static %}
 {% block title %}VNAAP — 上傳 PCAP{% endblock %}
@@ -4220,11 +4210,10 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
 <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 {% endblock %}
 
-
+========================================================================
+  [17/22]  templates/base/base.html
 ========================================================================
 
-// FILE: templates\base\base.html
-----------------------------------------
 {% load static %}
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -4422,11 +4411,10 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
 </body>
 </html>
 
-
+========================================================================
+  [18/22]  templates/projects/packet_upload.html
 ========================================================================
 
-// FILE: templates\projects\packet_upload.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — Upload PCAP to {{ project.name }}{% endblock %}
 {% block content %}
@@ -4468,11 +4456,10 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
 </div>
 {% endblock %}
 
-
+========================================================================
+  [19/22]  templates/projects/project_detail.html
 ========================================================================
 
-// FILE: templates\projects\project_detail.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — {{ project.name }}{% endblock %}
 {% block extra_css %}
@@ -4669,11 +4656,10 @@ if (archForm) {
 </script>
 {% endblock %}
 
-
+========================================================================
+  [20/22]  templates/projects/project_form.html
 ========================================================================
 
-// FILE: templates\projects\project_form.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — {{ action }}專案{% endblock %}
 {% block content %}
@@ -4721,11 +4707,10 @@ if (archForm) {
 </div>
 {% endblock %}
 
-
+========================================================================
+  [21/22]  templates/projects/project_list.html
 ========================================================================
 
-// FILE: templates\projects\project_list.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — Projects{% endblock %}
 {% block extra_css %}
@@ -4812,11 +4797,10 @@ if (archForm) {
 {% endif %}
 {% endblock %}
 
-
+========================================================================
+  [22/22]  templates/reports/report_list.html
 ========================================================================
 
-// FILE: templates\reports\report_list.html
-----------------------------------------
 {% extends "base/base.html" %}
 {% block title %}VNAAP — Reports{% endblock %}
 {% block content %}
@@ -4863,7 +4847,3 @@ if (archForm) {
   </div>
 </div>
 {% endblock %}
-
-
-========================================================================
-

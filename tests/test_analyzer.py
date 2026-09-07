@@ -5,6 +5,7 @@
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.contrib.auth.models import User
@@ -167,33 +168,55 @@ class SimulationViewTest(TestCase):
         self.user = make_user('simuser')
         self.client.login(username='simuser', password='pass1234')
 
-    def test_simulation_creates_downloadable_pcap_and_backup(self):
+    def test_simulation_rejects_missing_model_instead_of_faking_scores(self):
         with TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir)
             with self.settings(
-                CNN_MODEL_PATH='',
                 MEDIA_ROOT=temp_root / 'media',
                 BASE_DIR=temp_root,
+                ANOMALY_MODELS={
+                    'test_model': {
+                        'label': 'Test Model', 'path': '', 'type': 'cnn_vae',
+                    },
+                },
             ):
                 response = self.client.post(
                     reverse('analyzer:simulation_api'),
-                    data=json.dumps({'attack_type': 'syn_flood', 'packet_count': 5}),
+                    data=json.dumps({'attack_type': 'syn_flood', 'model_key': 'test_model'}),
                     content_type='application/json',
                 )
 
-                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.status_code, 409)
                 payload = response.json()
-                self.assertTrue(payload['ok'])
-                self.assertTrue(payload['pcap_backup_saved'])
-                self.assertIn('pcap_download_url', payload)
-                self.assertTrue((
-                    temp_root / 'output' / 'simulation_backups'
-                    / f'user_{self.user.pk}' / payload['pcap_filename']
-                ).is_file())
+                self.assertFalse(payload['ok'])
+                self.assertTrue(payload['model_missing'])
+                self.assertNotIn('results', payload)
 
-                download = self.client.get(payload['pcap_download_url'])
+    def test_simulation_pcap_is_downloadable_and_has_a_local_backup(self):
+        from analyzer.views import _save_simulation_pcap
+
+        with TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+
+            def write_test_pcap(path, _packets):
+                Path(path).write_bytes(b'unit-test-pcap')
+
+            with self.settings(MEDIA_ROOT=temp_root / 'media', BASE_DIR=temp_root):
+                with patch('scapy.all.wrpcap', side_effect=write_test_pcap):
+                    filename = _save_simulation_pcap(self.user, 'syn_flood', [])
+
+                download = self.client.get(
+                    reverse('analyzer:simulation_pcap_download', args=[filename])
+                )
                 self.assertEqual(download.status_code, 200)
                 self.assertTrue(download['Content-Disposition'].startswith('attachment;'))
+
+            public_copy = temp_root / 'media' / 'simulation_pcap' / filename
+            backup_copy = (temp_root / 'output' / 'simulation_backups'
+                           / f'user_{self.user.pk}' / filename)
+            self.assertTrue(public_copy.is_file())
+            self.assertTrue(backup_copy.is_file())
+            self.assertEqual(public_copy.read_bytes(), backup_copy.read_bytes())
 
 
 # ─── Session List ────────────────────────────────────────────

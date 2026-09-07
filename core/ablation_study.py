@@ -22,6 +22,24 @@
 
 import os
 import sys
+import io
+
+# ── [亂碼修正] Windows cp950 終端無法輸出 ≥ ≈ ＊ 等 Unicode 字元。
+# 在模組載入時強制將 stdout/stderr 重新包裝為 UTF-8，
+# 讓 ablation_study 的所有 print() 輸出都走 UTF-8 通道。
+if sys.stdout is not None and hasattr(sys.stdout, 'buffer'):
+    try:
+        sys.stdout = io.TextIOWrapper(
+            sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+    except Exception:
+        pass
+if sys.stderr is not None and hasattr(sys.stderr, 'buffer'):
+    try:
+        sys.stderr = io.TextIOWrapper(
+            sys.stderr.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+    except Exception:
+        pass
+
 import time
 import json
 import math
@@ -141,10 +159,16 @@ class CNNAutoencoderFlex(nn.Module):
         return x_hat, z
 
     def reconstruction_error(self, x):
+        """計算重建誤差，使用 try...finally 確保訓練模式被正確還原。"""
+        was_training = self.training
         self.eval()
-        with torch.no_grad():
-            x_hat, _ = self.forward(x)
-            return torch.mean((x - x_hat) ** 2, dim=[1, 2, 3])
+        try:
+            with torch.no_grad():
+                x_hat, _ = self.forward(x)
+                return torch.mean((x - x_hat) ** 2, dim=[1, 2, 3])
+        finally:
+            if was_training:
+                self.train()
 
 
 # ── 快速訓練函式 ─────────────────────────────────────────────────
@@ -712,11 +736,72 @@ class AblationStudy:
         model.eval(); return model
 
     def _plot_semi_comparison(self, errors_n_u, errors_a_u, res_u, errors_n_s, errors_a_s, res_s):
-        fig, axes = plt.subplots(2, 2, figsize=(16, 10)); fig.patch.set_facecolor(self._DARK_BG)
-        fig.suptitle("消融實驗 7：有無半監督微調對偵測效能的影響", color="white", fontsize=13, y=0.98)
-        # (Distribution plots logic same as before, skipping for brevity in this rewrite)
-        plt.tight_layout(); path = os.path.join(self.output_dir, "ablation_semi_finetune.png")
-        fig.savefig(path, dpi=120, bbox_inches="tight", facecolor=self._DARK_BG); plt.close(fig)
+        """繪製實驗 7 的四格對比圖：誤差分布直方圖 + 關鍵指標長條圖。"""
+        fig, axes = plt.subplots(2, 2, figsize=(16, 10))
+        fig.patch.set_facecolor(self._DARK_BG)
+        fig.suptitle("消融實驗 7：有無半監督微調對偵測效能的影響",
+                     color="white", fontsize=13, y=0.98)
+
+        labels_cfg = [
+            ("純非監督",    errors_n_u, errors_a_u, res_u,  axes[0, 0], axes[1, 0]),
+            ("半監督微調",  errors_n_s, errors_a_s, res_s,  axes[0, 1], axes[1, 1]),
+        ]
+
+        for title, e_n, e_a, res, ax_hist, ax_bar in labels_cfg:
+            ax_hist.set_facecolor(self._DARK_AX)
+            thr = res.get("threshold", float(np.percentile(e_n, 95)))
+
+            # 直方圖：正常 vs 攻擊 重建誤差分布
+            bins = np.linspace(
+                min(e_n.min(), e_a.min()),
+                max(e_n.max(), e_a.max()), 60)
+            ax_hist.hist(e_n, bins=bins, alpha=0.7, color="#3fb950", label="正常流量")
+            ax_hist.hist(e_a, bins=bins, alpha=0.7, color="#f85149", label="攻擊流量")
+            ax_hist.axvline(thr, color="#e3b341", linestyle="--", linewidth=1.5,
+                            label=f"閾值 {thr:.5f}")
+            ax_hist.set_title(title, color="white", fontsize=11)
+            ax_hist.set_xlabel("重建誤差", color="#8b949e")
+            ax_hist.set_ylabel("封包數", color="#8b949e")
+            ax_hist.tick_params(colors="#8b949e")
+            for sp in ax_hist.spines.values():
+                sp.set_edgecolor("#30363d")
+            ax_hist.legend(facecolor=self._DARK_AX, labelcolor="white", fontsize=8)
+
+            # 長條圖：關鍵指標
+            ax_bar.set_facecolor(self._DARK_AX)
+            metric_keys   = ["precision", "recall", "f1", "auc"]
+            metric_labels = ["Precision", "Recall",  "F1",  "AUC"]
+            metric_colors = ["#3fb950",  "#58a6ff", "#e3b341", "#bc8cff"]
+            vals = [res.get(k, 0.0) for k in metric_keys]
+            cis  = [res.get(f"{k}_ci95", 0.0) for k in metric_keys]
+            x    = np.arange(len(metric_keys))
+            bars = ax_bar.bar(x, vals, 0.55, yerr=cis, capsize=4,
+                              color=metric_colors, alpha=0.88,
+                              error_kw={"ecolor": "#c9d1d9", "elinewidth": 1.0})
+            for bar, val in zip(bars, vals):
+                ax_bar.text(bar.get_x() + bar.get_width() / 2, bar.get_height() + 0.01,
+                            f"{val:.3f}", ha="center", va="bottom",
+                            color="white", fontsize=8)
+            ax_bar.set_xticks(x)
+            ax_bar.set_xticklabels(metric_labels, color="#8b949e")
+            ax_bar.set_ylim(0, 1.15)
+            ax_bar.set_title(f"{title} — 效能指標", color="white", fontsize=11)
+            ax_bar.set_ylabel("Score", color="#8b949e")
+            ax_bar.tick_params(colors="#8b949e")
+            for sp in ax_bar.spines.values():
+                sp.set_edgecolor("#30363d")
+            # 顯示 separability_ratio
+            sep = res.get("separability_ratio", res.get("separability_ratio_mean"))
+            if sep is not None:
+                ax_bar.text(0.98, 0.02, f"Separability={sep:.3f}",
+                            transform=ax_bar.transAxes, ha="right", va="bottom",
+                            color="#8b949e", fontsize=8)
+
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        path = os.path.join(self.output_dir, "ablation_semi_finetune.png")
+        fig.savefig(path, dpi=120, bbox_inches="tight", facecolor=self._DARK_BG)
+        plt.close(fig)
+        print(f"  [圖表] 已儲存: {path}")
 
     # ── 繪圖：長條圖 + 95% CI 誤差線 + 顯著性標註 ─────────────────
     def _plot_bar(self, results, x_key, x_label, title, filename, extra_line_key=None, extra_line_label=None):
@@ -783,6 +868,7 @@ class AblationStudy:
         print(f"\n  [AblationStudy] 全部實驗完成，耗時 {total:.1f}s"
               f"（共 {self.n_repeats} 次重複／設定）")
         self.print_significance_summary(all_results)
+        self.plot_summary(all_results)  # [新增] 輸出跨實驗總覽圖
         return all_results
 
     def print_significance_summary(self, all_results: dict):
@@ -802,8 +888,86 @@ class AblationStudy:
                     print(f"      {r['name']:<14s} F1={r['f1']:.4f}  {p_str}  ({mark})")
 
     def plot_summary(self, all_results: dict):
-        # (Summary plot logic same as before, skipping for brevity in this rewrite)
-        pass
+        """繪製跨所有實驗的 F1 摘要比較圖（折線圖）。"""
+        exp_display = {
+            "latent_dim":    "Exp1 Latent",
+            "arch_scale":    "Exp2 Arch",
+            "image_size":    "Exp3 ImgSz",
+            "field_masking": "Exp4 Mask",
+            "data_size":     "Exp5 Data%",
+            "activation":    "Exp6 ActFn",
+            "semi_finetune": "Exp7 Semi",
+        }
+        fig, axes = plt.subplots(1, 2, figsize=(16, 5.5))
+        fig.patch.set_facecolor(self._DARK_BG)
+        fig.suptitle("消融實驗總覽：各設計決策對 F1 Score 的影響",
+                     color="white", fontsize=12, y=0.98)
+
+        # 左圖：每個實驗的「最佳設定 F1」
+        ax_best = axes[0]; ax_best.set_facecolor(self._DARK_AX)
+        exp_names, best_f1s, best_cis = [], [], []
+        for exp_key, display in exp_display.items():
+            if exp_key not in all_results:
+                continue
+            results = all_results[exp_key]
+            if not results:
+                continue
+            best = max(results, key=lambda r: r.get("f1", 0.0))
+            exp_names.append(display)
+            best_f1s.append(best.get("f1", 0.0))
+            best_cis.append(best.get("f1_ci95", 0.0))
+        x = np.arange(len(exp_names))
+        ax_best.bar(x, best_f1s, 0.6, yerr=best_cis, capsize=4,
+                    color=self._COLORS[:len(exp_names)], alpha=0.85,
+                    error_kw={"ecolor": "#c9d1d9", "elinewidth": 1.0})
+        for xi, val, ci in zip(x, best_f1s, best_cis):
+            ax_best.text(xi, val + ci + 0.01, f"{val:.3f}",
+                         ha="center", va="bottom", color="white", fontsize=8)
+        ax_best.set_xticks(x)
+        ax_best.set_xticklabels(exp_names, rotation=15, ha="right", color="#8b949e", fontsize=8)
+        ax_best.set_ylim(0, 1.15)
+        ax_best.set_title("各實驗最佳設定 F1（含 95% CI）", color="white", fontsize=10)
+        ax_best.set_ylabel("F1 Score", color="#8b949e")
+        ax_best.tick_params(colors="#8b949e")
+        for sp in ax_best.spines.values(): sp.set_edgecolor("#30363d")
+
+        # 右圖：所有設定的 F1 分布（箱形圖）
+        ax_box = axes[1]; ax_box.set_facecolor(self._DARK_AX)
+        box_data, box_labels = [], []
+        for exp_key, display in exp_display.items():
+            if exp_key not in all_results:
+                continue
+            results = all_results[exp_key]
+            if not results:
+                continue
+            f1s = [r.get("f1", 0.0) for r in results]
+            if f1s:
+                box_data.append(f1s)
+                box_labels.append(display)
+        if box_data:
+            bp = ax_box.boxplot(box_data, patch_artist=True,
+                                medianprops={"color": "#e3b341", "linewidth": 2},
+                                whiskerprops={"color": "#8b949e"},
+                                capprops={"color": "#8b949e"},
+                                flierprops={"markerfacecolor": "#f85149",
+                                            "marker": "o", "markersize": 4})
+            for patch, color in zip(bp["boxes"], self._COLORS):
+                patch.set_facecolor(color); patch.set_alpha(0.6)
+        ax_box.set_xticks(range(1, len(box_labels) + 1))
+        ax_box.set_xticklabels(box_labels, rotation=15, ha="right",
+                               color="#8b949e", fontsize=8)
+        ax_box.set_title("各設定 F1 分布（不同設定間的差異幅度）",
+                         color="white", fontsize=10)
+        ax_box.set_ylabel("F1 Score", color="#8b949e")
+        ax_box.tick_params(colors="#8b949e")
+        for sp in ax_box.spines.values(): sp.set_edgecolor("#30363d")
+
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        path = os.path.join(self.output_dir, "ablation_summary.png")
+        fig.savefig(path, dpi=120, bbox_inches="tight", facecolor=self._DARK_BG)
+        plt.close(fig)
+        print(f"  [圖表] 已儲存: {path}")
+        return path
 
     def save_report(self, all_results: dict, filename: str = "ablation_report.json"):
         report = {

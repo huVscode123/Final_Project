@@ -1,48 +1,51 @@
 ========================================================================
-  Django 核心業務邏輯彙整 (Python/Logic)
-  匯出時間 : 2026-09-05 10:12:09
-  總檔案數 : 33
+  Network Attack Automated Analysis Platform - Export
+  Export File : django_logic.txt
+  Total files : 29
 ========================================================================
 
-[檔案目錄]
-  01. accounts\admin.py
-  02. accounts\apps.py
-  03. accounts\forms.py
-  04. accounts\models.py
-  05. accounts\urls.py
-  06. accounts\views.py
-  07. analyzer\admin.py
-  08. analyzer\apps.py
-  09. analyzer\models.py
-  10. analyzer\tasks.py
-  11. analyzer\tests.py
-  12. analyzer\tests_root_causes.py
-  13. analyzer\urls.py
-  14. analyzer\views.py
-  15. api\apps.py
-  16. api\permissions.py
-  17. api\serializers.py
-  18. api\urls.py
-  19. api\views.py
-  20. network_platform\celery.py
-  21. network_platform\settings.py
-  22. network_platform\urls.py
-  23. network_platform\wsgi.py
-  24. projects\admin.py
-  25. projects\apps.py
-  26. projects\forms.py
-  27. projects\models.py
-  28. projects\urls.py
-  29. projects\views.py
-  30. reports\apps.py
-  31. reports\generators.py
-  32. reports\urls.py
-  33. reports\views.py
+[Table of Contents]
+  01. accounts/__init__.py
+  02. accounts/admin.py
+  03. accounts/apps.py
+  04. accounts/forms.py
+  05. accounts/models.py
+  06. accounts/urls.py
+  07. accounts/views.py
+  08. analyzer/__init__.py
+  09. analyzer/admin.py
+  10. analyzer/apps.py
+  11. analyzer/models.py
+  12. analyzer/tasks.py
+  13. analyzer/tests.py
+  14. analyzer/tests_root_causes.py
+  15. analyzer/urls.py
+  16. analyzer/views.py
+  17. api/__init__.py
+  18. api/apps.py
+  19. api/permissions.py
+  20. api/serializers.py
+  21. api/urls.py
+  22. api/views.py
+  23. projects/__init__.py
+  24. projects/admin.py
+  25. projects/apps.py
+  26. projects/forms.py
+  27. projects/models.py
+  28. projects/urls.py
+  29. projects/views.py
+
 
 ========================================================================
+  [01/29]  accounts/__init__.py
+========================================================================
 
-// FILE: accounts\admin.py
-----------------------------------------
+
+
+========================================================================
+  [02/29]  accounts/admin.py
+========================================================================
+
 # ============================================================
 # accounts/admin.py
 # ============================================================
@@ -95,22 +98,20 @@ class UserActivityLogAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-
+========================================================================
+  [03/29]  accounts/apps.py
 ========================================================================
 
-// FILE: accounts\apps.py
-----------------------------------------
 from django.apps import AppConfig
 
 class AccountsConfig(AppConfig):
     name = 'accounts'
     verbose_name = '使用者系統'
 
-
+========================================================================
+  [04/29]  accounts/forms.py
 ========================================================================
 
-// FILE: accounts\forms.py
-----------------------------------------
 # ============================================================
 # accounts/forms.py
 # ============================================================
@@ -181,11 +182,10 @@ class UserProfileForm(forms.ModelForm):
             self.fields['last_name'].initial  = user.last_name
             self.fields['email'].initial      = user.email
 
-
+========================================================================
+  [05/29]  accounts/models.py
 ========================================================================
 
-// FILE: accounts\models.py
-----------------------------------------
 # ============================================================
 # accounts/models.py
 # 使用者擴充資料（UserProfile）與角色/權限系統
@@ -289,11 +289,10 @@ class UserActivityLog(models.Model):
 
 
 
-
+========================================================================
+  [06/29]  accounts/urls.py
 ========================================================================
 
-// FILE: accounts\urls.py
-----------------------------------------
 # ============================================================
 # accounts/urls.py
 # ============================================================
@@ -313,11 +312,10 @@ urlpatterns = [
     path('admin/user/<int:user_id>/',views.admin_update_user, name='admin_update_user'),
 ]
 
-
+========================================================================
+  [07/29]  accounts/views.py
 ========================================================================
 
-// FILE: accounts\views.py
-----------------------------------------
 # ============================================================
 # accounts/views.py
 # ============================================================
@@ -550,11 +548,16 @@ def admin_update_user(request, user_id):
     return JsonResponse({'error': '無效的操作'}, status=400)
 
 
-
+========================================================================
+  [08/29]  analyzer/__init__.py
 ========================================================================
 
-// FILE: analyzer\admin.py
-----------------------------------------
+
+
+========================================================================
+  [09/29]  analyzer/admin.py
+========================================================================
+
 # ============================================================
 # analyzer/admin.py
 # ============================================================
@@ -646,11 +649,10 @@ class AnalysisReportAdmin(admin.ModelAdmin):
     list_filter   = ('format',)
     readonly_fields = ('created_at', 'file_size')
 
-
+========================================================================
+  [10/29]  analyzer/apps.py
 ========================================================================
 
-// FILE: analyzer\apps.py
-----------------------------------------
 # ============================================================
 # analyzer/apps.py（修正版）
 #
@@ -788,11 +790,10 @@ class AnalyzerConfig(AppConfig):
 
         threading.Thread(target=_warmup, daemon=True, name='vnaap-warmup').start()
 
-
+========================================================================
+  [11/29]  analyzer/models.py
 ========================================================================
 
-// FILE: analyzer\models.py
-----------------------------------------
 # ============================================================
 # analyzer/models.py
 # 分析任務、告警、CNN 結果、視覺化影像儲存
@@ -1006,11 +1007,10 @@ class AnalysisReport(models.Model):
     def __str__(self):
         return f'Report [{self.format.upper()}] Session {self.session_id}'
 
-
+========================================================================
+  [12/29]  analyzer/tasks.py
 ========================================================================
 
-// FILE: analyzer\tasks.py
-----------------------------------------
 # ============================================================
 # analyzer/tasks.py
 # Celery 非同步任務：封包前處理、規則偵測、CNN 分析、Grad-CAM
@@ -1428,11 +1428,10 @@ def _comparison_png(viz, x_tensor, heatmap):
     plt.close(fig)
     return buf.getvalue()
 
-
+========================================================================
+  [13/29]  analyzer/tests.py
 ========================================================================
 
-// FILE: analyzer\tests.py
-----------------------------------------
 # ============================================================
 # analyzer/tests.py — 配合模擬檢測修正的測試更新
 #
@@ -1767,11 +1766,10 @@ class SimulationFusionTests(TestCase):
             self.assertIsInstance(r['header'], dict)
             self.assertIn('protocol', r['header'])
 
-
+========================================================================
+  [14/29]  analyzer/tests_root_causes.py
 ========================================================================
 
-// FILE: analyzer\tests_root_causes.py
-----------------------------------------
 # -*- coding: utf-8 -*-
 """
 analyzer/tests_root_causes.py
@@ -2475,11 +2473,10 @@ class BackwardCompatibility(_BaseSimTest):
         for field in original_fields:
             self.assertIn(field, data, f"向下相容：舊版欄位 '{field}' 不應消失")
 
-
+========================================================================
+  [15/29]  analyzer/urls.py
 ========================================================================
 
-// FILE: analyzer\urls.py
-----------------------------------------
 # analyzer/urls.py
 from django.urls import path
 from . import views
@@ -2507,11 +2504,10 @@ urlpatterns = [
     path('ai-chat/',                            views.ai_chat,            name='ai_chat'),
 ]
 
-
+========================================================================
+  [16/29]  analyzer/views.py
 ========================================================================
 
-// FILE: analyzer\views.py
-----------------------------------------
 # ============================================================
 # analyzer/views.py
 # ============================================================
@@ -2528,6 +2524,74 @@ from django.views.decorators.http import require_POST
 from .models import AnalysisSession, Alert, CNNResult, GradCAMImage, AnalysisReport
 from .apps import warmup_event
 from projects.models import Project
+import time
+
+
+# ── [根因 2 修正] 依攻擊類型回傳真正相關的規則引擎門檻 ──────────────
+def _relevant_threshold_for(attack_type: str) -> int:
+    """依攻擊類型回傳對應的正式系統門檻（而非永遠回傳 SYN 的 100）。"""
+    import sys as _sys
+    core_path = os.path.join(settings.BASE_DIR, 'core')
+    if core_path not in _sys.path:
+        _sys.path.insert(0, core_path)
+    from config import (
+        ALERT_THRESHOLD_SYN, ALERT_THRESHOLD_PORTS,
+        ALERT_THRESHOLD_ICMP, ALERT_THRESHOLD_UDP,
+    )
+    return {
+        'syn_flood':  ALERT_THRESHOLD_SYN,
+        'port_scan':  ALERT_THRESHOLD_PORTS,
+        'icmp_flood': ALERT_THRESHOLD_ICMP,
+        'udp_flood':  ALERT_THRESHOLD_UDP,
+    }.get(attack_type, ALERT_THRESHOLD_SYN)
+
+
+def _array_to_data_url(arr_2d, upscale=4):
+    """[黑箱修正] 把 32x32 灰階封包影像轉成 base64 PNG data URL。"""
+    import io
+    import base64
+    import numpy as np
+    from PIL import Image
+
+    clipped = np.clip(arr_2d, 0.0, 1.0)
+    img = Image.fromarray((clipped * 255).astype('uint8'), mode='L')
+    if upscale > 1:
+        img = img.resize((img.width * upscale, img.height * upscale), Image.NEAREST)
+    buf = io.BytesIO()
+    img.save(buf, format='PNG')
+    return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+
+
+def _select_display_indices(behavior_result, total, cap=400):
+    """[效能] 保留觸發規則的封包 + 等距抽樣其餘封包，最多 cap 筆。"""
+    triggered = [i for i, alerts in enumerate(behavior_result['packet_alerts']) if alerts]
+    if total <= cap:
+        return list(range(total))
+    triggered_set = set(triggered)
+    remaining_budget = max(0, cap - len(triggered_set))
+    others = [i for i in range(total) if i not in triggered_set]
+    sampled = []
+    if remaining_budget > 0 and others:
+        step = max(1, len(others) // remaining_budget)
+        sampled = others[::step][:remaining_budget]
+    idx = sorted(triggered_set.union(sampled))
+    return idx[:cap]
+
+
+# [黑箱修正] CNN 可信度說明
+_CNN_RELIABILITY_NOTE_CSV_LEGACY = (
+    '目前選用的 CNN/VAE 模型是以 CSV 流量特徵（如 CICIDS2017/NSL-KDD 的'
+    '統計欄位）訓練而成；本頁送入模型的則是「原始封包位元組」，兩者影像'
+    '的統計分布並不相同（train/serve skew）。因此 CNN 分數在這裡僅供參考，'
+    '最終判定請優先參考下方「規則式流量型樣偵測」的結果。'
+)
+_CNN_RELIABILITY_NOTE_PACKET_NATIVE = (
+    '此模型已使用與本頁一致的「封包位元組影像」表示法訓練，CNN/VAE 分數'
+    '具備參考意義。惟系統仍以「規則式流量型樣偵測」作為最終判定的唯一依據。'
+)
+_CNN_RELIABILITY_NOTE = _CNN_RELIABILITY_NOTE_CSV_LEGACY
+
+
 
 
 # ── Dashboard ────────────────────────────────────────────────
@@ -2875,15 +2939,23 @@ def _check_session_access(request, session):
 
 
 # ── 異常封包模擬檢測 ─────────────────────────────────────────
+# ── 允許的攻擊場景白名單 ─────────────────────────────────────────
+SIMULATION_ATTACK_TYPES = {
+    'syn_flood', 'port_scan', 'icmp_flood', 'udp_flood',
+    'arp_spoof', 'dns_amplification', 'normal_traffic',
+}
+
+# ── 模擬 PCAP 檔名合法字元驗證 ──────────────────────────────────
+import re as _re
+SIMULATION_FILENAME_RE = _re.compile(r'^sim_[a-z0-9_]+_\d{14}_[a-f0-9]{8}\.pcap$')
+
+
 @login_required
 def simulation(request):
-    """異常封包模擬檢測頁面 — 支援預設攻擊場景和自訂封包。
+    """異常封包模擬檢測頁面。
 
-    [根因修正] 舊版沒有把 models 放進 context，導致 simulation.html 中
-    的模型下拉選單永遠是空的（{% for model in models %} 對空清單靜默略過）。
-    修正：實際掃描 settings.ANOMALY_MODELS 並傳入 models 清單。
-    同時修正 model_ready：改為檢查 ANOMALY_MODELS 中至少一個檔案存在，
-    不再檢查與 4 選 1 架構無關的舊版 CNN_MODEL_PATH。
+    [根因修正] 舊版沒有把 models 放進 context，導致模型下拉選單永遠空白。
+    修正：實際掃描 settings.ANOMALY_MODELS，組成 models 清單傳給樣板。
     """
     models = []
     for key, cfg in settings.ANOMALY_MODELS.items():
@@ -2893,9 +2965,7 @@ def simulation(request):
             'label': cfg.get('label', key),
             'ready': bool(path and os.path.exists(path)),
         })
-
     model_ready = any(m['ready'] for m in models)
-
     return render(request, 'analyzer/simulation.html', {
         'model_ready':    model_ready,
         'models':         models,
@@ -2904,90 +2974,365 @@ def simulation(request):
     })
 
 
+@login_required
+def simulation_api(request):
+    """模擬檢測 AJAX 端點（v2）。
 
-# ── 模擬檢測支援常數與輔助函式 ────────────────────────────
-import re as _re
+    與前一版相比的四項核心修正：
 
-SIMULATION_ATTACK_TYPES = {
-    'syn_flood':          'SYN Flood',
-    'port_scan':          'Port Scan',
-    'icmp_flood':         'ICMP Flood',
-    'arp_spoof':          'ARP Spoofing',
-    'dns_amplification':  'DNS Amplification',
-    'udp_flood':          'UDP Flood',
-    'normal_traffic':     'Normal Traffic',
-}
+    [根因 1／已存在，保留] 最終「攻擊／正常」判定只由規則式流量
+        型樣偵測（AnomalyDetector）決定，CNN／VAE 分數只作為每筆
+        封包旁的參考數值。理由不變：目前多數已部署模型是以 CSV
+        統計特徵訓練，套用在這裡送入的「原始封包位元組」影像上，
+        重建誤差不具判斷力（train/serve skew）。
 
-SIMULATION_FILENAME_RE = _re.compile(r'^sim_[a-z_]+_\d{8}_\d{6}_[a-f0-9]{8}\.pcap$')
+    [根因 2／本次新修正] 封包產生邏輯改用
+        core/simulate_anomaly_traffic.py 的 GENERATORS（見同批修正
+        的 simulate_anomaly_traffic_PATCH.py），其 bulk_scale() 會
+        依「正式系統門檻 + 隨機安全margin」反推需要產生的封包數，
+        保證只要強度落在允許範圍內，攻擊封包數量『一定』超過規則
+        引擎的正式門檻。這直接修正了舊版「選 SYN Flood / UDP Flood
+        但因為滑桿預設值/上限本來就低於正式門檻，導致模擬結果一律
+        顯示正常」的問題 —— 該問題出在「模擬封包產生器給的資料量
+        不足」，不是規則引擎判斷錯誤。
 
+    [黑箱修正] 新增：
+        - sample_visual：模型實際看到的封包影像（base64 PNG），
+          與正常流量基準線平均影像並排，可直接比對。
+        - timing_ms：逐階段耗時（封包產生 / 規則引擎 / 模型載入 /
+          CNN 推論），並附上 model_was_cached 與
+          server_warmup_complete，讓「第一次模擬比較慢」有明確、
+          可驗證的解釋。
+        - comparison_summary：規則引擎判定 vs CNN 參考判定的量化
+          比對摘要。
+        - model_representation：本次使用的模型是用「封包位元組」
+          還是「CSV 特徵」訓練的，讓 CNN 分數的可信度說明能動態
+          反映實際狀況，而不是永遠顯示同一句警語。
 
+    [向下相容] 請求仍接受舊版的 packet_count 欄位（會換算成大致對應
+        的 intensity），也接受新的 intensity 欄位（0.3~3.0，1.0為
+        預設強度）；既有呼叫端（例如 analyzer/tests.py 的既有測試）
+        不需要修改即可繼續運作。
+    """
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': '僅接受 POST'}, status=405)
 
-# ── [根因 2 修正] 依攻擊類型回傳真正相關的正式門檻 ──────────────
-def _relevant_threshold_for(attack_type: str) -> int:
-    import sys as _sys
-    _core = os.path.join(settings.BASE_DIR, 'core')
-    if _core not in _sys.path:
-        _sys.path.insert(0, _core)
-    from config import (
-        ALERT_THRESHOLD_SYN, ALERT_THRESHOLD_PORTS,
-        ALERT_THRESHOLD_ICMP, ALERT_THRESHOLD_UDP,
-    )
-    return {
-        'syn_flood':  ALERT_THRESHOLD_SYN,
-        'port_scan':  ALERT_THRESHOLD_PORTS,
-        'icmp_flood': ALERT_THRESHOLD_ICMP,
-        'udp_flood':  ALERT_THRESHOLD_UDP,
-    }.get(attack_type, ALERT_THRESHOLD_SYN)
+    try:
+        data = json.loads(request.body)
+    except (json.JSONDecodeError, ValueError) as e:
+        return JsonResponse({'ok': False, 'error': f'JSON 解析失敗：{e}'}, status=400)
 
+    t_request_start = time.perf_counter()
+    timing = {}
 
-def _array_to_data_url(arr_2d, upscale=4):
-    """[黑箱修正] 把模型實際看到的 32x32 封包影像轉成 base64 PNG data URL。"""
-    import io, base64
-    import numpy as np
-    from PIL import Image
-    clipped = np.clip(arr_2d, 0.0, 1.0)
-    img = Image.fromarray((clipped * 255).astype('uint8'), mode='L')
-    if upscale > 1:
-        img = img.resize((img.width * upscale, img.height * upscale), Image.NEAREST)
-    buf = io.BytesIO()
-    img.save(buf, format='PNG')
-    return 'data:image/png;base64,' + base64.b64encode(buf.getvalue()).decode('ascii')
+    attack_type = data.get('attack_type', 'syn_flood')
+    model_key = data.get('model_key') or 'unsupervised_vae'
 
+    if model_key not in settings.ANOMALY_MODELS:
+        return JsonResponse({'ok': False, 'error': '不支援的模型選擇'}, status=400)
+    if attack_type not in SIMULATION_ATTACK_TYPES:
+        return JsonResponse({'ok': False, 'error': '不支援的攻擊場景'}, status=400)
 
-def _select_display_indices(behavior_result, total, cap=400):
-    """[效能] 保留觸發規則的封包，其餘等距抽樣，上限 cap 筆。"""
-    triggered = [i for i, alerts in enumerate(behavior_result['packet_alerts']) if alerts]
-    if total <= cap:
-        return list(range(total))
-    triggered_set = set(triggered)
-    remaining_budget = max(0, cap - len(triggered_set))
-    others = [i for i in range(total) if i not in triggered_set]
-    sampled = []
-    if remaining_budget > 0 and others:
-        step = max(1, len(others) // remaining_budget)
-        sampled = others[::step][:remaining_budget]
-    idx = sorted(triggered_set.union(sampled))
-    return idx[:cap]
+    # ── 強度（取代舊版直接輸入封包數量的欄位）──────────────────
+    # 換算規則：若前端有帶新版 intensity 就直接用；否則若帶舊版
+    # packet_count，除以舊版滑桿預設值 60 粗略換算成強度倍率，
+    # 確保既有呼叫端不會壞掉；都沒帶則預設 1.0。
+    try:
+        if 'intensity' in data:
+            intensity = float(data.get('intensity'))
+        elif 'packet_count' in data:
+            intensity = float(data.get('packet_count')) / 60.0
+        else:
+            intensity = 1.0
+    except (TypeError, ValueError):
+        intensity = 1.0
+    intensity = min(max(intensity, 0.3), 3.0)
 
+    try:
+        import sys
+        core_path = os.path.join(settings.BASE_DIR, 'core')
+        if core_path not in sys.path:
+            sys.path.insert(0, core_path)
 
-# [新增] CNN 分數可信度說明 —— 依模型訓練資料表示法動態選用
-_CNN_RELIABILITY_NOTE_CSV_LEGACY = (
-    '目前選用的 CNN／VAE 模型是以 CSV 流量特徵（如 CICIDS2017／NSL-KDD 的'
-    '統計欄位）訓練而成；本頁與正式 PCAP 分析管線送入模型的則是「原始封包'
-    '位元組」（經 PacketVisualizer 轉換），兩者影像的統計分布並不相同，屬於'
-    '訓練/服務資料表示法不一致（train/serve skew）。因此 CNN 分數在這裡'
-    '僅供參考，不宜單獨作為攻擊／正常的判斷依據，請優先參考下方「規則式'
-    '流量型樣偵測」的結果。'
-)
+        from simulate_anomaly_traffic import GENERATORS
+        from scapy.all import raw as scapy_raw
 
-_CNN_RELIABILITY_NOTE_PACKET_NATIVE = (
-    '此模型已使用與本頁、與正式 PCAP 分析管線一致的「封包位元組影像」'
-    '表示法訓練，CNN／VAE 分數具備參考意義。惟為求判定結果一致、可解釋，'
-    '系統目前仍以下方「規則式流量型樣偵測」作為最終判定的唯一依據，'
-    'CNN 分數僅作輔助對照，尚未計入最終判定。'
-)
+        # ── Step 1：產生模擬封包 ──────────────────────────────
+        t0 = time.perf_counter()
+        _label, gen_fn = GENERATORS[attack_type]
+        scapy_packets, gen_meta = gen_fn(scale=intensity)
 
-_CNN_RELIABILITY_NOTE = _CNN_RELIABILITY_NOTE_CSV_LEGACY  # 向下相容
+        # 安全上限：intensity 拉到 3.0 時，多來源 SYN Flood 等場景
+        # 可能產生上千筆封包；規則引擎逐筆處理仍然很快（純 dict/
+        # 計數器操作），這裡的上限主要是避免極端情況下佔用過多記憶體。
+        MAX_TOTAL_PACKETS = 2000
+        packet_count_truncated = False
+        if len(scapy_packets) > MAX_TOTAL_PACKETS:
+            scapy_packets = scapy_packets[:MAX_TOTAL_PACKETS]
+            packet_count_truncated = True
+
+        raw_packets = []
+        for pkt in scapy_packets:
+            try:
+                raw_packets.append(scapy_raw(pkt))
+            except Exception:
+                raw_packets.append(bytes(pkt))
+        timing['packet_generation_ms'] = round((time.perf_counter() - t0) * 1000, 1)
+
+        # ── Step 2：規則式偵測：永遠是最終判定的唯一依據 ────────
+        t1 = time.perf_counter()
+        behavior_result = _detect_simulation_behavior(
+            scapy_packets=scapy_packets,
+            attack_type=attack_type,
+            packet_count=len(scapy_packets),
+        )
+        behavior_anomaly = behavior_result['is_attack']
+        timing['rule_engine_ms'] = round((time.perf_counter() - t1) * 1000, 1)
+
+        total_all = len(scapy_packets)
+        display_indices = _select_display_indices(behavior_result, total_all, cap=400)
+
+        results = []
+        baseline_info = None
+        effective_threshold = None
+        model_threshold = None
+        dynamic_threshold = None
+        model_representation = None
+        selected_model = settings.ANOMALY_MODELS[model_key]
+        model_path = selected_model['path']
+        model_used = bool(model_path and os.path.exists(str(model_path)))
+        sample_visual = None
+        anomaly_count = 0
+        avg_score = 0.0
+
+        if model_used:
+            from packet_visualizer import PacketVisualizer
+            import torch
+            import numpy as np
+            from model_registry import load_anomaly_model, compute_anomaly_scores, is_model_cached
+
+            device = torch.device('cpu')
+            was_cached = is_model_cached(str(model_path), device)
+
+            t2 = time.perf_counter()
+            bundle = load_anomaly_model(
+                str(model_path), device=device,
+                default_latent_dim=settings.CNN_LATENT_DIM,
+            )
+            timing['model_load_ms'] = round((time.perf_counter() - t2) * 1000, 1)
+            timing['model_was_cached'] = was_cached
+
+            model = bundle.model
+            model_representation = bundle.input_representation
+            visualizer = PacketVisualizer("medium", apply_mask=True)
+
+            t3 = time.perf_counter()
+
+            # ── 基準線：即時產生一批正常流量，計算動態閾值 ──────
+            BASELINE_SAMPLE_COUNT = 60
+            _, normal_gen = GENERATORS['normal_traffic']
+            baseline_pkts, _bmeta = normal_gen(scale=BASELINE_SAMPLE_COUNT / 30.0)
+            baseline_raw = []
+            for pkt in baseline_pkts:
+                try:
+                    baseline_raw.append(scapy_raw(pkt))
+                except Exception:
+                    baseline_raw.append(bytes(pkt))
+
+            baseline_arrs = np.array([
+                visualizer.bytes_to_image(b) for b in baseline_raw
+            ], dtype=np.float32)
+            baseline_tensor = torch.from_numpy(baseline_arrs[:, np.newaxis])
+
+            with torch.no_grad():
+                baseline_errors = model.reconstruction_error(baseline_tensor).numpy()
+
+            baseline_mean = float(baseline_errors.mean())
+            baseline_std = float(baseline_errors.std())
+            dynamic_threshold = float(np.percentile(baseline_errors, 95))
+            model_threshold = float(bundle.threshold)
+
+            baseline_info = {
+                'sample_count': len(baseline_errors),
+                'mean': round(baseline_mean, 8),
+                'std': round(baseline_std, 8),
+                'dynamic_threshold': round(dynamic_threshold, 8),
+                'static_threshold': round(model_threshold, 8),
+                'scores': [round(float(s), 8) for s in baseline_errors.tolist()],
+            }
+
+            target_arrs = np.array([
+                visualizer.bytes_to_image(b) for b in raw_packets
+            ], dtype=np.float32)
+            scored = compute_anomaly_scores(bundle, target_arrs)
+
+            if bundle.is_hybrid:
+                cnn_anomaly = scored['is_anomaly'].copy()
+                effective_threshold = model_threshold
+            else:
+                effective_threshold = float(np.percentile(baseline_errors, 99))
+                cnn_anomaly = (scored['score'] > effective_threshold)
+
+            # [根因 1，維持] 最終判定只看規則引擎，不受 CNN 分數影響。
+            final_anomaly = np.full(total_all, behavior_anomaly, dtype=bool)
+            scored['is_anomaly'] = final_anomaly
+            timing['cnn_inference_ms'] = round((time.perf_counter() - t3) * 1000, 1)
+
+            anomaly_count = int(final_anomaly.sum())
+            avg_score = float(scored['score'].mean()) if total_all else 0.0
+
+            # ── [黑箱修正] 把模型實際看到的影像畫出來 ─────────────
+            worst_idx = int(np.argmax(scored['score'])) if total_all else 0
+            baseline_avg_img = baseline_arrs.mean(axis=0)
+            sample_visual = {
+                'most_anomalous_packet_index': worst_idx,
+                'most_anomalous_packet_score': round(float(scored['score'][worst_idx]), 8) if total_all else None,
+                'most_anomalous_image': _array_to_data_url(target_arrs[worst_idx]) if total_all else None,
+                'baseline_average_image': _array_to_data_url(baseline_avg_img),
+                'note': (
+                    '左圖為本次模擬中 CNN／VAE 重建誤差最高的一張封包影像，'
+                    '右圖為基準線（正常流量）平均影像；模型是否具備判斷力，'
+                    '取決於兩張影像的統計結構差異是否確實對應真實的封包特徵，'
+                    '而不是只看分數本身。'
+                ),
+            }
+
+            for i in display_indices:
+                score = scored['score'][i]
+                pkt_alerts = behavior_result['packet_alerts'][i]
+                entry = {
+                    'index': i,
+                    'score': round(float(score), 8),
+                    'cnn_anomaly': bool(cnn_anomaly[i]),
+                    'behavior_anomaly': bool(behavior_anomaly),
+                    'is_anomaly': bool(final_anomaly[i]),
+                    'size': len(raw_packets[i]),
+                    'summary': scapy_packets[i].summary(),
+                    'header': behavior_result['packet_records'][i],
+                    'rule_triggered_here': bool(pkt_alerts),
+                    'rule_detail': [
+                        {'attack_type': a.get('attack_type'),
+                         'severity': a.get('severity'),
+                         'detail': a.get('detail')}
+                        for a in pkt_alerts
+                    ],
+                }
+
+                if pkt_alerts:
+                    entry['detection_reason'] = pkt_alerts[0].get('attack_type', attack_type)
+                elif behavior_anomaly:
+                    entry['detection_reason'] = behavior_result['attack_type'] or attack_type
+                elif cnn_anomaly[i]:
+                    entry['detection_reason'] = 'CNN/VAE 分數偏高（僅供參考，未計入最終判定）'
+                else:
+                    entry['detection_reason'] = 'normal'
+
+                if bundle.is_hybrid:
+                    entry['status'] = scored['status'][i]
+                    entry['known_confidence'] = round(float(scored['known_confidence'][i]), 4)
+                results.append(entry)
+        else:
+            timing['model_load_ms'] = 0.0
+            timing['cnn_inference_ms'] = 0.0
+            timing['model_was_cached'] = None
+            import random as _random
+            threshold = settings.CNN_THRESHOLD
+            is_normal = (attack_type == 'normal_traffic')
+
+            all_scores = []
+            for i in range(total_all):
+                sim_score = (_random.uniform(threshold * 0.05, threshold * 0.85) if is_normal
+                             else _random.uniform(threshold * 2.0, threshold * 15.0))
+                all_scores.append(sim_score)
+            anomaly_count = total_all if behavior_anomaly else 0
+            avg_score = sum(all_scores) / max(total_all, 1)
+
+            for i in display_indices:
+                pkt_alerts = behavior_result['packet_alerts'][i]
+                cnn_anom = all_scores[i] > threshold
+                results.append({
+                    'index': i,
+                    'score': round(all_scores[i], 8),
+                    'cnn_anomaly': cnn_anom,
+                    'behavior_anomaly': behavior_anomaly,
+                    'is_anomaly': behavior_anomaly,
+                    'size': len(raw_packets[i]),
+                    'summary': scapy_packets[i].summary(),
+                    'header': behavior_result['packet_records'][i],
+                    'rule_triggered_here': bool(pkt_alerts),
+                    'rule_detail': [
+                        {'attack_type': a.get('attack_type'),
+                         'severity': a.get('severity'),
+                         'detail': a.get('detail')}
+                        for a in pkt_alerts
+                    ],
+                })
+
+        pcap_filename = _save_simulation_pcap(request.user, attack_type, scapy_packets)
+        timing['total_ms'] = round((time.perf_counter() - t_request_start) * 1000, 1)
+
+        # ── [黑箱修正] 規則引擎 vs CNN 參考判定的量化比對摘要 ─────
+        cnn_flagged = sum(1 for r in results if r.get('cnn_anomaly'))
+        comparison_summary = {
+            'rule_engine_verdict': bool(behavior_anomaly),
+            'rule_engine_alert_count': len(behavior_result['alerts']),
+            'cnn_reference_flagged_count_in_sample': cnn_flagged,
+            'cnn_reference_sample_size': len(results),
+            'agree': bool(behavior_anomaly) == bool(cnn_flagged > 0),
+            'authoritative_source': 'rule_engine',
+        }
+
+        reliability_note = _CNN_RELIABILITY_NOTE_CSV_LEGACY
+        if model_representation == 'packet_bytes_visualizer':
+            reliability_note = _CNN_RELIABILITY_NOTE_PACKET_NATIVE
+
+        return JsonResponse({
+            'ok': True,
+            'attack_type': attack_type,
+            'intensity': round(intensity, 2),
+            'packet_count': total_all,
+            'packet_count_displayed': len(results),
+            'packet_count_truncated': packet_count_truncated,
+            'generation_meta': gen_meta,
+            'model_used': model_used,
+            'model_representation': model_representation,
+            'effective_threshold': round(effective_threshold, 8) if effective_threshold is not None else None,
+            'threshold': round(model_threshold, 8) if model_threshold is not None else settings.CNN_THRESHOLD,
+            'dynamic_threshold': round(dynamic_threshold, 8) if dynamic_threshold is not None else None,
+            'static_threshold': settings.CNN_THRESHOLD,
+            'cnn_reliability_note': reliability_note,
+            'final_verdict_note': (
+                '最終「攻擊／正常」判定僅由下方「規則式流量型樣偵測」決定；'
+                'CNN／VAE 分數僅顯示於每筆封包旁作為參考，不影響此判定。'
+            ),
+            'comparison_summary': comparison_summary,
+            'sample_visual': sample_visual,
+            'timing_ms': timing,
+            'server_warmup_complete': bool(warmup_event.is_set()),
+            'behavior_detection': {
+                'is_attack': behavior_result['is_attack'],
+                'attack_type': behavior_result['attack_type'],
+                'threshold': behavior_result['threshold'],
+                'thresholds': behavior_result['thresholds'],
+                'triggered_index': behavior_result['triggered_index'],
+                'forced_by_demo_shortcut': behavior_result['forced_by_demo_shortcut'],
+                'alert_count': len(behavior_result['alerts']),
+                'alerts': behavior_result['alerts'],
+            },
+            'baseline': baseline_info,
+            'results': results,
+            'avg_score': round(avg_score, 8),
+            'anomaly_count': anomaly_count,
+            'rule_based_anomaly_detected': behavior_result['is_attack'],
+            'pcap_download_url': request.build_absolute_uri(
+                reverse('analyzer:simulation_pcap_download', args=[pcap_filename])),
+            'pcap_filename': pcap_filename,
+            'pcap_backup_saved': True,
+        })
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return JsonResponse({'ok': False, 'error': f'{type(e).__name__}: {str(e)}'}, status=500)
 
 def _save_simulation_pcap(user, attack_type, scapy_packets):
     """將模擬封包儲存為 PCAP 檔案，回傳檔名。"""
@@ -3009,14 +3354,21 @@ def _save_simulation_pcap(user, attack_type, scapy_packets):
 def _detect_simulation_behavior(scapy_packets, attack_type, packet_count):
     """規則式（流量型樣）偵測。
 
-    [fix0904 修正] 'threshold' 欄位改依 attack_type 回傳對應的正式門檻，
-    不再永遠回傳 ALERT_THRESHOLD_SYN（100），避免模擬 UDP Flood 時
-    回傳不相關的 SYN 門檻值。其餘判定邏輯不變。
+    回傳欄位：
+      is_attack                規則引擎的真實判定（不再有任何強制/保底）
+      attack_type               觸發的攻擊類型描述
+      alerts                     觸發的告警列表
+      packet_alerts               每個封包各自觸發的告警
+      packet_records               每個封包解析後的關鍵標頭欄位
+      triggered_index              規則第一次觸發的封包索引
+      forced_by_demo_shortcut      恆為 False（保留欄位以維持前端相容）
+      thresholds                    本次套用的真實系統門檻字典
+      threshold                     依 attack_type 回傳對應的正式門檻
     """
-    import sys
+    import sys as _sys
     core_path = os.path.join(settings.BASE_DIR, 'core')
-    if core_path not in sys.path:
-        sys.path.insert(0, core_path)
+    if core_path not in _sys.path:
+        _sys.path.insert(0, core_path)
 
     from anomaly_detector import AnomalyDetector
     from parser import PacketParser
@@ -3086,344 +3438,9 @@ def _detect_simulation_behavior(scapy_packets, attack_type, packet_count):
             'syn': ALERT_THRESHOLD_SYN, 'ports': ALERT_THRESHOLD_PORTS,
             'icmp': ALERT_THRESHOLD_ICMP, 'udp': ALERT_THRESHOLD_UDP,
         },
-        # [fix0904 修正] 依攻擊類型回傳相關門檻
+        # [修正] 依攻擊類型回傳相關門檻，不再永遠是 SYN 的 100
         'threshold': _relevant_threshold_for(attack_type),
     }
-
-
-# [新增] CNN 分數可信度說明。集中成常數方便日後模型換成
-# packet-level 訓練後統一調整/移除此提示。
-_CNN_RELIABILITY_NOTE = (
-    '目前部署的 CNN／VAE 模型是以 CSV 流量特徵（如 CICIDS2017／NSL-KDD 的'
-    '統計欄位）訓練而成；本頁與正式 PCAP 分析管線送入模型的則是「原始封包'
-    '位元組」（經 PacketVisualizer 轉換），兩者影像的統計分布並不相同，屬於'
-    '訓練/服務資料表示法不一致。因此 CNN 分數在這裡僅供參考，不宜單獨作為'
-    '攻擊／正常的判斷依據，請優先參考下方「規則式流量型樣偵測」的結果。'
-)
-
-
-@login_required
-def simulation_api(request):
-    """模擬檢測 AJAX 端點（fix0904 版）。
-
-    [fix0904] 核心修正：
-    1. 改用 core/simulate_anomaly_traffic.py::GENERATORS 產生封包，
-       bulk_scale() 依正式門檻自動反推封包量，保證能觸發規則引擎。
-    2. 前端改傳 intensity（0.3~3.0），向下相容舊版 packet_count。
-    3. 新增 sample_visual（封包影像 base64 PNG）、timing_ms（逐階段耗時）、
-       comparison_summary、model_representation，徹底解決黑箱問題。
-    4. is_anomaly 最終判定仍只依規則引擎，CNN 分數為輔助參考。
-    """
-    if request.method != 'POST':
-        return JsonResponse({'ok': False, 'error': '僅接受 POST'}, status=405)
-
-    try:
-        data = json.loads(request.body)
-    except (json.JSONDecodeError, ValueError) as e:
-        return JsonResponse({'ok': False, 'error': f'JSON 解析失敗：{e}'}, status=400)
-
-    t_request_start = time.perf_counter()
-    timing = {}
-
-    attack_type = data.get('attack_type', 'syn_flood')
-    model_key = data.get('model_key') or 'unsupervised_vae'
-
-    if model_key not in settings.ANOMALY_MODELS:
-        return JsonResponse({'ok': False, 'error': '不支援的模型選擇'}, status=400)
-    if attack_type not in SIMULATION_ATTACK_TYPES:
-        return JsonResponse({'ok': False, 'error': '不支援的攻擊場景'}, status=400)
-
-    # 強度：新版 intensity 或舊版 packet_count 換算
-    try:
-        if 'intensity' in data:
-            intensity = float(data.get('intensity'))
-        elif 'packet_count' in data:
-            intensity = float(data.get('packet_count')) / 60.0
-        else:
-            intensity = 1.0
-    except (TypeError, ValueError):
-        intensity = 1.0
-    intensity = min(max(intensity, 0.3), 3.0)
-
-    try:
-        import sys
-        core_path = os.path.join(settings.BASE_DIR, 'core')
-        if core_path not in sys.path:
-            sys.path.insert(0, core_path)
-
-        from simulate_anomaly_traffic import GENERATORS
-        from scapy.all import raw as scapy_raw
-
-        # ── Step 1：產生模擬封包（用 simulate_anomaly_traffic，確保數量超過門檻）
-        t0 = time.perf_counter()
-        _label, gen_fn = GENERATORS[attack_type]
-        scapy_packets, gen_meta = gen_fn(scale=intensity)
-
-        MAX_TOTAL_PACKETS = 2000
-        packet_count_truncated = False
-        if len(scapy_packets) > MAX_TOTAL_PACKETS:
-            scapy_packets = scapy_packets[:MAX_TOTAL_PACKETS]
-            packet_count_truncated = True
-
-        raw_packets = []
-        for pkt in scapy_packets:
-            try:
-                raw_packets.append(scapy_raw(pkt))
-            except Exception:
-                raw_packets.append(bytes(pkt))
-        timing['packet_generation_ms'] = round((time.perf_counter() - t0) * 1000, 1)
-
-        # ── Step 2：規則式偵測（最終判定的唯一依據）
-        t1 = time.perf_counter()
-        behavior_result = _detect_simulation_behavior(
-            scapy_packets=scapy_packets,
-            attack_type=attack_type,
-            packet_count=len(scapy_packets),
-        )
-        behavior_anomaly = behavior_result['is_attack']
-        timing['rule_engine_ms'] = round((time.perf_counter() - t1) * 1000, 1)
-
-        total_all = len(scapy_packets)
-        display_indices = _select_display_indices(behavior_result, total_all, cap=400)
-
-        results = []
-        baseline_info = None
-        effective_threshold = None
-        model_threshold = None
-        dynamic_threshold = None
-        model_representation = None
-        selected_model = settings.ANOMALY_MODELS[model_key]
-        model_path = selected_model['path']
-        model_used = bool(model_path and os.path.exists(str(model_path)))
-        sample_visual = None
-        anomaly_count = 0
-        avg_score = 0.0
-
-        if model_used:
-            from packet_visualizer import PacketVisualizer
-            import torch
-            import numpy as np
-            from model_registry import load_anomaly_model, compute_anomaly_scores, is_model_cached
-
-            device = torch.device('cpu')
-            was_cached = is_model_cached(str(model_path), device)
-
-            t2 = time.perf_counter()
-            bundle = load_anomaly_model(
-                str(model_path), device=device,
-                default_latent_dim=settings.CNN_LATENT_DIM,
-            )
-            timing['model_load_ms'] = round((time.perf_counter() - t2) * 1000, 1)
-            timing['model_was_cached'] = was_cached
-
-            model = bundle.model
-            model_representation = bundle.input_representation
-            visualizer = PacketVisualizer("medium", apply_mask=True)
-
-            t3 = time.perf_counter()
-
-            # 基準線：正常流量 60 筆，計算動態 CNN 閾值
-            BASELINE_SAMPLE_COUNT = 60
-            _, normal_gen = GENERATORS['normal_traffic']
-            baseline_pkts, _bmeta = normal_gen(scale=BASELINE_SAMPLE_COUNT / 30.0)
-            baseline_raw = []
-            for pkt in baseline_pkts:
-                try:
-                    baseline_raw.append(scapy_raw(pkt))
-                except Exception:
-                    baseline_raw.append(bytes(pkt))
-
-            baseline_arrs = np.array([
-                visualizer.bytes_to_image(b) for b in baseline_raw
-            ], dtype=np.float32)
-            baseline_tensor = torch.from_numpy(baseline_arrs[:, np.newaxis])
-
-            with torch.no_grad():
-                baseline_errors = model.reconstruction_error(baseline_tensor).numpy()
-
-            baseline_mean = float(baseline_errors.mean())
-            baseline_std = float(baseline_errors.std())
-            dynamic_threshold = float(np.percentile(baseline_errors, 95))
-            model_threshold = float(bundle.threshold)
-
-            baseline_info = {
-                'sample_count': len(baseline_errors),
-                'mean': round(baseline_mean, 8),
-                'std': round(baseline_std, 8),
-                'dynamic_threshold': round(dynamic_threshold, 8),
-                'static_threshold': round(model_threshold, 8),
-                'scores': [round(float(s), 8) for s in baseline_errors.tolist()],
-            }
-
-            target_arrs = np.array([
-                visualizer.bytes_to_image(b) for b in raw_packets
-            ], dtype=np.float32)
-            scored = compute_anomaly_scores(bundle, target_arrs)
-
-            if bundle.is_hybrid:
-                cnn_anomaly = scored['is_anomaly'].copy()
-                effective_threshold = model_threshold
-            else:
-                effective_threshold = float(np.percentile(baseline_errors, 99))
-                cnn_anomaly = (scored['score'] > effective_threshold)
-
-            # [根因 1，維持] 最終判定只看規則引擎
-            final_anomaly = np.full(total_all, behavior_anomaly, dtype=bool)
-            scored['is_anomaly'] = final_anomaly
-            timing['cnn_inference_ms'] = round((time.perf_counter() - t3) * 1000, 1)
-
-            anomaly_count = int(final_anomaly.sum())
-            avg_score = float(scored['score'].mean()) if total_all else 0.0
-
-            # [黑箱修正] 封包影像視覺化
-            worst_idx = int(np.argmax(scored['score'])) if total_all else 0
-            baseline_avg_img = baseline_arrs.mean(axis=0)
-            sample_visual = {
-                'most_anomalous_packet_index': worst_idx,
-                'most_anomalous_packet_score': round(float(scored['score'][worst_idx]), 8) if total_all else None,
-                'most_anomalous_image': _array_to_data_url(target_arrs[worst_idx]) if total_all else None,
-                'baseline_average_image': _array_to_data_url(baseline_avg_img),
-                'note': (
-                    '左圖為本次模擬中 CNN／VAE 重建誤差最高的封包影像，'
-                    '右圖為基準線（正常流量）平均影像；兩者差異程度反映模型'
-                    '對此次攻擊封包的「陌生感」。'
-                ),
-            }
-
-            for i in display_indices:
-                score = scored['score'][i]
-                pkt_alerts = behavior_result['packet_alerts'][i]
-                entry = {
-                    'index': i,
-                    'score': round(float(score), 8),
-                    'cnn_anomaly': bool(cnn_anomaly[i]),
-                    'behavior_anomaly': bool(behavior_anomaly),
-                    'is_anomaly': bool(final_anomaly[i]),
-                    'size': len(raw_packets[i]),
-                    'summary': scapy_packets[i].summary(),
-                    'header': behavior_result['packet_records'][i],
-                    'rule_triggered_here': bool(pkt_alerts),
-                    'rule_detail': [
-                        {'attack_type': a.get('attack_type'),
-                         'severity': a.get('severity'),
-                         'detail': a.get('detail')}
-                        for a in pkt_alerts
-                    ],
-                }
-                if pkt_alerts:
-                    entry['detection_reason'] = pkt_alerts[0].get('attack_type', attack_type)
-                elif behavior_anomaly:
-                    entry['detection_reason'] = behavior_result['attack_type'] or attack_type
-                elif cnn_anomaly[i]:
-                    entry['detection_reason'] = 'CNN/VAE 分數偏高（僅供參考，未計入最終判定）'
-                else:
-                    entry['detection_reason'] = 'normal'
-
-                if bundle.is_hybrid:
-                    entry['status'] = scored['status'][i]
-                    entry['known_confidence'] = round(float(scored['known_confidence'][i]), 4)
-                results.append(entry)
-        else:
-            timing['model_load_ms'] = 0.0
-            timing['cnn_inference_ms'] = 0.0
-            timing['model_was_cached'] = None
-            import random as _random
-            threshold = settings.CNN_THRESHOLD
-            is_normal = (attack_type == 'normal_traffic')
-
-            all_scores = []
-            for i in range(total_all):
-                sim_score = (_random.uniform(threshold * 0.05, threshold * 0.85) if is_normal
-                             else _random.uniform(threshold * 2.0, threshold * 15.0))
-                all_scores.append(sim_score)
-            anomaly_count = total_all if behavior_anomaly else 0
-            avg_score = sum(all_scores) / max(total_all, 1)
-
-            for i in display_indices:
-                pkt_alerts = behavior_result['packet_alerts'][i]
-                cnn_anom = all_scores[i] > threshold
-                results.append({
-                    'index': i,
-                    'score': round(all_scores[i], 8),
-                    'cnn_anomaly': cnn_anom,
-                    'behavior_anomaly': behavior_anomaly,
-                    'is_anomaly': behavior_anomaly,
-                    'size': len(raw_packets[i]),
-                    'summary': scapy_packets[i].summary(),
-                    'header': behavior_result['packet_records'][i],
-                    'rule_triggered_here': bool(pkt_alerts),
-                    'rule_detail': [
-                        {'attack_type': a.get('attack_type'),
-                         'severity': a.get('severity'),
-                         'detail': a.get('detail')}
-                        for a in pkt_alerts
-                    ],
-                })
-
-        pcap_filename = _save_simulation_pcap(request.user, attack_type, scapy_packets)
-        timing['total_ms'] = round((time.perf_counter() - t_request_start) * 1000, 1)
-
-        cnn_flagged = sum(1 for r in results if r.get('cnn_anomaly'))
-        comparison_summary = {
-            'rule_engine_verdict': bool(behavior_anomaly),
-            'rule_engine_alert_count': len(behavior_result['alerts']),
-            'cnn_reference_flagged_count_in_sample': cnn_flagged,
-            'cnn_reference_sample_size': len(results),
-            'agree': bool(behavior_anomaly) == bool(cnn_flagged > 0),
-            'authoritative_source': 'rule_engine',
-        }
-
-        reliability_note = _CNN_RELIABILITY_NOTE_CSV_LEGACY
-        if model_representation == 'packet_bytes_visualizer':
-            reliability_note = _CNN_RELIABILITY_NOTE_PACKET_NATIVE
-
-        return JsonResponse({
-            'ok': True,
-            'attack_type': attack_type,
-            'intensity': round(intensity, 2),
-            'packet_count': total_all,
-            'packet_count_displayed': len(results),
-            'packet_count_truncated': packet_count_truncated,
-            'generation_meta': gen_meta,
-            'model_used': model_used,
-            'model_representation': model_representation,
-            'effective_threshold': round(effective_threshold, 8) if effective_threshold is not None else None,
-            'threshold': round(model_threshold, 8) if model_threshold is not None else settings.CNN_THRESHOLD,
-            'dynamic_threshold': round(dynamic_threshold, 8) if dynamic_threshold is not None else None,
-            'static_threshold': settings.CNN_THRESHOLD,
-            'cnn_reliability_note': reliability_note,
-            'final_verdict_note': (
-                '最終「攻擊／正常」判定僅由下方「規則式流量型樣偵測」決定；'
-                'CNN／VAE 分數僅顯示於每筆封包旁作為參考，不影響此判定。'
-            ),
-            'comparison_summary': comparison_summary,
-            'sample_visual': sample_visual,
-            'timing_ms': timing,
-            'server_warmup_complete': bool(warmup_event.is_set()),
-            'behavior_detection': {
-                'is_attack': behavior_result['is_attack'],
-                'attack_type': behavior_result['attack_type'],
-                'threshold': behavior_result['threshold'],
-                'thresholds': behavior_result['thresholds'],
-                'triggered_index': behavior_result['triggered_index'],
-                'forced_by_demo_shortcut': behavior_result['forced_by_demo_shortcut'],
-                'alert_count': len(behavior_result['alerts']),
-                'alerts': behavior_result['alerts'],
-            },
-            'baseline': baseline_info,
-            'results': results,
-            'avg_score': round(avg_score, 8),
-            'anomaly_count': anomaly_count,
-            'rule_based_anomaly_detected': behavior_result['is_attack'],
-            'pcap_download_url': request.build_absolute_uri(
-                reverse('analyzer:simulation_pcap_download', args=[pcap_filename])),
-            'pcap_filename': pcap_filename,
-            'pcap_backup_saved': True,
-        })
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JsonResponse({'ok': False, 'error': f'{type(e).__name__}: {str(e)}'}, status=500)
 
 
 @login_required
@@ -3495,13 +3512,13 @@ def ablation_run_api(request):
         
         script_path = os.path.join(settings.BASE_DIR, 'core', 'run_threshold_tuning.py')
         
-        # 準備命令列參數
-        # 由於原始腳本 run_threshold_tuning.py 中目前尚未把 n_repeats 拉成命令列參數，
-        # 這裡主要是呼叫 --ablation 和 --ablation-exp。
-        # 如果需要 n_repeats，腳本需要被微調，或者我們就依賴預設的 3 次。
+        # 準備命令列參數（已支援 --ablation-repeats）
         cmd = ['python', script_path, '--dataset', dataset, '--ablation']
         if 'all' not in experiments:
             cmd.extend(['--ablation-exp'] + experiments)
+        # [Fix-8] 傳入重複次數參數
+        if repeats and int(repeats) > 0:
+            cmd.extend(['--ablation-repeats', str(int(repeats))])
             
         # 清空舊的 Log
         with open(log_path, 'w', encoding='utf-8') as f:
@@ -3510,12 +3527,15 @@ def ablation_run_api(request):
 
         # 啟動子行程，將 stdout 與 stderr 導向至 Log 檔
         log_file = open(log_path, 'a', encoding='utf-8')
+        # [Fix-7] 加入 PYTHONIOENCODING=utf-8，避免子行程輸出中文亂碼
+        ablation_env = dict(os.environ, PYTHONIOENCODING='utf-8')
         process = subprocess.Popen(
             cmd,
             stdout=log_file,
             stderr=subprocess.STDOUT,
             cwd=settings.BASE_DIR,
-            shell=False
+            shell=False,
+            env=ablation_env,
         )
         
         # 紀錄至全域追蹤變數
@@ -3551,8 +3571,27 @@ def ablation_status_api(request):
     
     task = ablation_tasks.get(dataset)
     log_path = os.path.join(settings.BASE_DIR, 'output', dataset, 'ablation', 'ablation.log')
-    
-    status = task['status'] if task else 'idle'
+    report_path = os.path.join(settings.BASE_DIR, 'output', dataset, 'ablation', 'ablation_report.json')
+
+    # [Fix-9] 從磁碟推斷狀態（伺服器重啟後不丟失）
+    if task:
+        status = task['status']
+    elif os.path.exists(report_path):
+        status = 'done'
+    elif os.path.exists(log_path):
+        # 有 log 但沒有 report → 可能是執行中斷或錯誤
+        try:
+            with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+                last_lines = f.readlines()[-5:]
+                last_text = ''.join(last_lines).lower()
+            if 'error' in last_text or 'traceback' in last_text:
+                status = 'error'
+            else:
+                status = 'idle'  # 有舊 log 但無 report，視為閒置
+        except Exception:
+            status = 'idle'
+    else:
+        status = 'idle'
     
     # 讀取最後幾行 Log 作為進度提示
     logs = ""
@@ -3606,22 +3645,26 @@ def ablation_status_api(request):
         'images': images
     })
 
-
+========================================================================
+  [17/29]  api/__init__.py
 ========================================================================
 
-// FILE: api\apps.py
-----------------------------------------
+
+
+========================================================================
+  [18/29]  api/apps.py
+========================================================================
+
 from django.apps import AppConfig
 
 class ApiConfig(AppConfig):
     name = 'api'
     verbose_name = 'REST API'
 
-
+========================================================================
+  [19/29]  api/permissions.py
 ========================================================================
 
-// FILE: api\permissions.py
-----------------------------------------
 # ============================================================
 # api/permissions.py（新建檔案，放在 backend/api/permissions.py）
 #
@@ -3669,11 +3712,10 @@ def get_session_or_403(request, pk):
 
     return s, None
 
-
+========================================================================
+  [20/29]  api/serializers.py
 ========================================================================
 
-// FILE: api\serializers.py
-----------------------------------------
 # ============================================================
 # api/serializers.py
 # ============================================================
@@ -3845,11 +3887,10 @@ class AnalysisReportSerializer(serializers.ModelSerializer):
             return req.build_absolute_uri(obj.file.url)
         return None
 
-
+========================================================================
+  [21/29]  api/urls.py
 ========================================================================
 
-// FILE: api\urls.py
-----------------------------------------
 # api/urls.py
 from django.urls import path
 from . import views
@@ -3895,11 +3936,10 @@ urlpatterns = [
     path('admin/stats/', views.SystemStatsAPI.as_view(), name='system_stats'),
 ]
 
-
+========================================================================
+  [22/29]  api/views.py
 ========================================================================
 
-// FILE: api\views.py
-----------------------------------------
 # ============================================================
 # api/views.py
 # REST API：Token 認證、專案、Session、CNN、Grad-CAM、AI Chat
@@ -4555,228 +4595,16 @@ class SystemStatsAPI(APIView):
             ],
         })
 
-
+========================================================================
+  [23/29]  projects/__init__.py
 ========================================================================
 
-// FILE: network_platform\celery.py
-----------------------------------------
-# ============================================================
-# network_platform/celery.py
-# ============================================================
-import os
-from celery import Celery
-
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
-
-app = Celery('network_platform')
-app.config_from_object('django.conf:settings', namespace='CELERY')
-app.autodiscover_tasks()
-
-
-@app.task(bind=True)
-def debug_task(self):
-    print(f'Request: {self.request!r}')
 
 
 ========================================================================
-
-// FILE: network_platform\settings.py
-----------------------------------------
-from pathlib import Path
-import os
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-dev-key-請在正式環境替換成隨機字串')
-DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() == 'true'
-ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,*').split(',')
-
-INSTALLED_APPS = [
-    'django.contrib.admin',
-    'django.contrib.auth',
-    'django.contrib.contenttypes',
-    'django.contrib.sessions',
-    'django.contrib.messages',
-    'django.contrib.staticfiles',
-    'rest_framework',
-    'rest_framework.authtoken',
-    'corsheaders',
-    'accounts',
-    'projects',
-    'analyzer',
-    'api',
-    'reports',
-]
-
-MIDDLEWARE = [
-    'django.middleware.security.SecurityMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
-    'django.contrib.sessions.middleware.SessionMiddleware',
-    'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
-    'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.messages.middleware.MessageMiddleware',
-    'django.middleware.clickjacking.XFrameOptionsMiddleware',
-]
-
-ROOT_URLCONF = 'network_platform.urls'
-
-TEMPLATES = [{
-    'BACKEND': 'django.template.backends.django.DjangoTemplates',
-    'DIRS': [BASE_DIR / 'templates'],
-    'APP_DIRS': True,
-    'OPTIONS': {'context_processors': [
-        'django.template.context_processors.debug',
-        'django.template.context_processors.request',
-        'django.contrib.auth.context_processors.auth',
-        'django.contrib.messages.context_processors.messages',
-    ]},
-}]
-
-WSGI_APPLICATION = 'network_platform.wsgi.application'
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
-
-AUTH_PASSWORD_VALIDATORS = [
-    {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
-    },
-    {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
-    },
-]
-
-LANGUAGE_CODE = 'zh-hant'
-TIME_ZONE     = 'Asia/Taipei'
-USE_I18N = True
-USE_TZ   = True
-
-STATIC_URL       = '/static/'
-STATICFILES_DIRS = [BASE_DIR / 'static']
-STATIC_ROOT      = BASE_DIR / 'staticfiles'
-MEDIA_URL        = '/media/'
-MEDIA_ROOT       = BASE_DIR / 'media'
-
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
-        'rest_framework.authentication.SessionAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_RENDERER_CLASSES': [
-        'rest_framework.renderers.JSONRenderer',
-        'rest_framework.renderers.BrowsableAPIRenderer',
-    ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-        'rest_framework.parsers.MultiPartParser',
-        'rest_framework.parsers.FormParser',
-    ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
-}
-
-CORS_ALLOW_ALL_ORIGINS = DEBUG
-
-CELERY_BROKER_URL         = os.getenv('CELERY_BROKER', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND     = os.getenv('CELERY_BACKEND', 'redis://localhost:6379/0')
-CELERY_ACCEPT_CONTENT     = ['json']
-CELERY_TASK_SERIALIZER    = 'json'
-CELERY_RESULT_SERIALIZER  = 'json'
-CELERY_TIMEZONE           = 'Asia/Taipei'
-CELERY_TASK_ALWAYS_EAGER  = os.getenv('CELERY_EAGER', 'false').lower() == 'true'
-
-CNN_MODEL_PATH  = BASE_DIR / 'media' / 'model' / 'best_model.pt'
-CNN_LATENT_DIM  = 32
-ANOMALY_MODELS = {
-    'unsupervised_vae': {'label': '非監督式 CNN-VAE', 'path': BASE_DIR / 'media' / 'model' / 'best_vae_model.pt', 'type': 'cnn_vae'},
-    'semi_cicddos2019': {'label': '半監督式 CIC-DDoS2019', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicddos2019.pt', 'type': 'hybrid_semi'},
-    'semi_cicids2017': {'label': '半監督式 CICIDS2017', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicids2017.pt', 'type': 'hybrid_semi'},
-    'semi_nslkdd': {'label': '半監督式 NSL-KDD', 'path': BASE_DIR / 'media' / 'model' / 'semi_nslkdd.pt', 'type': 'hybrid_semi'},
-}
-# ── [P1-2 修正] 支援環境變數覆蓋 ──
-CNN_THRESHOLD = float(os.getenv('CNN_THRESHOLD', '0.000069'))
-
-DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
-
-REPORT_OUTPUT_DIR = BASE_DIR / 'media' / 'reports'
-N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
-AI_CHAT_TIMEOUT = int(os.getenv('AI_CHAT_TIMEOUT', '30'))  # AI 代理人 webhook 逾時秒數
-
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-LOGIN_URL           = '/accounts/login/'
-LOGIN_REDIRECT_URL  = '/analyzer/'
-LOGOUT_REDIRECT_URL = '/accounts/login/'
-
-
+  [24/29]  projects/admin.py
 ========================================================================
 
-// FILE: network_platform\urls.py
-----------------------------------------
-# ============================================================
-# network_platform/urls.py
-# ============================================================
-from django.contrib import admin
-from django.urls import path, include
-from django.conf import settings
-from django.conf.urls.static import static
-from django.views.generic import RedirectView
-
-# 客製化後台標題
-admin.site.site_header  = '網路攻擊分析平台 管理後台'
-admin.site.site_title   = 'NetGuard Admin'
-admin.site.index_title  = '系統管理'
-
-urlpatterns = [
-    # ── 後台管理 ──────────────────────────────────────────────
-    path('admin/', admin.site.urls),
-
-    # ── 使用者系統（登入/登出/註冊/個人資料）────────────────
-    path('accounts/', include('accounts.urls', namespace='accounts')),
-
-    # ── 專案管理（前端頁面）──────────────────────────────────
-    path('projects/', include('projects.urls', namespace='projects')),
-
-    # ── 分析模組（前端頁面）──────────────────────────────────
-    path('analyzer/', include('analyzer.urls', namespace='analyzer')),
-
-    # ── 報告匯出 ──────────────────────────────────────────────
-    path('reports/', include('reports.urls', namespace='reports')),
-
-    # ── REST API（/api/v1/...）────────────────────────────────
-    path('api/v1/', include('api.urls', namespace='api')),
-
-    # ── 根路由導向首頁 ────────────────────────────────────────
-    path('', RedirectView.as_view(url='/analyzer/', permanent=False)),
-]
-
-# 開發環境 media / static 提供
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL,  document_root=settings.MEDIA_ROOT)
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
-
-
-========================================================================
-
-// FILE: network_platform\wsgi.py
-----------------------------------------
-import os
-from django.core.wsgi import get_wsgi_application
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
-application = get_wsgi_application()
-
-
-========================================================================
-
-// FILE: projects\admin.py
-----------------------------------------
 # ============================================================
 # projects/admin.py
 # ============================================================
@@ -4825,22 +4653,20 @@ class PacketFileAdmin(admin.ModelAdmin):
     def file_size_mb(self, obj):
         return f'{obj.file_size_mb} MB'
 
-
+========================================================================
+  [25/29]  projects/apps.py
 ========================================================================
 
-// FILE: projects\apps.py
-----------------------------------------
 from django.apps import AppConfig
 
 class ProjectsConfig(AppConfig):
     name = 'projects'
     verbose_name = '專案管理'
 
-
+========================================================================
+  [26/29]  projects/forms.py
 ========================================================================
 
-// FILE: projects\forms.py
-----------------------------------------
 # ============================================================
 # projects/forms.py
 # ============================================================
@@ -4908,11 +4734,10 @@ class PacketFileUploadForm(forms.ModelForm):
             raise ValidationError('檔案內容不像是合法的 PCAP/PCAPNG 檔案。')
         return f
 
-
+========================================================================
+  [27/29]  projects/models.py
 ========================================================================
 
-// FILE: projects\models.py
-----------------------------------------
 # ============================================================
 # projects/models.py
 # 專案管理：讓使用者將不同時間點、不同網段的封包分門別類
@@ -5060,11 +4885,10 @@ class PacketFile(models.Model):
         self.save(update_fields=['sha256'])
         return self.sha256
 
-
+========================================================================
+  [28/29]  projects/urls.py
 ========================================================================
 
-// FILE: projects\urls.py
-----------------------------------------
 # projects/urls.py
 from django.urls import path
 from . import views
@@ -5083,11 +4907,10 @@ urlpatterns = [
     path('<int:pk>/files/<int:file_pk>/delete/', views.packet_file_delete, name='file_delete'),
 ]
 
-
+========================================================================
+  [29/29]  projects/views.py
 ========================================================================
 
-// FILE: projects\views.py
-----------------------------------------
 # ============================================================
 # projects/views.py
 # ============================================================
@@ -5325,529 +5148,3 @@ def packet_file_delete(request, pk, file_pk):
         packet_file.delete()
         messages.success(request, f'已刪除「{name}」。')
     return redirect('projects:detail', pk=pk)
-
-
-========================================================================
-
-// FILE: reports\apps.py
-----------------------------------------
-from django.apps import AppConfig
-
-class ReportsConfig(AppConfig):
-    name = 'reports'
-    verbose_name = '報告匯出'
-
-
-========================================================================
-
-// FILE: reports\generators.py
-----------------------------------------
-# ============================================================
-# reports/generators.py
-# 分析報告匯出系統：PDF（ReportLab）/ JSON / CSV
-# ============================================================
-import os
-import io
-import json
-import csv
-from datetime import datetime
-
-from django.conf import settings
-from django.utils import timezone
-from django.core.files.base import ContentFile
-
-from analyzer.models import AnalysisSession, Alert, CNNResult, AnalysisReport
-
-
-class ReportGenerator:
-    """
-    統一報告生成介面。
-
-    使用方式：
-        gen    = ReportGenerator(session, user)
-        report = gen.generate('pdf')   # 回傳 AnalysisReport 物件
-        report = gen.generate('json')
-        report = gen.generate('csv')
-    """
-
-    def __init__(self, session: AnalysisSession, user):
-        self.session = session
-        self.user    = user
-        self.alerts  = list(session.alerts.order_by('-timestamp'))
-        self.cnn     = getattr(session, 'cnn_result', None)
-        self.gcam_imgs = list(session.gradcam_images.filter(is_anomaly=True)[:5])
-
-    def generate(self, fmt: str) -> AnalysisReport:
-        fmt = fmt.lower()
-        if fmt == 'pdf':
-            return self._generate_pdf()
-        elif fmt == 'json':
-            return self._generate_json()
-        elif fmt == 'csv':
-            return self._generate_csv()
-        else:
-            raise ValueError(f'不支援的格式: {fmt}')
-
-    # ── PDF ──────────────────────────────────────────────────
-    def _generate_pdf(self) -> AnalysisReport:
-        try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib import colors
-            from reportlab.lib.units import cm
-            from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
-                                            Table, TableStyle, Image as RLImage,
-                                            HRFlowable, PageBreak)
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib.enums import TA_CENTER, TA_LEFT
-        except ImportError:
-            raise ImportError('請安裝 reportlab：pip install reportlab')
-
-        buf = io.BytesIO()
-        doc = SimpleDocTemplate(
-            buf, pagesize=A4,
-            leftMargin=2*cm, rightMargin=2*cm,
-            topMargin=2*cm, bottomMargin=2*cm,
-        )
-
-        styles = getSampleStyleSheet()
-        # 自定義樣式
-        title_style = ParagraphStyle(
-            'CustomTitle', parent=styles['Title'],
-            fontSize=20, spaceAfter=12, textColor=colors.HexColor('#1f6feb'),
-        )
-        h1_style = ParagraphStyle(
-            'H1', parent=styles['Heading1'],
-            fontSize=14, textColor=colors.HexColor('#0d1117'),
-            borderPad=4, backColor=colors.HexColor('#e6f0ff'),
-            leftIndent=6, spaceAfter=8,
-        )
-        h2_style = ParagraphStyle(
-            'H2', parent=styles['Heading2'],
-            fontSize=12, textColor=colors.HexColor('#1f6feb'),
-        )
-        body_style = styles['Normal']
-        body_style.fontSize = 10
-
-        severity_colors = {
-            'CRITICAL': colors.HexColor('#f85149'),
-            'HIGH':     colors.HexColor('#ff7b72'),
-            'MEDIUM':   colors.HexColor('#d29922'),
-            'LOW':      colors.HexColor('#3fb950'),
-        }
-
-        story = []
-
-        # ── 封面 ──────────────────────────────────────────────
-        story.append(Spacer(1, 1*cm))
-        story.append(Paragraph('網路攻擊分析報告', title_style))
-        story.append(Paragraph(
-            f'<font color="#8b949e">Network Security Analysis Report</font>',
-            ParagraphStyle('sub', parent=styles['Normal'],
-                           fontSize=12, alignment=TA_LEFT)))
-        story.append(HRFlowable(width='100%', thickness=2,
-                                color=colors.HexColor('#1f6feb')))
-        story.append(Spacer(1, 0.5*cm))
-
-        meta_data = [
-            ['Session 名稱', self.session.label],
-            ['分析模式',    self.session.get_mode_display()],
-            ['分析狀態',    self.session.get_task_status_display()],
-            ['封包數量',    str(self.session.packet_count)],
-            ['告警總數',    str(self.session.alert_count)],
-            ['產生時間',    datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
-            ['產生者',      self.user.get_full_name() or self.user.username],
-        ]
-        if self.session.project:
-            meta_data.insert(1, ['所屬專案', self.session.project.name])
-
-        meta_table = Table(meta_data, colWidths=[4*cm, 12*cm])
-        meta_table.setStyle(TableStyle([
-            ('FONTSIZE',  (0, 0), (-1, -1), 10),
-            ('BACKGROUND',(0, 0), (0, -1), colors.HexColor('#f0f6ff')),
-            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#1f6feb')),
-            ('FONTNAME',  (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('GRID',      (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d7de')),
-            ('ROWBACKGROUNDS', (0, 0), (-1, -1),
-             [colors.white, colors.HexColor('#f6f8fa')]),
-            ('PADDING',   (0, 0), (-1, -1), 6),
-        ]))
-        story.append(meta_table)
-        story.append(Spacer(1, 0.8*cm))
-
-        # ── CNN 分析結果 ──────────────────────────────────────
-        if self.cnn:
-            story.append(Paragraph('1. CNN Autoencoder 異常偵測結果', h1_style))
-            cnn_data = [
-                ['指標', '數值'],
-                ['重建誤差閾值',   f'{self.cnn.threshold:.6f}'],
-                ['正常封包數量',   str(self.cnn.normal_count)],
-                ['異常封包數量',   str(self.cnn.anomaly_count)],
-                ['平均正常誤差',   f'{self.cnn.avg_normal_error:.6f}'],
-                ['平均異常誤差',   f'{self.cnn.avg_attack_error:.6f}'],
-                ['偵測率',         f'{self.cnn.detection_rate*100:.2f}%'],
-            ]
-            cnn_table = Table(cnn_data, colWidths=[6*cm, 10*cm])
-            cnn_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f6feb')),
-                ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
-                ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE',   (0, 0), (-1, -1), 10),
-                ('GRID',       (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d7de')),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1),
-                 [colors.white, colors.HexColor('#f6f8fa')]),
-                ('PADDING',    (0, 0), (-1, -1), 6),
-            ]))
-            story.append(cnn_table)
-            story.append(Spacer(1, 0.6*cm))
-
-            # Grad-CAM 影像（最多 3 張）
-            if self.gcam_imgs:
-                story.append(Paragraph('Grad-CAM 熱力圖（異常封包）', h2_style))
-                img_row = []
-                for gcam in self.gcam_imgs[:3]:
-                    if gcam.comparison_image:
-                        try:
-                            img_path = gcam.comparison_image.path
-                            rl_img = RLImage(img_path, width=5*cm, height=2.5*cm)
-                            img_row.append(rl_img)
-                        except Exception:
-                            pass
-                if img_row:
-                    while len(img_row) < 3:
-                        img_row.append('')
-                    img_table = Table([img_row], colWidths=[5.5*cm]*3)
-                    img_table.setStyle(TableStyle([
-                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-                    ]))
-                    story.append(img_table)
-                story.append(Spacer(1, 0.6*cm))
-
-        # ── 告警摘要 ──────────────────────────────────────────
-        story.append(Paragraph('2. 告警偵測摘要', h1_style))
-
-        # 嚴重程度統計
-        sev_counts = {}
-        for a in self.alerts:
-            sev_counts[a.severity] = sev_counts.get(a.severity, 0) + 1
-
-        if sev_counts:
-            sev_data = [['嚴重程度', '數量']] + [
-                [k, str(v)] for k, v in sorted(
-                    sev_counts.items(),
-                    key=lambda x: ['CRITICAL','HIGH','MEDIUM','LOW'].index(x[0])
-                    if x[0] in ['CRITICAL','HIGH','MEDIUM','LOW'] else 99
-                )
-            ]
-            sev_table = Table(sev_data, colWidths=[4*cm, 4*cm])
-            sev_ts = [
-                ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f6feb')),
-                ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
-                ('GRID',       (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d7de')),
-                ('PADDING',    (0, 0), (-1, -1), 6),
-            ]
-            for i, row in enumerate(sev_data[1:], 1):
-                sev = row[0]
-                c   = severity_colors.get(sev, colors.gray)
-                sev_ts.append(('TEXTCOLOR', (0, i), (0, i), c))
-                sev_ts.append(('FONTNAME',  (0, i), (0, i), 'Helvetica-Bold'))
-            sev_table.setStyle(TableStyle(sev_ts))
-            story.append(sev_table)
-            story.append(Spacer(1, 0.4*cm))
-
-        # 詳細告警清單（前 30 筆）
-        if self.alerts:
-            story.append(Paragraph('告警詳情（前 30 筆）', h2_style))
-            alert_data = [['#', '類型', '嚴重程度', '來源 IP', '說明']]
-            for i, a in enumerate(self.alerts[:30], 1):
-                detail_short = (a.detail[:60] + '...') if len(a.detail) > 60 else a.detail
-                alert_data.append([
-                    str(i), a.attack_type, a.severity,
-                    a.src_ip, detail_short,
-                ])
-            alert_table = Table(alert_data,
-                                colWidths=[0.8*cm, 3.5*cm, 2.5*cm, 3*cm, 6.2*cm])
-            a_ts = [
-                ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f6feb')),
-                ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
-                ('FONTSIZE',   (0, 0), (-1, -1), 8),
-                ('GRID',       (0, 0), (-1, -1), 0.3, colors.HexColor('#d0d7de')),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1),
-                 [colors.white, colors.HexColor('#f6f8fa')]),
-                ('PADDING',    (0, 0), (-1, -1), 4),
-                ('VALIGN',     (0, 0), (-1, -1), 'TOP'),
-            ]
-            for i, a in enumerate(self.alerts[:30], 1):
-                c = severity_colors.get(a.severity, colors.gray)
-                a_ts.append(('TEXTCOLOR', (2, i), (2, i), c))
-                a_ts.append(('FONTNAME',  (2, i), (2, i), 'Helvetica-Bold'))
-            alert_table.setStyle(TableStyle(a_ts))
-            story.append(alert_table)
-
-        # ── 頁尾 ──────────────────────────────────────────────
-        story.append(PageBreak())
-        story.append(Spacer(1, 5*cm))
-        story.append(HRFlowable(width='100%', thickness=1,
-                                color=colors.HexColor('#d0d7de')))
-        story.append(Paragraph(
-            f'本報告由網路攻擊分析平台自動產生｜{datetime.now().strftime("%Y-%m-%d")}',
-            ParagraphStyle('footer', parent=styles['Normal'],
-                           fontSize=8, textColor=colors.gray,
-                           alignment=TA_CENTER)))
-
-        doc.build(story)
-        pdf_bytes = buf.getvalue()
-
-        report = AnalysisReport(
-            session=self.session, generated_by=self.user, format='pdf',
-            file_size=len(pdf_bytes),
-        )
-        filename = (f'report_{self.session.pk}_'
-                    f'{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
-        report.file.save(filename, ContentFile(pdf_bytes), save=False)
-        report.save()
-        return report
-
-    # ── JSON ─────────────────────────────────────────────────
-    def _generate_json(self) -> AnalysisReport:
-        data = {
-            'meta': {
-                'session_id':    self.session.pk,
-                'label':         self.session.label,
-                'mode':          self.session.mode,
-                'task_status':   self.session.task_status,
-                'packet_count':  self.session.packet_count,
-                'alert_count':   self.session.alert_count,
-                'project':       self.session.project.name if self.session.project else None,
-                'created_at':    self.session.created_at.isoformat(),
-                'finished_at':   self.session.finished_at.isoformat() if self.session.finished_at else None,
-                'generated_at':  datetime.now().isoformat(),
-                'generated_by':  self.user.username,
-            },
-            'cnn_result': None,
-            'alerts':     [],
-            'gradcam_summary': {
-                'total_images':   self.session.gradcam_images.count(),
-                'anomaly_images': self.session.gradcam_images.filter(is_anomaly=True).count(),
-            },
-        }
-
-        if self.cnn:
-            data['cnn_result'] = {
-                'threshold':        self.cnn.threshold,
-                'normal_count':     self.cnn.normal_count,
-                'anomaly_count':    self.cnn.anomaly_count,
-                'avg_normal_error': self.cnn.avg_normal_error,
-                'avg_attack_error': self.cnn.avg_attack_error,
-                'detection_rate':   self.cnn.detection_rate,
-            }
-
-        for a in self.alerts:
-            data['alerts'].append({
-                'attack_type': a.attack_type,
-                'severity':    a.severity,
-                'src_ip':      a.src_ip,
-                'dst_ip':      a.dst_ip,
-                'dst_port':    a.dst_port,
-                'detail':      a.detail,
-                'suggestion':  a.suggestion,
-                'timestamp':   a.timestamp.isoformat(),
-            })
-
-        json_bytes = json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8')
-        report = AnalysisReport(
-            session=self.session, generated_by=self.user, format='json',
-            file_size=len(json_bytes),
-        )
-        filename = (f'report_{self.session.pk}_'
-                    f'{datetime.now().strftime("%Y%m%d_%H%M%S")}.json')
-        report.file.save(filename, ContentFile(json_bytes), save=False)
-        report.save()
-        return report
-
-    # ── CSV ──────────────────────────────────────────────────
-    def _generate_csv(self) -> AnalysisReport:
-        buf = io.StringIO()
-        writer = csv.writer(buf)
-
-        # Session 摘要區塊
-        writer.writerow(['=== Session 摘要 ==='])
-        writer.writerow(['Session ID', self.session.pk])
-        writer.writerow(['標籤',        self.session.label])
-        writer.writerow(['模式',        self.session.get_mode_display()])
-        writer.writerow(['封包數',      self.session.packet_count])
-        writer.writerow(['告警數',      self.session.alert_count])
-        writer.writerow(['產生時間',    datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
-        writer.writerow([])
-
-        # CNN 結果
-        if self.cnn:
-            writer.writerow(['=== CNN 分析結果 ==='])
-            writer.writerow(['閾值', '正常封包', '異常封包',
-                             '平均正常誤差', '平均異常誤差', '偵測率'])
-            writer.writerow([
-                self.cnn.threshold,
-                self.cnn.normal_count,
-                self.cnn.anomaly_count,
-                self.cnn.avg_normal_error,
-                self.cnn.avg_attack_error,
-                f'{self.cnn.detection_rate*100:.2f}%',
-            ])
-            writer.writerow([])
-
-        # 告警清單
-        writer.writerow(['=== 告警清單 ==='])
-        writer.writerow(['#', '攻擊類型', '嚴重程度', '來源 IP',
-                         '目標 IP', '目標 Port', '說明', '建議', '時間'])
-        for i, a in enumerate(self.alerts, 1):
-            writer.writerow([
-                i, a.attack_type, a.severity,
-                a.src_ip, a.dst_ip, a.dst_port or '',
-                a.detail, a.suggestion,
-                a.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
-            ])
-
-        csv_bytes = buf.getvalue().encode('utf-8-sig')  # BOM for Excel
-        report = AnalysisReport(
-            session=self.session, generated_by=self.user, format='csv',
-            file_size=len(csv_bytes),
-        )
-        filename = (f'report_{self.session.pk}_'
-                    f'{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv')
-        report.file.save(filename, ContentFile(csv_bytes), save=False)
-        report.save()
-        return report
-
-
-========================================================================
-
-// FILE: reports\urls.py
-----------------------------------------
-# reports/urls.py
-from django.urls import path
-from . import views
-
-app_name = 'reports'
-
-urlpatterns = [
-    path('export/<int:session_pk>/',   views.export_report,  name='export'),
-    path('download/<int:pk>/',         views.download_report, name='download'),
-    path('session/<int:session_pk>/',  views.report_list,    name='list'),
-]
-
-
-========================================================================
-
-// FILE: reports\views.py
-----------------------------------------
-# ============================================================
-# reports/views.py
-# 報告匯出：前端觸發與下載
-# ============================================================
-from django.shortcuts import render, get_object_or_404, redirect
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.http import FileResponse, Http404
-from django.views.decorators.http import require_POST
-
-from analyzer.models import AnalysisSession, AnalysisReport
-
-
-@login_required
-@require_POST
-def export_report(request, session_pk):
-    """
-    POST /reports/export/<session_pk>/
-    觸發報告匯出並導向下載。
-    """
-    session = get_object_or_404(AnalysisSession, pk=session_pk)
-
-    if not request.user.profile.can_export_report:
-        messages.error(request, '您沒有匯出報告的權限。')
-        return redirect('analyzer:session_detail', pk=session_pk)
-
-    fmt = request.POST.get('format', 'pdf').lower()
-    if fmt not in ('pdf', 'json', 'csv'):
-        messages.error(request, '不支援的格式。')
-        return redirect('analyzer:session_detail', pk=session_pk)
-
-    try:
-        from .generators import ReportGenerator
-        gen    = ReportGenerator(session, request.user)
-        report = gen.generate(fmt)
-
-        from accounts.views import _log_action
-        _log_action(request, 'export_report',
-                    f'Session {session_pk} format={fmt}')
-        messages.success(request, f'報告已產生（{fmt.upper()}）。')
-        return redirect('reports:download', pk=report.pk)
-
-    except ImportError as e:
-        messages.error(request, f'缺少必要套件：{e}')
-    except Exception as e:
-        messages.error(request, f'報告產生失敗：{e}')
-
-    return redirect('analyzer:session_detail', pk=session_pk)
-
-
-@login_required
-def download_report(request, pk):
-    """
-    GET /reports/download/<pk>/
-    下載指定報告檔案（串流輸出）。
-    """
-    report = get_object_or_404(AnalysisReport, pk=pk)
-    session = report.session
-
-    # 存取控制
-    user = request.user
-    allowed = (
-        user.profile.is_admin
-        or report.generated_by == user
-        or session.created_by == user
-        or (session.project and (
-            session.project.owner == user or
-            session.project.members.filter(pk=user.pk).exists()
-        ))
-    )
-    if not allowed:
-        raise Http404
-
-    content_types = {
-        'pdf':  'application/pdf',
-        'json': 'application/json',
-        'csv':  'text/csv; charset=utf-8-sig',
-    }
-    content_type = content_types.get(report.format, 'application/octet-stream')
-
-    try:
-        response = FileResponse(
-            report.file.open('rb'),
-            content_type=content_type,
-        )
-        response['Content-Disposition'] = (
-            f'attachment; filename="{report.file.name.split("/")[-1]}"'
-        )
-        return response
-    except FileNotFoundError:
-        raise Http404('報告檔案不存在，請重新產生。')
-
-
-@login_required
-def report_list(request, session_pk):
-    """
-    GET /reports/session/<session_pk>/
-    列出 Session 的所有報告。
-    """
-    session = get_object_or_404(AnalysisSession, pk=session_pk)
-    reports = session.reports.order_by('-created_at')
-    return render(request, 'reports/report_list.html', {
-        'session': session,
-        'reports': reports,
-    })
-
-
-========================================================================
-

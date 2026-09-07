@@ -406,7 +406,9 @@ GENERATORS = {
 def verify_packets(key, pkts):
     """把產生的封包餵給 PacketParser + AnomalyDetector，確認：
         - 六種攻擊類型：確實觸發對應告警。
-        - normal_traffic：確實『不』觸發任何告警。
+        - normal_traffic：確實「不」觸發任何告警（規則引擎的誠實
+          基準線，也是 simulation_api() 拿來算 CNN 分數基準線時
+          期待的輸入型態）。
     """
     parser = PacketParser()
     detector = AnomalyDetector(on_alert=lambda a: None)  # 靜音，只看回傳結果
@@ -433,119 +435,6 @@ def verify_packets(key, pkts):
 
     matched = any(expect_substr in t for t in triggered_types)
     return matched, triggered_types
-
-
-# ============================================================
-#  主流程
-# ============================================================
-def main():
-    os.chdir(PROJECT_ROOT)
-    parser = argparse.ArgumentParser(
-        description="隨機模擬異常網路封包，輸出 PCAP 並可自我驗證是否觸發 AnomalyDetector"
-    )
-    parser.add_argument(
-        "--types", default="all",
-        help="要產生的攻擊類型，逗號分隔。可選: "
-             + ", ".join(GENERATORS.keys()) + "，或 all（預設）",
-    )
-    parser.add_argument("--seed", type=int, default=None,
-                         help="亂數種子，指定後每次執行結果可重現（預設每次隨機）")
-    parser.add_argument("--scale", type=float, default=1.0,
-                         help="流量強度倍率，例如 0.5 產生較少封包、2.0 產生更多（預設 1.0）")
-    parser.add_argument("--no-mixed", action="store_true",
-                         help="不額外輸出合併後的 mixed_attacks.pcap")
-    parser.add_argument("--verify", action="store_true",
-                         help="產生後立即用 PacketParser + AnomalyDetector 驗證是否觸發告警")
-    parser.add_argument("--output-dir", default=None,
-                         help="輸出資料夾（預設使用 SessionManager 自動建立的 session 資料夾）")
-    args = parser.parse_args()
-
-    if args.seed is not None:
-        random.seed(args.seed)
-        print(f"{Fore.CYAN}  [Seed] 使用固定亂數種子: {args.seed}（結果可重現）{Style.RESET_ALL}")
-    else:
-        print(f"{Fore.CYAN}  [Seed] 未指定種子，本次結果為隨機（不可重現）{Style.RESET_ALL}")
-
-    if args.types.strip().lower() == "all":
-        selected = list(GENERATORS.keys())
-    else:
-        selected = [t.strip() for t in args.types.split(",") if t.strip()]
-        invalid = [t for t in selected if t not in GENERATORS]
-        if invalid:
-            print(f"{Fore.RED}  未知的攻擊類型: {invalid}"
-                  f"\n  可用類型: {list(GENERATORS.keys())}{Style.RESET_ALL}")
-            sys.exit(1)
-
-    # ── 決定輸出目錄 ──────────────────────────────────
-    if args.output_dir:
-        out_dir = args.output_dir
-        os.makedirs(out_dir, exist_ok=True)
-    elif HAS_SESSION_MANAGER:
-        out_dir = SessionManager().create(mode="simulate", label="random_anomaly")
-    else:
-        out_dir = os.path.join("output", "simulated_pcap")
-        os.makedirs(out_dir, exist_ok=True)
-        print(f"{Fore.YELLOW}  找不到 session_manager.py，改用預設輸出目錄: {out_dir}{Style.RESET_ALL}")
-
-    print(f"\n{Fore.GREEN}{'=' * 65}")
-    print(f"  隨機異常封包模擬產生器")
-    print(f"  輸出目錄: {os.path.abspath(out_dir)}")
-    print(f"  強度倍率: {args.scale}")
-    print(f"  攻擊類型: {', '.join(selected)}")
-    print(f"{'=' * 65}{Style.RESET_ALL}\n")
-
-    all_mixed_pkts = []
-    verify_summary = []
-
-    for key in selected:
-        label, fn = GENERATORS[key]
-        try:
-            pkts, meta = fn(scale=args.scale)
-        except Exception as e:
-            print(f"{Fore.RED}  ✗  {label} 產生失敗: {e}{Style.RESET_ALL}")
-            continue
-
-        out_path = os.path.join(out_dir, f"{key}.pcap")
-        wrpcap(out_path, pkts)
-        print(f"{Fore.GREEN}  ✓  {label:<20}{Style.RESET_ALL} "
-              f"{len(pkts):>5} 封包  ->  {out_path}")
-        for k, v in meta.items():
-            print(f"       {k}: {v}")
-
-        if args.verify:
-            ok, triggered = verify_packets(key, pkts)
-            status = f"{Fore.GREEN}✓ 觸發告警{Style.RESET_ALL}" if ok else f"{Fore.RED}✗ 未觸發告警{Style.RESET_ALL}"
-            print(f"       驗證: {status}  (detector 回報: {sorted(triggered) or '無'})")
-            verify_summary.append((label, ok))
-
-        all_mixed_pkts.extend(pkts)
-        print()
-
-    if not args.no_mixed and len(selected) > 1 and all_mixed_pkts:
-        random.shuffle(all_mixed_pkts)
-        jitter_times(all_mixed_pkts, mean_gap=0.003, jitter=0.8)
-        mixed_path = os.path.join(out_dir, "mixed_attacks.pcap")
-        wrpcap(mixed_path, all_mixed_pkts)
-        print(f"{Fore.GREEN}  ✓  混合流量 (mixed_attacks.pcap){Style.RESET_ALL} "
-              f"{len(all_mixed_pkts):>5} 封包  ->  {mixed_path}\n")
-
-    if args.verify and verify_summary:
-        print(f"{Fore.CYAN}{'-' * 65}")
-        print("  驗證結果總覽")
-        print(f"{'-' * 65}{Style.RESET_ALL}")
-        for label, ok in verify_summary:
-            mark = f"{Fore.GREEN}PASS{Style.RESET_ALL}" if ok else f"{Fore.RED}FAIL{Style.RESET_ALL}"
-            print(f"    [{mark}] {label}")
-        n_pass = sum(1 for _, ok in verify_summary if ok)
-        print(f"\n  共 {n_pass}/{len(verify_summary)} 種攻擊成功觸發 AnomalyDetector 告警\n")
-
-    print(f"{Fore.CYAN}  測試指令範例：{Style.RESET_ALL}")
-    example_key = selected[0] if selected else None
-    if example_key:
-        print(f"    python main.py pcap -f {os.path.join(out_dir, example_key + '.pcap')} --detect")
-    if not args.no_mixed and len(selected) > 1:
-        print(f"    python main.py pcap -f {os.path.join(out_dir, 'mixed_attacks.pcap')} --full")
-    print()
 
 
 if __name__ == "__main__":

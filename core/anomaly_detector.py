@@ -89,7 +89,7 @@ class _SlidingWindowCounter:
             key: 事件鍵值（通常是來源 IP）
             timestamp: 事件時間戳（預設為當前時間）
         """
-        now = timestamp or time.time()
+        now = time.time() if timestamp is None else float(timestamp)
         self._data[key].append(now)
         # 清除過期事件（從左端彈出）
         self._evict(key, now)
@@ -104,7 +104,7 @@ class _SlidingWindowCounter:
         Returns:
             窗口內的事件計數
         """
-        now = timestamp or time.time()
+        now = time.time() if timestamp is None else float(timestamp)
         self._evict(key, now)
         return len(self._data[key])
 
@@ -182,8 +182,9 @@ class AnomalyDetector:
         self.icmp_counter = _SlidingWindowCounter(window_seconds)
         self.udp_counter  = _SlidingWindowCounter(window_seconds)
 
-        # Port Scan 仍需記錄不重複 Port 集合
-        self.port_scan     = defaultdict(set)
+        # Port Scan 需保留每個目的 port 最後出現的時間，才能和其他偵測
+        # 一樣只統計滑動窗口內的活動，而不是把整段 PCAP 永久累加。
+        self.port_scan     = defaultdict(dict)  # {src_ip: {dst_port: last_seen}}
 
         # ARP / DNS 計數器
         # [Bug 5 修正 — 2026] 舊版註解宣稱 ARP Spoofing 需全程追蹤、不使用
@@ -192,8 +193,8 @@ class AnomalyDetector:
         # 滑動窗口：{ip: {mac: last_seen}}，last_seen 超過窗口的 MAC 會被
         # 視為過期並剔除，避免 (a) 字典無限增長 (b) 合法 MAC 變更被永久誤判。
         self.arp_map   = defaultdict(dict)       # {ip: {mac: last_seen}}
-        self.dns_req   = defaultdict(int)         # {src_ip: dns_request_count}
-        self.dns_resp  = defaultdict(int)         # {dst_ip(受害者): dns_response_count}
+        self.dns_req   = _SlidingWindowCounter(window_seconds)
+        self.dns_resp  = _SlidingWindowCounter(window_seconds)
 
         # [新增] DNS Tunneling 計數器
         self.dns_tunnel_counter = _SlidingWindowCounter(window_seconds)
@@ -209,36 +210,37 @@ class AnomalyDetector:
         self._last_cleanup = time.time()
 
     # ── 主要入口 ──────────────────────────────────────────
-    def inspect(self, pkt, record: dict) -> list:
+    def inspect(self, pkt, record: dict, timestamp: float = None) -> list:
         """
         檢查單一封包，回傳本次觸發的告警列表
 
         Args:
             pkt    : Scapy Packet 物件
             record : PacketParser.parse() 的輸出
+            timestamp : 封包擷取時間。省略時使用目前時間；離線 PCAP
+                        分析與模擬時應傳入 pkt.time，避免把數分鐘流量
+                        壓縮成同一個十秒窗口。
 
         Returns:
             list[dict]: 本次觸發的告警（可能為空列表）
         """
         # ── [修正] 定期清理累計計數器，防止長時間運行誤報 ──
-        now = time.time()
+        now = time.time() if timestamp is None else float(timestamp)
         if now - self._last_cleanup > self._cleanup_interval:
             self._last_cleanup = now
-            self.port_scan.clear()
-            self.dns_req.clear()
-            self.dns_resp.clear()
+            self._cleanup_port_scan(now)
             # [Bug 5 修正 — 2026] 舊版遺漏了 arp_map 的定期清理，
             # 導致長時間執行時 IP→MAC 對應表無限增長。
             self._cleanup_arp_map(now)
 
         alerts = []
-        alerts += self._check_syn_flood(pkt, record)
-        alerts += self._check_port_scan(record)
-        alerts += self._check_icmp_flood(pkt, record)
-        alerts += self._check_udp_flood(pkt, record)
-        alerts += self._check_arp_spoof(record)
-        alerts += self._check_dns_amplification(pkt, record)
-        alerts += self._check_dns_tunneling(pkt, record)
+        alerts += self._check_syn_flood(pkt, record, now)
+        alerts += self._check_port_scan(record, now)
+        alerts += self._check_icmp_flood(pkt, record, now)
+        alerts += self._check_udp_flood(pkt, record, now)
+        alerts += self._check_arp_spoof(record, now)
+        alerts += self._check_dns_amplification(pkt, record, now)
+        alerts += self._check_dns_tunneling(pkt, record, now)
 
         for a in alerts:
             self.alert_history.append(a)
@@ -247,7 +249,7 @@ class AnomalyDetector:
         return alerts
 
     # ── 告警冷卻檢查 ──────────────────────────────────────
-    def _is_in_cooldown(self, key: str) -> bool:
+    def _is_in_cooldown(self, key: str, now: float = None) -> bool:
         """
         檢查指定告警鍵是否仍在冷卻期內
 
@@ -260,14 +262,15 @@ class AnomalyDetector:
         last_time = self._alert_cooldown.get(key)
         if last_time is None:
             return False
-        return (time.time() - last_time) < self.cooldown_seconds
+        now = time.time() if now is None else float(now)
+        return (now - last_time) < self.cooldown_seconds
 
-    def _mark_alerted(self, key: str):
+    def _mark_alerted(self, key: str, now: float = None):
         """記錄告警觸發時間，啟動冷卻計時"""
-        self._alert_cooldown[key] = time.time()
+        self._alert_cooldown[key] = time.time() if now is None else float(now)
 
     # ── 1. SYN Flood ──────────────────────────────────────
-    def _check_syn_flood(self, pkt, record) -> list:
+    def _check_syn_flood(self, pkt, record, now) -> list:
         """偵測 SYN Flood 攻擊
 
         使用滑動時間窗口計算指定秒數內的 SYN 封包數量，
@@ -279,13 +282,12 @@ class AnomalyDetector:
             return []
 
         src_ip = record.get("src_ip", "")
-        now = time.time()
         self.syn_counter.add(src_ip, now)
         current_count = self.syn_counter.count(src_ip, now)
 
         key = f"SYN_FLOOD_{src_ip}"
-        if current_count > self.thr_syn and not self._is_in_cooldown(key):
-            self._mark_alerted(key)
+        if current_count > self.thr_syn and not self._is_in_cooldown(key, now):
+            self._mark_alerted(key, now)
             return [self._make_alert(
                 attack_type="SYN Flood",
                 severity=self.SEVERITY_HIGH,
@@ -297,24 +299,34 @@ class AnomalyDetector:
         return []
 
     # ── 2. Port Scan ──────────────────────────────────────
-    def _check_port_scan(self, record) -> list:
+    def _check_port_scan(self, record, now) -> list:
         """偵測端口掃描攻擊
 
         追蹤每個來源 IP 存取的不重複 Port 數量，
         超過閾值時根據 TCP Flags 分類掃描類型。
         """
+        # UDP/DNS 或純 RST 回應不能當作 TCP port scan；舊邏輯會把
+        # 受害主機的 RST 回應也累加成一次反向掃描。
+        if record.get("protocol") != "TCP" or record.get("flags") == "RST":
+            return []
+
         src_ip   = record.get("src_ip", "")
         dst_port = record.get("dst_port")
 
         if not src_ip or not isinstance(dst_port, int):
             return []
 
-        self.port_scan[src_ip].add(dst_port)
-        unique_ports = len(self.port_scan[src_ip])
+        ports = self.port_scan[src_ip]
+        cutoff = now - self.window_seconds
+        for port, last_seen in list(ports.items()):
+            if last_seen < cutoff:
+                del ports[port]
+        ports[dst_port] = now
+        unique_ports = len(ports)
 
         key = f"PORT_SCAN_{src_ip}"
-        if unique_ports > self.thr_ports and not self._is_in_cooldown(key):
-            self._mark_alerted(key)
+        if unique_ports > self.thr_ports and not self._is_in_cooldown(key, now):
+            self._mark_alerted(key, now)
             # 判斷掃描類型
             scan_type = self._classify_port_scan(record)
             return [self._make_alert(
@@ -322,7 +334,7 @@ class AnomalyDetector:
                 severity=self.SEVERITY_MEDIUM,
                 src_ip=src_ip,
                 detail=(f"已掃描 {unique_ports} 個 Port (閾值: {self.thr_ports})\n"
-                        f"  掃描的 Port: {sorted(list(self.port_scan[src_ip]))[:20]}..."),
+                        f"  掃描的 Port: {sorted(ports)[:20]}..."),
                 suggestion="封鎖來源 IP；檢查是否為授權掃描",
             )]
         return []
@@ -344,7 +356,7 @@ class AnomalyDetector:
             return "TCP Scan"
 
     # ── 3. ICMP Flood ─────────────────────────────────────
-    def _check_icmp_flood(self, pkt, record) -> list:
+    def _check_icmp_flood(self, pkt, record, now) -> list:
         """偵測 ICMP Flood（Ping Flood）攻擊
 
         使用滑動時間窗口計算 Echo Request 封包數量。
@@ -356,13 +368,12 @@ class AnomalyDetector:
             return []
 
         src_ip = record.get("src_ip", "")
-        now = time.time()
         self.icmp_counter.add(src_ip, now)
         current_count = self.icmp_counter.count(src_ip, now)
 
         key = f"ICMP_FLOOD_{src_ip}"
-        if current_count > self.thr_icmp and not self._is_in_cooldown(key):
-            self._mark_alerted(key)
+        if current_count > self.thr_icmp and not self._is_in_cooldown(key, now):
+            self._mark_alerted(key, now)
             return [self._make_alert(
                 attack_type="ICMP Flood (Ping Flood)",
                 severity=self.SEVERITY_MEDIUM,
@@ -374,7 +385,7 @@ class AnomalyDetector:
         return []
 
     # ── 4. UDP Flood ──────────────────────────────────────
-    def _check_udp_flood(self, pkt, record) -> list:
+    def _check_udp_flood(self, pkt, record, now) -> list:
         """偵測 UDP Flood 攻擊
 
         使用滑動時間窗口計算 UDP 封包數量。
@@ -383,13 +394,12 @@ class AnomalyDetector:
             return []
 
         src_ip = record.get("src_ip", "")
-        now = time.time()
         self.udp_counter.add(src_ip, now)
         current_count = self.udp_counter.count(src_ip, now)
 
         key = f"UDP_FLOOD_{src_ip}"
-        if current_count > self.thr_udp and not self._is_in_cooldown(key):
-            self._mark_alerted(key)
+        if current_count > self.thr_udp and not self._is_in_cooldown(key, now):
+            self._mark_alerted(key, now)
             return [self._make_alert(
                 attack_type="UDP Flood",
                 severity=self.SEVERITY_HIGH,
@@ -401,7 +411,7 @@ class AnomalyDetector:
         return []
 
     # ── 5. ARP Spoofing ───────────────────────────────────
-    def _check_arp_spoof(self, record) -> list:
+    def _check_arp_spoof(self, record, now) -> list:
         """偵測 ARP Spoofing（ARP 欺騙）
 
         同一 IP 在 ALERT_ARP_SPOOF_WINDOW 秒內出現多個 MAC 地址時觸發告警。
@@ -428,7 +438,6 @@ class AnomalyDetector:
         if not src_ip or not src_mac:
             return []
 
-        now = time.time()
         ip_macs = self.arp_map[src_ip]
 
         # 先剔除超出時間窗口、已不活躍的舊 MAC 紀錄
@@ -445,8 +454,8 @@ class AnomalyDetector:
         if is_new_mac and len(ip_macs) >= 2:
             # 窗口內同一 IP 出現第二個（或以上）MAC，觸發告警
             key = f"ARP_SPOOF_{src_ip}"
-            if not self._is_in_cooldown(key):
-                self._mark_alerted(key)
+            if not self._is_in_cooldown(key, now):
+                self._mark_alerted(key, now)
                 macs_str = ", ".join(ip_macs.keys())
                 return [self._make_alert(
                     attack_type="ARP Spoofing",
@@ -483,8 +492,21 @@ class AnomalyDetector:
         for ip in stale_ips:
             del self.arp_map[ip]
 
+    def _cleanup_port_scan(self, now: float) -> None:
+        """移除 port scan 視窗外的 port，並回收空的來源 IP。"""
+        cutoff = now - self.window_seconds
+        stale_ips = []
+        for src_ip, ports in self.port_scan.items():
+            for port, last_seen in list(ports.items()):
+                if last_seen < cutoff:
+                    del ports[port]
+            if not ports:
+                stale_ips.append(src_ip)
+        for src_ip in stale_ips:
+            del self.port_scan[src_ip]
+
     # ── 6. DNS Amplification ──────────────────────────────
-    def _check_dns_amplification(self, pkt, record) -> list:
+    def _check_dns_amplification(self, pkt, record, now) -> list:
         """
         偵測 DNS 放大攻擊
 
@@ -499,23 +521,23 @@ class AnomalyDetector:
         dst_ip = record.get("dst_ip", "")
 
         if dns.qr == 0:   # 查詢
-            self.dns_req[src_ip] += 1
+            self.dns_req.add(src_ip, now)
             check_ip = src_ip
         else:              # 回應
             # ── [P1-4 修正] DNS 回應統計受害者（dst_ip） ──
             if dst_ip:
-                self.dns_resp[dst_ip] += 1
+                self.dns_resp.add(dst_ip, now)
             check_ip = dst_ip or src_ip
 
         # 從受害者視角檢查：收到大量回應卻幾乎沒發出查詢 → 放大攻擊
-        req   = self.dns_req.get(check_ip, 0)
-        resp  = self.dns_resp.get(check_ip, 0)
+        req   = self.dns_req.count(check_ip, now)
+        resp  = self.dns_resp.count(check_ip, now)
         ratio = resp / max(req, 1)
 
         key = f"DNS_AMP_{check_ip}"
         if (resp > 20 and ratio > ALERT_THRESHOLD_DNS_AMP
-                and not self._is_in_cooldown(key)):
-            self._mark_alerted(key)
+                and not self._is_in_cooldown(key, now)):
+            self._mark_alerted(key, now)
             return [self._make_alert(
                 attack_type="DNS Amplification",
                 severity=self.SEVERITY_HIGH,
@@ -527,7 +549,7 @@ class AnomalyDetector:
         return []
 
     # ── 7. DNS Tunneling（新增）────────────────────────────
-    def _check_dns_tunneling(self, pkt, record) -> list:
+    def _check_dns_tunneling(self, pkt, record, now) -> list:
         """
         偵測 DNS Tunneling（DNS 隧道攻擊）
 
@@ -558,14 +580,13 @@ class AnomalyDetector:
             return []
 
         src_ip = record.get("src_ip", "")
-        now = time.time()
         self.dns_tunnel_counter.add(src_ip, now)
         current_count = self.dns_tunnel_counter.count(src_ip, now)
 
         key = f"DNS_TUNNEL_{src_ip}"
         if (current_count > ALERT_THRESHOLD_DNS_TUNNEL_COUNT
-                and not self._is_in_cooldown(key)):
-            self._mark_alerted(key)
+                and not self._is_in_cooldown(key, now)):
+            self._mark_alerted(key, now)
             return [self._make_alert(
                 attack_type="DNS Tunneling",
                 severity=self.SEVERITY_HIGH,
