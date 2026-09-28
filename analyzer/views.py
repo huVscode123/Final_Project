@@ -449,6 +449,9 @@ def simulation(request):
     """
     models = []
     for key, cfg in settings.ANOMALY_MODELS.items():
+        # 跳過已停用的模型（如 NSL-KDD 因無 PCAP 而停用）
+        if not cfg.get('enabled', True):
+            continue
         path = str(cfg.get('path', ''))
         models.append({
             'key':   key,

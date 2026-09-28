@@ -1,21 +1,21 @@
 {
-    "precision": 0.6215808744344988,
-    "recall": 0.7214999999998196,
-    "f1": 0.6678236718386072,
-    "accuracy": 0.7128999999999287,
-    "auc": 0.807553,
-    "tp": 2886,
-    "tn": 4243,
-    "fp": 1757,
-    "fn": 1114,
-    "threshold": 0.00017996275215409685,
+    "precision": 0.5090879048247672,
+    "recall": 0.8471267528180239,
+    "f1": 0.6359789447265145,
+    "accuracy": 0.634014734875933,
+    "auc": 0.7206609385024288,
+    "tp": 3081,
+    "tn": 3029,
+    "fp": 2971,
+    "fn": 556,
+    "threshold": 0.00013888996036257593,
     "dataset": "cicids2017",
     "split": {
         "train_ratio": 0.8,
         "labelled_attack_ratio": 0.2,
         "normal_train": 24000,
-        "attack_train_pool": 16000,
+        "attack_train_pool": 14545,
         "normal_test": 6000,
-        "attack_test": 4000
+        "attack_test": 3637
     }
 }

@@ -114,7 +114,11 @@ ANOMALY_MODELS = {
     'unsupervised_vae': {'label': '非監督式 CNN-VAE', 'path': BASE_DIR / 'media' / 'model' / 'best_vae_model.pt', 'type': 'cnn_vae'},
     'semi_cicddos2019': {'label': '半監督式 CIC-DDoS2019', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicddos2019.pt', 'type': 'hybrid_semi'},
     'semi_cicids2017': {'label': '半監督式 CICIDS2017', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicids2017.pt', 'type': 'hybrid_semi'},
-    'semi_nslkdd': {'label': '半監督式 NSL-KDD', 'path': BASE_DIR / 'media' / 'model' / 'semi_nslkdd.pt', 'type': 'hybrid_semi'},
+    # NSL-KDD 無原始 PCAP 可用，存在不可消除的 train/serve skew，停用但保留程式碼
+    'semi_nslkdd': {'label': '半監督式 NSL-KDD', 'path': BASE_DIR / 'media' / 'model' / 'semi_nslkdd.pt', 'type': 'hybrid_semi', 'enabled': False},
+    # MTA — Malware Traffic Analysis 真實惡意攻擊偵測模型
+    'mta_malware': {'label': '非監督式 真實惡意軟體偵測 (MTA)', 'path': BASE_DIR / 'media' / 'model' / 'mta_malware.pt', 'type': 'cnn_vae'},
+    'semi_mta_malware': {'label': '半監督式 真實惡意軟體偵測 (MTA)', 'path': BASE_DIR / 'media' / 'model' / 'semi_mta_malware.pt', 'type': 'hybrid_semi'},
 }
 # ── [P1-2 修正] 支援環境變數覆蓋 ──
 CNN_THRESHOLD = float(os.getenv('CNN_THRESHOLD', '0.000069'))
@@ -123,8 +127,19 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
 
 REPORT_OUTPUT_DIR = BASE_DIR / 'media' / 'reports'
+# ── AI Agent 設定（Gemini 直連，不需要 Docker / n8n）──────────
+# 請在此填入您的 Google Gemini API Key，或透過環境變數設定
+# 取得方式：https://aistudio.google.com/apikey
+GEMINI_API_KEY          = os.getenv('GEMINI_API_KEY', 'YOUR_API_KEY_HERE')  # ← 在此填入您的 API Key
+GEMINI_MODEL            = os.getenv('GEMINI_MODEL', 'gemini-3.8-flash')
+GEMINI_API_TIMEOUT      = int(os.getenv('GEMINI_API_TIMEOUT', '30'))
+GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv('GEMINI_MAX_OUTPUT_TOKENS', '1024'))
+# 舊版相容欄位（部分程式碼仍可能讀取）
+GEMINI_MODEL_NAME = GEMINI_MODEL
+
+# 以下為舊版 n8n 設定（已棄用，保留向後相容）
 N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
-AI_CHAT_TIMEOUT = int(os.getenv('AI_CHAT_TIMEOUT', '30'))  # AI 代理人 webhook 逾時秒數
+AI_CHAT_TIMEOUT = int(os.getenv('AI_CHAT_TIMEOUT', '30'))
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_URL           = '/accounts/login/'

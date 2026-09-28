@@ -313,6 +313,14 @@ class LiveCapture:
                 self._segment_index += 1
                 segment_file = self._get_segment_filename()
                 packets_copy = list(self.packets)
+                # [Bug A 修正] 分段寫出後清空緩衝區，避免：
+                #   1. 下一次分段再度包含本次已寫出的封包（重疊）
+                #   2. 記憶體保護 (max_memory_packets) 在「下次分段前」
+                #      就把尚未寫出的封包永久丟棄
+                # 注意：統計計數器 (packet_count, total_bytes 等) 已在
+                # _packet_callback 中即時更新，不受清空影響。
+                self.packets.clear()
+                self.parsed_records.clear()
                 self._segment_counter = 0
                 self._last_segment_time = now
 

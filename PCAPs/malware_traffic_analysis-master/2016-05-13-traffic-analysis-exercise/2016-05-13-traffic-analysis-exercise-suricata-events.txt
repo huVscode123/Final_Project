@@ -1,0 +1,1937 @@
+------------------------------------------------------------------------
+Count:1 Event#3.15277 2016-05-13 ??:??:??
+ET POLICY PE EXE or DLL Windows file download HTTP
+199.83.131.18 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=19338
+Protocol: 6 sport=80 -> dport=49209
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=7676 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15279 2016-05-13 ??:??:??
+ET MALWARE Possible Windows executable sent when remote host claims to send a Text File
+199.83.131.18 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=19338
+Protocol: 6 sport=80 -> dport=49209
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=7676 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15288 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49211 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27146 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15289 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49211 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27146 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15290 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49211 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27146 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15291 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49211 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27146 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15293 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49213 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49424 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15294 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49213 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49424 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15297 2016-05-13 ??:??:??
+ET DNS Query to a *.pw domain - Likely Hostile
+10.0.21.136 -> 10.0.13.54
+IPVer=4 hlen=5 tos=0 dlen=63 ID=907 flags=0 offset=0 ttl=128 chksum=102
+Protocol: 17 sport=63147 -> dport=53
+
+len=43 chksum=45171
+------------------------------------------------------------------------
+Count:1 Event#3.15300 2016-05-13 ??:??:??
+ET DNS Query to a *.pw domain - Likely Hostile
+10.0.21.136 -> 10.0.13.54
+IPVer=4 hlen=5 tos=0 dlen=58 ID=909 flags=0 offset=0 ttl=128 chksum=105
+Protocol: 17 sport=49936 -> dport=53
+
+len=38 chksum=5932
+------------------------------------------------------------------------
+Count:1 Event#3.15302 2016-05-13 ??:??:??
+ET DNS Query for .su TLD (Soviet Union) Often Malware Related
+10.0.21.136 -> 10.0.13.54
+IPVer=4 hlen=5 tos=0 dlen=56 ID=913 flags=0 offset=0 ttl=128 chksum=103
+Protocol: 17 sport=59046 -> dport=53
+
+len=36 chksum=61622
+------------------------------------------------------------------------
+Count:1 Event#3.15304 2016-05-13 ??:??:??
+ET DNS Query for .su TLD (Soviet Union) Often Malware Related
+10.0.21.136 -> 10.0.13.54
+IPVer=4 hlen=5 tos=0 dlen=57 ID=917 flags=0 offset=0 ttl=128 chksum=98
+Protocol: 17 sport=55524 -> dport=53
+
+len=37 chksum=57972
+------------------------------------------------------------------------
+Count:1 Event#3.15306 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49214 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49423 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15307 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49214 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49423 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15308 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49216 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27141 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15309 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49216 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27141 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15310 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49216 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27141 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15311 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49216 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27141 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15312 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49217 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25588 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15313 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49217 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25588 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15314 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49217 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25588 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15315 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49217 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25588 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15316 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49218 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49419 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15317 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49218 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49419 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15324 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49245 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27112 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15325 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49245 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27112 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15326 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49245 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27112 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15327 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49245 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27112 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15329 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49248 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27109 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15330 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49248 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27109 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15331 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49248 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27109 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15332 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49248 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27109 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15333 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49251 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27106 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15334 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49251 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27106 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15335 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49251 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27106 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15336 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49251 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27106 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15337 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49252 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25553 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15338 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49252 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25553 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15339 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49252 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25553 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15340 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49252 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25553 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15341 2016-05-13 ??:??:??
+ET WEB_CLIENT Possible String.FromCharCode Javascript Obfuscation Attempt
+192.185.208.247 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=1087
+Protocol: 6 sport=80 -> dport=49259
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=50917 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15343 2016-05-13 ??:??:??
+ET CURRENT_EVENTS EITest Evil Redirect Leading to EK Feb 01 2016
+192.185.208.247 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=1087
+Protocol: 6 sport=80 -> dport=49259
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=9064 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15345 2016-05-13 ??:??:??
+ET DNS Query to a .tk domain - Likely Hostile
+10.0.21.136 -> 10.0.13.54
+IPVer=4 hlen=5 tos=0 dlen=55 ID=2386 flags=0 offset=0 ttl=128 chksum=64166
+Protocol: 17 sport=60567 -> dport=53
+
+len=35 chksum=50893
+------------------------------------------------------------------------
+Count:1 Event#3.15346 2016-05-13 ??:??:??
+ET CURRENT_EVENTS SUSPICIOUS Likely Neutrino EK or other EK IE Flash request to DYNDNS set non-standard filename
+10.0.21.136 -> 85.93.0.68
+IPVer=4 hlen=5 tos=0 dlen=514 ID=0 flags=0 offset=0 ttl=0 chksum=17358
+Protocol: 6 sport=49289 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=57612 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15347 2016-05-13 ??:??:??
+ET CURRENT_EVENTS Possible Evil Redirector Leading to EK EITest Mar 27
+10.0.21.136 -> 85.93.0.68
+IPVer=4 hlen=5 tos=0 dlen=514 ID=0 flags=0 offset=0 ttl=0 chksum=17358
+Protocol: 6 sport=49289 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=57612 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15348 2016-05-13 ??:??:??
+ET POLICY HTTP Request to a *.tk domain
+10.0.21.136 -> 85.93.0.68
+IPVer=4 hlen=5 tos=0 dlen=514 ID=0 flags=0 offset=0 ttl=0 chksum=17358
+Protocol: 6 sport=49289 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=57612 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15415 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49308 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27049 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15416 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49308 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27049 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15417 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49308 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27049 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15418 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49308 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=27049 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15436 2016-05-13 ??:??:??
+ET POLICY HTTP Request to a *.tk domain
+10.0.21.136 -> 85.93.0.68
+IPVer=4 hlen=5 tos=0 dlen=528 ID=0 flags=0 offset=0 ttl=0 chksum=17344
+Protocol: 6 sport=49288 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=33361 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15461 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=50627 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15464 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing with URI Primer Apr 06
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=166 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15467 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK Landing Jan 21 M3
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=10550 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15468 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=10550 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15469 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Dec 10 2015 M1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=10550 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15470 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=40451 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15471 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=47461 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15482 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK Landing Jan 21 M3
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=13519 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15483 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK Landing Jan 21 M3
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=59626 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15484 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK Landing Jan 21 M3
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=767 ID=0 flags=0 offset=0 ttl=0 chksum=5798
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=17811 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15485 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=13519 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15486 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=59626 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15487 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=767 ID=0 flags=0 offset=0 ttl=0 chksum=5798
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=17811 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15488 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=13519 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15489 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=59626 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15490 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=767 ID=0 flags=0 offset=0 ttl=0 chksum=5798
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=17811 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15491 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing with URI Primer Apr 06
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=13519 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15492 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing with URI Primer Apr 06
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=59626 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15493 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing with URI Primer Apr 06
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=767 ID=0 flags=0 offset=0 ttl=0 chksum=5798
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=17811 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15494 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Dec 10 2015 M1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=13519 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15495 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Dec 10 2015 M1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=59626 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15496 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Dec 10 2015 M1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=767 ID=0 flags=0 offset=0 ttl=0 chksum=5798
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=17811 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15497 2016-05-13 ??:??:??
+ET CURRENT_EVENTS SUSPICIOUS Likely Neutrino EK or other EK IE Flash request to DYNDNS set non-standard filename
+10.0.21.136 -> 89.32.40.172
+IPVer=4 hlen=5 tos=0 dlen=435 ID=0 flags=0 offset=0 ttl=0 chksum=6130
+Protocol: 6 sport=49350 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=5696 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15498 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Flash Exploit URI Struct Apr 07 IE
+10.0.21.136 -> 89.32.40.172
+IPVer=4 hlen=5 tos=0 dlen=435 ID=0 flags=0 offset=0 ttl=0 chksum=6130
+Protocol: 6 sport=49350 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=5696 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15499 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=38841 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15500 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=37489 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15501 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=4786 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15502 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=5149 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15503 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=13779 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15504 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing with URI Primer Apr 06
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=4786 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15505 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing with URI Primer Apr 06
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=5149 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15506 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing with URI Primer Apr 06
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=13779 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15507 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler or Nuclear EK Flash Exploit M2
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=64708 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15508 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler or Nuclear EK Flash Exploit M2
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49350
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26199 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15510 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK SilverLight Exploit Feb 22 M1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=16553 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15511 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK SilverLight Exploit Feb 22 M1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=16342 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15512 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK SilverLight Exploit Feb 22 M1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=22687 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15513 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK SilverLight Exploit M1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=16553 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15514 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK SilverLight Exploit M1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=16342 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15515 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK SilverLight Exploit M1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49349
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=22687 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15517 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK Flash DHE Post M2
+10.0.21.136 -> 89.32.40.172
+IPVer=4 hlen=5 tos=0 dlen=862 ID=0 flags=0 offset=0 ttl=0 chksum=5703
+Protocol: 6 sport=49350 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=31242 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15518 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49405
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=141 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15519 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49405
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48779 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15520 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Payload May 10 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49405
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48853 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15521 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Payload May 10 2016 M1 T1
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49405
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=47676 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15522 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler or Nuclear EK Flash Exploit M2
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49405
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48853 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15523 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler or Nuclear EK Flash Exploit M2
+89.32.40.172 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=5156
+Protocol: 6 sport=80 -> dport=49405
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=47676 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15528 2016-05-13 ??:??:??
+ET POLICY HTTP Request to a *.tk domain
+10.0.21.136 -> 85.93.0.68
+IPVer=4 hlen=5 tos=0 dlen=528 ID=0 flags=0 offset=0 ttl=0 chksum=17344
+Protocol: 6 sport=49424 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=33225 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15531 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49431 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26926 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15532 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49431 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26926 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15533 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49431 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26926 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15534 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49431 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26926 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15536 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49434 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26923 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15537 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49434 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26923 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15538 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49434 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26923 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15539 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49434 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26923 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15541 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49435 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25370 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15542 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49435 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25370 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15543 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49435 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25370 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15544 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49435 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25370 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15545 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49436 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49201 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15546 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49436 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49201 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15548 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49438 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26919 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15549 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49438 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26919 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15550 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49438 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26919 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15551 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49438 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26919 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15552 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49440 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49197 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15553 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49440 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49197 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15554 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49441 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49196 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15555 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49441 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49196 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15556 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49442 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49195 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15557 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49442 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49195 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15558 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49443 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49194 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15559 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49443 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49194 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15560 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49445 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26912 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15561 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49445 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26912 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15562 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49445 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26912 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15563 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49445 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26912 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15565 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49451 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49186 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15566 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49451 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49186 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15567 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49573 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26784 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15568 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49573 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26784 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15569 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49573 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26784 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15570 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49573 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26784 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15578 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49573 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26784 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15579 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49573 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26784 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15580 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49573 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26784 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15581 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49573 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26784 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15587 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49580 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49057 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15588 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49580 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49057 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15589 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49581 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49056 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15590 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49581 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49056 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15593 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49583 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26774 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15594 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49583 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26774 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15595 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49583 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26774 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15596 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49583 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26774 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15634 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49586 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26771 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15635 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49586 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26771 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15636 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49586 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26771 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15637 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49586 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26771 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15642 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49589 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26768 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15643 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49589 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26768 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15644 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49589 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26768 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15645 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49589 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26768 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15646 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49615 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49022 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15647 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49615 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49022 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15648 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49623 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26734 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15649 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49623 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26734 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15650 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49623 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26734 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15651 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49623 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26734 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15652 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49630 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49007 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15653 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49630 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=49007 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15654 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49673 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26684 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15655 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49673 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26684 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15656 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49673 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26684 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15657 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49673 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26684 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15658 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49675 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48962 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15659 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49675 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48962 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15660 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49677 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26680 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15661 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49677 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26680 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15662 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49677 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26680 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15663 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49677 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26680 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15669 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49679 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48958 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15670 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49679 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48958 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15671 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49680 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48957 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15672 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49680 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48957 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15741 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Evil Redirector Leading to EK Dec 03 2015 M3
+10.0.21.136 -> 67.215.187.94
+IPVer=4 hlen=5 tos=0 dlen=363 ID=0 flags=0 offset=0 ttl=0 chksum=39632
+Protocol: 6 sport=49724 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=44421 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15744 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49732 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26625 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15745 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49732 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26625 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15746 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49732 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26625 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15747 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49732 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26625 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15750 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49761 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48876 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15751 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49761 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48876 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15752 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49762 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48875 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15753 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49762 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48875 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15760 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49766 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26591 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15761 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49766 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26591 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15762 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49766 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26591 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15763 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49766 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26591 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15764 2016-05-13 ??:??:??
+ET DNS Query for .su TLD (Soviet Union) Often Malware Related
+10.0.21.136 -> 10.0.13.54
+IPVer=4 hlen=5 tos=0 dlen=57 ID=17591 flags=0 offset=0 ttl=128 chksum=48959
+Protocol: 17 sport=55638 -> dport=53
+
+len=37 chksum=27983
+------------------------------------------------------------------------
+Count:1 Event#3.15766 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49768 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48869 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15767 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49768 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48869 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15768 2016-05-13 ??:??:??
+ET DNS Query for .su TLD (Soviet Union) Often Malware Related
+10.0.21.136 -> 10.0.13.54
+IPVer=4 hlen=5 tos=0 dlen=56 ID=17626 flags=0 offset=0 ttl=128 chksum=48925
+Protocol: 17 sport=56573 -> dport=53
+
+len=36 chksum=33233
+------------------------------------------------------------------------
+Count:1 Event#3.15777 2016-05-13 ??:??:??
+ET DNS Query to a *.pw domain - Likely Hostile
+10.0.21.136 -> 10.0.13.55
+IPVer=4 hlen=5 tos=0 dlen=63 ID=17654 flags=0 offset=0 ttl=128 chksum=48889
+Protocol: 17 sport=52792 -> dport=53
+
+len=43 chksum=63629
+------------------------------------------------------------------------
+Count:1 Event#3.15779 2016-05-13 ??:??:??
+ET DNS Query to a *.pw domain - Likely Hostile
+10.0.21.136 -> 10.0.13.55
+IPVer=4 hlen=5 tos=0 dlen=58 ID=17655 flags=0 offset=0 ttl=128 chksum=48893
+Protocol: 17 sport=63565 -> dport=53
+
+len=38 chksum=32637
+------------------------------------------------------------------------
+Count:1 Event#3.15781 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49770 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26587 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15782 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49770 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26587 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15783 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49770 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26587 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15784 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49770 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26587 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15787 2016-05-13 ??:??:??
+ET CURRENT_EVENTS Evil Redirector Leading to EK Apr 28 2016
+192.186.197.133 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=4016
+Protocol: 6 sport=80 -> dport=49780
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=64671 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15788 2016-05-13 ??:??:??
+ET CURRENT_EVENTS Evil Redirector Leading to EK Apr 28 2016
+192.186.197.133 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1318 ID=0 flags=0 offset=0 ttl=0 chksum=4107
+Protocol: 6 sport=80 -> dport=49780
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=16493 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15789 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=8674 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15790 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=37285 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15791 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing with URI Primer Apr 06
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=8674 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15792 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing with URI Primer Apr 06
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=37285 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15793 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK Landing Jan 21 M3
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=38272 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15794 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK Landing Jan 21 M3
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=16651 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15795 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=38272 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15796 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=16651 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15797 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25352 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15798 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK Landing Jan 21 M3
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=800 ID=0 flags=0 offset=0 ttl=0 chksum=62368
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=15894 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15799 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=800 ID=0 flags=0 offset=0 ttl=0 chksum=62368
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=15894 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15800 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing Mar 02 2016 M1 T1
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=800 ID=0 flags=0 offset=0 ttl=0 chksum=62368
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=15894 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15801 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Landing with URI Primer Apr 06
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=800 ID=0 flags=0 offset=0 ttl=0 chksum=62368
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=15894 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15802 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Flash Exploit URI Struct Apr 07 IE
+10.0.21.136 -> 85.25.79.151
+IPVer=4 hlen=5 tos=0 dlen=483 ID=0 flags=0 offset=0 ttl=0 chksum=62685
+Protocol: 6 sport=49789 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=40085 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15803 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=56110 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15804 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=14073 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15805 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler or Nuclear EK Flash Exploit M2
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49789
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=865 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15809 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Possible Angler EK Flash DHE Post M2
+10.0.21.136 -> 85.25.79.151
+IPVer=4 hlen=5 tos=0 dlen=891 ID=0 flags=0 offset=0 ttl=0 chksum=62277
+Protocol: 6 sport=49789 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=35979 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15810 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49797
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=60584 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15811 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Apr 07 2016
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49797
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=36186 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15812 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Payload May 10 2016 M2 T1
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49797
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=28323 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15813 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler EK Payload May 10 2016 M2 T1
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49797
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=54267 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15814 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler or Nuclear EK Flash Exploit M2
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49797
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=28323 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15815 2016-05-13 ??:??:??
+ETPRO CURRENT_EVENTS Angler or Nuclear EK Flash Exploit M2
+85.25.79.151 -> 10.0.21.136
+IPVer=4 hlen=5 tos=0 dlen=1409 ID=0 flags=0 offset=0 ttl=0 chksum=61759
+Protocol: 6 sport=80 -> dport=49797
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=54267 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15817 2016-05-13 ??:??:??
+ETPRO TROJAN CryptXXX 2.06 Checkin
+10.0.21.136 -> 144.76.82.19
+IPVer=4 hlen=5 tos=0 dlen=92 ID=18270 flags=2 offset=0 ttl=128 chksum=45398
+Protocol: 6 sport=49799 -> dport=443
+
+Seq=1925281218 Ack=3439782494 Off=5 Res=0 Flags=***AP*** Win=256 urp=25367 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15818 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49800 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26557 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15819 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49800 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26557 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15820 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49800 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26557 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15821 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49800 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26557 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15822 2016-05-13 ??:??:??
+ETPRO TROJAN CryptXXX Checkin
+10.0.21.136 -> 144.76.82.19
+IPVer=4 hlen=5 tos=0 dlen=92 ID=18400 flags=2 offset=0 ttl=128 chksum=45268
+Protocol: 6 sport=49802 -> dport=443
+
+Seq=1369750966 Ack=1092160638 Off=5 Res=0 Flags=***AP*** Win=256 urp=30587 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15824 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49801 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25004 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15825 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49801 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25004 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15826 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49801 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25004 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15827 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 185.82.202.170
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=5331
+Protocol: 6 sport=49801 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=25004 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15829 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49812 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48825 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15830 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 209.99.40.219
+IPVer=4 hlen=5 tos=0 dlen=673 ID=0 flags=0 offset=0 ttl=0 chksum=40593
+Protocol: 6 sport=49812 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=48825 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15831 2016-05-13 ??:??:??
+ET TROJAN Generic - POST To .php w/Extended ASCII Characters
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49830 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26527 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15832 2016-05-13 ??:??:??
+ET TROJAN Win32/Necurs Common POST Header Structure
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49830 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26527 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15833 2016-05-13 ??:??:??
+ET TROJAN Ransomware Locky CnC Beacon 2
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49830 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26527 chksum=0
+------------------------------------------------------------------------
+Count:1 Event#3.15834 2016-05-13 ??:??:??
+ET INFO GENERIC SUSPICIOUS POST to Dotted Quad with Fake Browser 1
+10.0.21.136 -> 5.34.183.40
+IPVer=4 hlen=5 tos=0 dlen=670 ID=0 flags=0 offset=0 ttl=0 chksum=56456
+Protocol: 6 sport=49830 -> dport=80
+
+Seq=0 Ack=0 Off=5 Res=0 Flags=******** Win=0 urp=26527 chksum=0
+

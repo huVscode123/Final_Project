@@ -103,14 +103,20 @@ def run_pcap_analysis(self, session_id):
             from pcap_analyzer import PcapAnalyzer
             analyzer = PcapAnalyzer(pcap_path)
             analyzer.load()
-            
+
+            # [Bug B 修正] 先記錄封包數量，再執行偵測。
+            # 原本 packet_count 賦值在 detect_attacks() 之後，
+            # 一旦偵測拋例外就永遠不執行，導致 DB 中 packet_count=0。
+            session.packet_count = len(analyzer.packets) if hasattr(analyzer, 'packets') else 0
+
             # [Bug 2 修正] detect_attacks 現在回傳複合 dict {"alerts": [...], "summary": ...}
             analysis_result = analyzer.detect_attacks()
             alerts_raw      = analysis_result.get("alerts", [])
             summary_info    = analysis_result.get("summary", {})
-            
-            # 從摘要中取得總封包數
-            session.packet_count = summary_info.get('total_packets', 0)
+
+            # 如果 summary 提供了更精確的封包數，以它為準
+            if summary_info.get('total_packets', 0) > 0:
+                session.packet_count = summary_info['total_packets']
         except ImportError:
             logger.warning('PcapAnalyzer 未安裝，跳過規則式偵測')
             alerts_raw  = []
@@ -307,7 +313,20 @@ def run_gradcam(self, session_id, max_images=20,
             with torch.no_grad():
                 err = float(model.reconstruction_error(x_tensor).cpu().numpy()[0])
 
-            is_anomaly = err > threshold
+            # [Bug C 修正] 半監督模型的異常判定不應只看 VAE 重建誤差。
+            # 使用與 model_registry.compute_anomaly_scores() 一致的三態邏輯：
+            #   known_attack   : 分類器判定為攻擊 → is_anomaly=True
+            #   unknown_attack : 分類器判正常但 VAE 超標 → is_anomaly=True
+            #   normal         : 兩者皆正常 → is_anomaly=False
+            if bundle.is_hybrid:
+                with torch.no_grad():
+                    probs = model.classify_known(x_tensor).cpu()
+                    _, label = probs.max(dim=1)
+                    classifier_says_attack = (label.item() == 1)
+                is_anomaly = classifier_says_attack or (err > threshold)
+            else:
+                is_anomaly = err > threshold
+
             if anomaly_only and not is_anomaly:
                 continue
 

@@ -6,6 +6,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="description" content="VNAAP — 視覺化網路攻擊自動化分析平台"/>
   <title>{% block title %}VNAAP — 視覺化網路攻擊分析平台{% endblock %}</title>
+
+  <!-- 在任何內容繪製前套用主題，避免深/淺色切換閃爍（FOUC） -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('vnaap-theme');
+        if (!t) t = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }
+    })();
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
@@ -23,15 +35,47 @@
       <span></span><span></span><span></span>
     </button>
     <div class="header-logo">
+      <style>
+        /* 直接寫在 HTML 內，強制覆蓋，避免任何快取問題 */
+        :root {
+          --header-h: 120px; /* 您也可以在這裡修改頂部導覽列的高度以配合 Logo */
+        }
+        .dynamic-logo {
+          height: 120px; /* 您可以在這裡直接修改高度數值 */
+          width: auto;
+          max-width: none;
+          display: block;
+          object-fit: contain;
+        }
+        /* 淺色模式時，替換為黑字版本 */
+        html[data-theme="light"] .dynamic-logo {
+          content: url("{% static 'img/breaking bad - Visualized Network Attack Automated Analysis Platform(black).png' %}");
+        }
+      </style>
       <a href="{% url 'analyzer:dashboard' %}">
+        <!-- 深色模式時，預設顯示白字版本 -->
         <img src="{% static 'img/breaking bad - Visualized Network Attack Automated Analysis Platform.png' %}"
-             alt="VNAAP Logo" class="logo-img">
+             alt="VNAAP Logo" class="dynamic-logo">
       </a>
     </div>
   </div>
   <div class="header-right">
     <div class="live-badge"><span class="live-dot"></span> LIVE</div>
     <div class="header-clock" id="headerClock">--:--:--</div>
+
+    <!-- 深色 / 淺色主題切換 -->
+    <button class="theme-toggle" type="button" aria-label="切換深色/淺色主題" title="切換深色/淺色主題">
+      <span class="tt-icon tt-icon-sun">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+      </span>
+      <span class="tt-icon tt-icon-moon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+      </span>
+      <span class="tt-thumb">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="4"/></svg>
+      </span>
+    </button>
+
     {% if user.is_authenticated %}
     <a href="{% url 'accounts:profile' %}" class="profile-btn">
       <div class="avatar">{{ user.username|slice:":2"|upper }}</div>
@@ -179,7 +223,7 @@
     </div>
 
     <div class="sidebar-version">
-      <div class="v">VNAAP v3.0.0</div>
+      <div class="v">VNAAP v3.1.0</div>
       <div class="sub">CNN Autoencoder · Deep Learning</div>
     </div>
   </aside>

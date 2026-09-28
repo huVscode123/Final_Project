@@ -25,7 +25,7 @@
 .chart-controls{display:flex;align-items:center;gap:8px}
 .legend-pill{display:flex;align-items:center;gap:5px;font-size:.67rem;color:var(--text-muted)}
 .legend-dot{width:6px;height:6px;border-radius:50%}
-.ctrl-btn{width:26px;height:26px;border-radius:6px;background:#1e293b;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ctrl-btn{width:26px;height:26px;border-radius:6px;background:var(--bg-elevated);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .ctrl-btn svg{width:12px;height:12px;color:var(--text-secondary)}
 .chart-events{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
 .event-tag{display:flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:.67rem}
@@ -38,7 +38,7 @@
 .panel-header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border)}
 .panel-title{font-size:.85rem;font-weight:600;font-family:var(--mono)}
 .panel-sub{font-size:.65rem;color:var(--text-muted);margin-top:2px}
-.training-badge{display:flex;align-items:center;gap:6px;font-size:.68rem;color:var(--green);background:var(--green-dim);border:1px solid rgba(34,197,94,.25);padding:3px 9px;border-radius:20px}
+.training-badge{display:flex;align-items:center;gap:6px;font-size:.68rem;color:var(--green);background:var(--green-dim);border:1px solid var(--accent-glow);padding:3px 9px;border-radius:20px}
 .training-badge .dot{width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite}
 .model-body{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
 .metric-row{display:flex;align-items:center;gap:10px}
@@ -50,7 +50,7 @@
 .alerts-table-wrap td{padding:8px 14px}
 .table-footer{display:flex;justify-content:space-between;padding:9px 16px;border-top:1px solid var(--border);font-size:.68rem;color:var(--text-muted)}
 .table-footer a{color:var(--green);text-decoration:none}
-.threat-badge{display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:6px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.25)}
+.threat-badge{display:flex;align-items:center;gap:7px;padding:5px 11px;border-radius:6px;background:var(--red-dim);border:1px solid rgba(239,68,68,.25)}
 .threat-dot{width:6px;height:6px;border-radius:50%;background:var(--red);box-shadow:0 0 6px var(--red);animation:pulse 1.5s infinite}
 .threat-text{font-size:.66rem;font-weight:700;letter-spacing:.07em;color:var(--red);font-family:var(--mono)}
 .dash-footer{font-size:.6rem;color:var(--text-faint);text-align:center;font-family:var(--mono);padding:4px 0}
@@ -61,22 +61,22 @@
 .timeline-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
 .timeline-header{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border)}
 .timeline-scroll{max-height:320px;overflow-y:auto;padding:0 16px}
-.tl-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid rgba(31,45,64,.5);position:relative;animation:fadeSlideIn .4s ease both}
+.tl-item{display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);position:relative;animation:fadeSlideIn .4s ease both}
 .tl-item:last-child{border-bottom:none}
 @keyframes fadeSlideIn{from{opacity:0;transform:translateX(-10px)}to{opacity:1;transform:translateX(0)}}
 .tl-bar{width:3px;border-radius:2px;flex-shrink:0;min-height:48px}
-.tl-bar-CRITICAL{background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,.4)}
-.tl-bar-HIGH{background:#f97316;box-shadow:0 0 8px rgba(249,115,22,.3)}
-.tl-bar-MEDIUM{background:#eab308}
-.tl-bar-LOW{background:#3b82f6}
+.tl-bar-CRITICAL{background:var(--red);box-shadow:0 0 8px rgba(239,68,68,.4)}
+.tl-bar-HIGH{background:var(--orange);box-shadow:0 0 8px rgba(249,115,22,.3)}
+.tl-bar-MEDIUM{background:var(--yellow)}
+.tl-bar-LOW{background:var(--blue)}
 .tl-content{flex:1;min-width:0}
 .tl-top{display:flex;align-items:center;gap:8px;margin-bottom:4px}
 .tl-type{font-size:.78rem;font-weight:600;color:var(--text-primary)}
 .tl-sev{font-size:.6rem;font-weight:700;padding:1px 6px;border-radius:4px;letter-spacing:.04em}
-.tl-sev-CRITICAL{background:rgba(239,68,68,.15);color:#ef4444}
-.tl-sev-HIGH{background:rgba(249,115,22,.15);color:#f97316}
-.tl-sev-MEDIUM{background:rgba(234,179,8,.15);color:#eab308}
-.tl-sev-LOW{background:rgba(59,130,246,.15);color:#3b82f6}
+.tl-sev-CRITICAL{background:rgba(239,68,68,.15);color:var(--red)}
+.tl-sev-HIGH{background:rgba(249,115,22,.15);color:var(--orange)}
+.tl-sev-MEDIUM{background:rgba(234,179,8,.15);color:var(--yellow)}
+.tl-sev-LOW{background:rgba(59,130,246,.15);color:var(--blue)}
 .tl-detail{font-size:.7rem;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tl-meta{display:flex;align-items:center;gap:10px;margin-top:4px;font-size:.67rem}
 .tl-ip{font-family:var(--mono);color:var(--text-secondary)}
@@ -100,7 +100,7 @@
       <span class="threat-text">威脅等級：{% if crit_count > 0 %}嚴重{% elif high_count > 0 %}高{% else %}警戒{% endif %}</span>
     </div>
     {% else %}
-    <div class="threat-badge" style="background:rgba(34,197,94,.08);border-color:rgba(34,197,94,.25)">
+    <div class="threat-badge" style="background:var(--green-dim);border-color:var(--accent-glow)">
       <span class="threat-dot" style="background:var(--green);box-shadow:0 0 6px var(--green);animation:none"></span>
       <span class="threat-text" style="color:var(--green)">系統正常運作</span>
     </div>
@@ -114,60 +114,60 @@
 
 <!-- KPI -->
 <div class="kpi-row">
-  <div class="kpi-card" style="border:1px solid rgba(34,197,94,.2);box-shadow:0 0 28px rgba(34,197,94,.05)">
+  <div class="kpi-card" style="border:1px solid var(--accent-glow);box-shadow:0 0 28px rgba(34,197,94,.05)">
     <div class="kpi-glow" style="background:var(--green)"></div>
     <div class="kpi-top">
       <div><div class="kpi-title">分析任務</div><div class="kpi-sub">累積分析次數</div></div>
-      <div class="kpi-icon" style="background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2)">
-        <svg fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      <div class="kpi-icon" style="background:var(--green-dim);border:1px solid var(--accent-glow)">
+        <svg fill="none" viewBox="0 0 24 24" stroke="var(--green)" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
       </div>
     </div>
     <div class="kpi-value" style="color:var(--green)">{{ total_sessions }}</div>
     <div class="kpi-pills">
-      <div class="kpi-pill"><span class="pill-dot" style="background:#22c55e;box-shadow:0 0 4px #22c55e"></span><span class="pill-label">完成</span><span class="pill-val">{{ done_count }}</span></div>
-      <div class="kpi-pill"><span class="pill-dot" style="background:#3b82f6;animation:pulse 1.5s infinite"></span><span class="pill-label">進行中</span><span class="pill-val">{{ running_count }}</span></div>
+      <div class="kpi-pill"><span class="pill-dot" style="background:var(--green);box-shadow:0 0 4px var(--green)"></span><span class="pill-label">完成</span><span class="pill-val">{{ done_count }}</span></div>
+      <div class="kpi-pill"><span class="pill-dot" style="background:var(--blue);animation:pulse 1.5s infinite"></span><span class="pill-label">進行中</span><span class="pill-val">{{ running_count }}</span></div>
     </div>
   </div>
   <div class="kpi-card" style="border:1px solid rgba(239,68,68,.2);box-shadow:0 0 28px rgba(239,68,68,.05)">
     <div class="kpi-glow" style="background:var(--red)"></div>
     <div class="kpi-top">
       <div><div class="kpi-title">安全告警</div><div class="kpi-sub">告警總數</div></div>
-      <div class="kpi-icon" style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2)">
-        <svg fill="none" viewBox="0 0 24 24" stroke="#ef4444" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      <div class="kpi-icon" style="background:var(--red-dim);border:1px solid rgba(239,68,68,.2)">
+        <svg fill="none" viewBox="0 0 24 24" stroke="var(--red)" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
       </div>
     </div>
     <div class="kpi-value" style="color:var(--red)">{{ total_alerts }}</div>
     <div class="kpi-pills">
-      <div class="kpi-pill"><span class="pill-dot" style="background:#ef4444"></span><span class="pill-label">Critical</span><span class="pill-val">{{ crit_count }}</span></div>
-      <div class="kpi-pill"><span class="pill-dot" style="background:#f97316"></span><span class="pill-label">High</span><span class="pill-val">{{ high_count }}</span></div>
-      <div class="kpi-pill"><span class="pill-dot" style="background:#eab308"></span><span class="pill-label">Medium</span><span class="pill-val">{{ med_count }}</span></div>
+      <div class="kpi-pill"><span class="pill-dot" style="background:var(--red)"></span><span class="pill-label">Critical</span><span class="pill-val">{{ crit_count }}</span></div>
+      <div class="kpi-pill"><span class="pill-dot" style="background:var(--orange)"></span><span class="pill-label">High</span><span class="pill-val">{{ high_count }}</span></div>
+      <div class="kpi-pill"><span class="pill-dot" style="background:var(--yellow)"></span><span class="pill-label">Medium</span><span class="pill-val">{{ med_count }}</span></div>
     </div>
   </div>
   <div class="kpi-card" style="border:1px solid rgba(59,130,246,.2);box-shadow:0 0 28px rgba(59,130,246,.05)">
     <div class="kpi-glow" style="background:var(--blue)"></div>
     <div class="kpi-top">
       <div><div class="kpi-title">CNN 閾值</div><div class="kpi-sub">重建誤差閾值</div></div>
-      <div class="kpi-icon" style="background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2)">
-        <svg fill="none" viewBox="0 0 24 24" stroke="#3b82f6" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <div class="kpi-icon" style="background:var(--blue-dim);border:1px solid rgba(59,130,246,.2)">
+        <svg fill="none" viewBox="0 0 24 24" stroke="var(--blue)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
       </div>
     </div>
     <div class="kpi-value" style="color:var(--blue);font-size:1.4rem">{{ cnn_threshold }}</div>
     <div class="kpi-pills">
-      <div class="kpi-pill"><span class="pill-dot" style="background:#3b82f6"></span><span class="pill-label">Latent Dim</span><span class="pill-val">{{ cnn_latent_dim }}</span></div>
-      <div class="kpi-pill"><span class="pill-dot" style="background:#ef4444"></span><span class="pill-label">Anomalies</span><span class="pill-val">{{ total_anomalies }}</span></div>
+      <div class="kpi-pill"><span class="pill-dot" style="background:var(--blue)"></span><span class="pill-label">Latent Dim</span><span class="pill-val">{{ cnn_latent_dim }}</span></div>
+      <div class="kpi-pill"><span class="pill-dot" style="background:var(--red)"></span><span class="pill-label">Anomalies</span><span class="pill-val">{{ total_anomalies }}</span></div>
     </div>
   </div>
   <div class="kpi-card" style="border:1px solid rgba(168,85,247,.2);box-shadow:0 0 28px rgba(168,85,247,.05)">
     <div class="kpi-glow" style="background:var(--purple)"></div>
     <div class="kpi-top">
       <div><div class="kpi-title">專案</div><div class="kpi-sub">專案管理</div></div>
-      <div class="kpi-icon" style="background:rgba(168,85,247,.07);border:1px solid rgba(168,85,247,.2)">
-        <svg fill="none" viewBox="0 0 24 24" stroke="#a855f7" stroke-width="2"><path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7l9 6 9-6"/></svg>
+      <div class="kpi-icon" style="background:var(--purple-dim);border:1px solid rgba(168,85,247,.2)">
+        <svg fill="none" viewBox="0 0 24 24" stroke="var(--purple)" stroke-width="2"><path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7l9 6 9-6"/></svg>
       </div>
     </div>
     <div class="kpi-value" style="color:var(--purple)">{{ project_count }}</div>
     <div class="kpi-pills">
-      <div class="kpi-pill"><span class="pill-dot" style="background:#a855f7"></span><span class="pill-label">Active</span><span class="pill-val">{{ active_project_count }}</span></div>
+      <div class="kpi-pill"><span class="pill-dot" style="background:var(--purple)"></span><span class="pill-label">Active</span><span class="pill-val">{{ active_project_count }}</span></div>
     </div>
   </div>
 </div>
@@ -180,9 +180,9 @@
       <div class="chart-sub">半監督式 CNN Autoencoder · 即時資料</div>
     </div>
     <div class="chart-controls">
-      <div class="legend-pill"><span class="legend-dot" style="background:#22c55e"></span>Sessions</div>
-      <div class="legend-pill"><span class="legend-dot" style="background:#ef4444"></span>CRITICAL</div>
-      <div class="legend-pill"><span class="legend-dot" style="background:#f97316"></span>HIGH</div>
+      <div class="legend-pill"><span class="legend-dot" style="background:var(--green)"></span>Sessions</div>
+      <div class="legend-pill"><span class="legend-dot" style="background:var(--red)"></span>CRITICAL</div>
+      <div class="legend-pill"><span class="legend-dot" style="background:var(--orange)"></span>HIGH</div>
       <button class="ctrl-btn" onclick="location.reload()" title="Refresh">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
       </button>
@@ -196,8 +196,8 @@
   <div class="chart-events">
     {% for atk in top_attacks %}
     <div class="event-tag" style="background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2)">
-      <span class="dot" style="background:#ef4444"></span>
-      <span class="etype" style="color:#ef4444">{{ atk.attack_type }}</span>
+      <span class="dot" style="background:var(--red)"></span>
+      <span class="etype" style="color:var(--red)">{{ atk.attack_type }}</span>
       <span class="etime">×{{ atk.count }}</span>
     </div>
     {% endfor %}
@@ -225,7 +225,7 @@
         <div class="panel-title">攻擊事件時間軸</div>
         <div class="panel-sub">最新安全事件流</div>
       </div>
-      <div class="legend-pill"><span class="legend-dot" style="background:#ef4444"></span>CRITICAL <span class="legend-dot" style="background:#f97316;margin-left:6px"></span>HIGH <span class="legend-dot" style="background:#eab308;margin-left:6px"></span>MED</div>
+      <div class="legend-pill"><span class="legend-dot" style="background:var(--red)"></span>CRITICAL <span class="legend-dot" style="background:var(--orange);margin-left:6px"></span>HIGH <span class="legend-dot" style="background:var(--yellow);margin-left:6px"></span>MED</div>
     </div>
     <div class="timeline-scroll" id="timelineScroll">
     </div>
@@ -272,23 +272,23 @@
     </div>
     <div class="model-body">
       <div class="metric-row">
-        <svg fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="2"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/></svg>
+        <svg fill="none" viewBox="0 0 24 24" stroke="var(--green)" stroke-width="2"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/></svg>
         <span class="metric-label">模型類型</span><span class="metric-val">CNN Autoencoder</span>
       </div>
       <div class="metric-row">
-        <svg fill="none" viewBox="0 0 24 24" stroke="#3b82f6" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <svg fill="none" viewBox="0 0 24 24" stroke="var(--blue)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
         <span class="metric-label">潛在維度</span><span class="metric-val">{{ cnn_latent_dim }}</span>
       </div>
       <div class="metric-row">
-        <svg fill="none" viewBox="0 0 24 24" stroke="#f97316" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        <svg fill="none" viewBox="0 0 24 24" stroke="var(--orange)" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
         <span class="metric-label">異常閾值</span><span class="metric-val" style="color:var(--yellow)">{{ cnn_threshold }}</span>
       </div>
       <div class="metric-row">
-        <svg fill="none" viewBox="0 0 24 24" stroke="#ef4444" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        <svg fill="none" viewBox="0 0 24 24" stroke="var(--red)" stroke-width="2"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
         <span class="metric-label">總異常數</span><span class="metric-val" style="color:var(--red)">{{ total_anomalies }}</span>
       </div>
       <div class="metric-row">
-        <svg fill="none" viewBox="0 0 24 24" stroke="#22c55e" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        <svg fill="none" viewBox="0 0 24 24" stroke="var(--green)" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
         <span class="metric-label">已完成</span><span class="metric-val" style="color:var(--green)">{{ done_count }} 個任務</span>
       </div>
     </div>
@@ -325,7 +325,7 @@
   </div>
 </div>
 
-<div class="dash-footer">VNAAP v3.0.0 · CNN Autoencoder 異常偵測引擎 · © 2026</div>
+<div class="dash-footer">VNAAP v3.1.0 · CNN Autoencoder 異常偵測引擎 · © 2026</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -334,6 +334,8 @@ document.getElementById('pageDateTime').textContent =
   new Date().toLocaleDateString('zh-TW') + ' · ' +
   new Date().toLocaleTimeString('zh-TW',{hour12:false}) + ' UTC+8 · Auto-refresh 60s';
 
+const _vc = vnaapThemeColors();
+
 const dd = {{ daily_data|safe }};
 new Chart(document.getElementById('dailyChart'),{
   type:'bar',
@@ -341,8 +343,8 @@ new Chart(document.getElementById('dailyChart'),{
     backgroundColor:'rgba(34,197,94,.22)',borderColor:'#22c55e',borderWidth:1,borderRadius:4}]},
   options:{responsive:true,maintainAspectRatio:false,
     plugins:{legend:{display:false}},
-    scales:{x:{ticks:{color:'#475569',font:{size:9}},grid:{color:'#1f2d40'}},
-            y:{ticks:{color:'#475569',font:{size:9}},grid:{color:'#1f2d40'}}}}
+    scales:{x:{ticks:{color:_vc.textMuted,font:{size:9}},grid:{color:_vc.grid}},
+            y:{ticks:{color:_vc.textMuted,font:{size:9}},grid:{color:_vc.grid}}}}
 });
 
 const sd = {{ severity_data|safe }};
@@ -351,14 +353,14 @@ new Chart(document.getElementById('sevChart'),{
   data:{labels:['CRITICAL','HIGH','MEDIUM','LOW'],
     datasets:[{data:[sd.CRITICAL,sd.HIGH,sd.MEDIUM,sd.LOW],
       backgroundColor:['rgba(239,68,68,.8)','rgba(249,115,22,.8)','rgba(234,179,8,.8)','rgba(34,197,94,.8)'],
-      borderColor:'#111827',borderWidth:2}]},
+      borderColor:_vc.cardBg,borderWidth:2}]},
   options:{responsive:true,maintainAspectRatio:false,cutout:'64%',
-    plugins:{legend:{position:'bottom',labels:{color:'#94a3b8',font:{size:9},boxWidth:9,padding:10}}}}
+    plugins:{legend:{position:'bottom',labels:{color:_vc.textMuted,font:{size:9},boxWidth:9,padding:10}}}}
 });
 
 // ── 威脅雷達圖 ──
-const radarLabels = {{ attack_types_radar|safe }};
-const radarValues = {{ radar_data|safe }};
+const radarLabels = {{ attack_types_radar|default:"[]"|safe }};
+const radarValues = {{ radar_data|default:"[]"|safe }};
 new Chart(document.getElementById('radarChart'), {
   type: 'radar',
   data: {
@@ -370,7 +372,7 @@ new Chart(document.getElementById('radarChart'), {
       borderColor: '#ef4444',
       borderWidth: 2,
       pointBackgroundColor: '#ef4444',
-      pointBorderColor: '#111827',
+      pointBorderColor: _vc.cardBg,
       pointBorderWidth: 2,
       pointRadius: 4,
       pointHoverRadius: 6,
@@ -381,10 +383,10 @@ new Chart(document.getElementById('radarChart'), {
     maintainAspectRatio: false,
     scales: {
       r: {
-        angleLines: { color: 'rgba(31,45,64,0.5)' },
-        grid: { color: 'rgba(31,45,64,0.4)' },
+        angleLines: { color: _vc.grid },
+        grid: { color: _vc.grid },
         pointLabels: {
-          color: '#94a3b8',
+          color: _vc.text,
           font: { size: 10, family: 'Inter' }
         },
         ticks: {
@@ -401,7 +403,7 @@ new Chart(document.getElementById('radarChart'), {
 });
 
 // ── 時間軸 ──
-const timelineData = {{ timeline_alerts|safe }};
+const timelineData = {{ timeline_alerts|default:"[]"|safe }};
 const tlContainer = document.getElementById('timelineScroll');
 if (timelineData.length === 0) {
   tlContainer.innerHTML = `

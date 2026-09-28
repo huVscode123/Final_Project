@@ -45,11 +45,11 @@
   <div class="grid-3">
     <div>
       <div class="text-muted" style="font-size:0.72rem;margin-bottom:4px;">平均重建誤差</div>
-      <div class="mono" style="font-size:1.1rem;font-weight:600;">{{ cnn_result.avg_reconstruction_error|floatformat:6 }}</div>
+      <div class="mono" style="font-size:1.1rem;font-weight:600;">{{ cnn_result.avg_attack_error|floatformat:6 }}</div>
     </div>
     <div>
       <div class="text-muted" style="font-size:0.72rem;margin-bottom:4px;">使用閾值</div>
-      <div class="mono text-accent" style="font-size:1.1rem;font-weight:600;">{{ cnn_result.threshold_used|floatformat:6 }}</div>
+      <div class="mono text-accent" style="font-size:1.1rem;font-weight:600;">{{ cnn_result.threshold|floatformat:6 }}</div>
     </div>
     <div>
       <div class="text-muted" style="font-size:0.72rem;margin-bottom:4px;">偵測異常數</div>
@@ -73,13 +73,13 @@
       <div class="grid-3" style="gap:12px;">
         {% for img in anomaly_images %}
         <div class="card" style="padding:0;overflow:hidden;border-color:rgba(239,68,68,0.3);">
-          <img src="{{ img.image.url }}" alt="Anomaly #{{ img.packet_index }}"
+          <img src="{{ img.comparison_image.url }}" alt="Anomaly #{{ img.packet_index }}"
                style="width:100%;height:180px;object-fit:cover;display:block;cursor:pointer;"
-               onclick="showImageModal('{{ img.image.url }}', {{ img.packet_index }}, '{{ img.anomaly_score|floatformat:6 }}', true)">
+               onclick="showImageModal('{{ img.comparison_image.url }}', {{ img.packet_index }}, '{{ img.recon_error|floatformat:6 }}', true)">
           <div style="padding:10px 12px;border-top:1px solid rgba(239,68,68,0.2);">
             <div class="flex items-center justify-between">
               <span class="mono" style="font-size:0.75rem;">封包 #{{ img.packet_index }}</span>
-              <span class="mono text-red" style="font-size:0.72rem;">{{ img.anomaly_score|floatformat:4 }}</span>
+              <span class="mono text-red" style="font-size:0.72rem;">{{ img.recon_error|floatformat:4 }}</span>
             </div>
           </div>
         </div>
@@ -96,13 +96,13 @@
       <div class="grid-3" style="gap:12px;">
         {% for img in normal_images %}
         <div class="card" style="padding:0;overflow:hidden;">
-          <img src="{{ img.image.url }}" alt="Normal #{{ img.packet_index }}"
+          <img src="{{ img.comparison_image.url }}" alt="Normal #{{ img.packet_index }}"
                style="width:100%;height:180px;object-fit:cover;display:block;cursor:pointer;"
-               onclick="showImageModal('{{ img.image.url }}', {{ img.packet_index }}, '{{ img.anomaly_score|floatformat:6 }}', false)">
+               onclick="showImageModal('{{ img.comparison_image.url }}', {{ img.packet_index }}, '{{ img.recon_error|floatformat:6 }}', false)">
           <div style="padding:10px 12px;">
             <div class="flex items-center justify-between">
               <span class="mono" style="font-size:0.75rem;">封包 #{{ img.packet_index }}</span>
-              <span class="mono text-green" style="font-size:0.72rem;">{{ img.anomaly_score|floatformat:4 }}</span>
+              <span class="mono text-green" style="font-size:0.72rem;">{{ img.recon_error|floatformat:4 }}</span>
             </div>
           </div>
         </div>
@@ -124,9 +124,9 @@
             <tr>
               <td class="mono">#{{ img.packet_index }}</td>
               <td><span class="badge badge-info">{{ img.variant|upper }}</span></td>
-              <td class="mono {% if img.is_anomaly %}text-red{% else %}text-green{% endif %}">{{ img.anomaly_score|floatformat:6 }}</td>
+              <td class="mono {% if img.is_anomaly %}text-red{% else %}text-green{% endif %}">{{ img.recon_error|floatformat:6 }}</td>
               <td>{% if img.is_anomaly %}<span class="sev-CRITICAL">異常</span>{% else %}<span class="sev-LOW">正常</span>{% endif %}</td>
-              <td><a href="{{ img.image.url }}" target="_blank" class="btn-ghost btn-sm">查看</a></td>
+              <td><a href="{{ img.comparison_image.url }}" target="_blank" class="btn-ghost btn-sm">查看</a></td>
             </tr>
             {% endfor %}
           </tbody>

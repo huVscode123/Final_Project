@@ -1,0 +1,799 @@
+[**] [1:38619:3] INDICATOR-COMPROMISE binary download while text expected [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-15:55:53.150809 199.83.131.18:80 -> 10.0.21.136:49209
+TCP TTL:128 TOS:0x0 ID:810 IpLen:20 DgmLen:16468 DF
+***A**** Seq: 0x5A366B75  Ack: 0x259793C0  Win: 0x0  TcpLen: 20
+[Xref => http://www.virustotal.com/en/file/fc25709c4e05dbfbcc6ae0cf8a7c06e80156ae05179203021838259aeda9801a/analysis/1461600547/]
+
+[**] [1:15306:22] FILE-EXECUTABLE Portable Executable binary file magic detected [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-15:55:53.150809 199.83.131.18:80 -> 10.0.21.136:49209
+TCP TTL:128 TOS:0x0 ID:810 IpLen:20 DgmLen:16468 DF
+***A**** Seq: 0x5A366B75  Ack: 0x259793C0  Win: 0x0  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-15:57:26.741010 10.0.21.136:49211 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:11822 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x9629BB08  Ack: 0xC0937E5C  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:28039:5] INDICATOR-COMPROMISE Suspicious .pw dns query [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-15:57:48.737419 10.0.21.136:63147 -> 10.0.13.54:53
+UDP TTL:128 TOS:0x0 ID:907 IpLen:20 DgmLen:63
+Len: 35
+
+[**] [1:28039:5] INDICATOR-COMPROMISE Suspicious .pw dns query [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-15:57:48.941370 10.0.21.136:49936 -> 10.0.13.54:53
+UDP TTL:128 TOS:0x0 ID:909 IpLen:20 DgmLen:58
+Len: 30
+
+[**] [1:27721:3] INDICATOR-COMPROMISE Suspicious .su dns query [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-15:58:10.402709 10.0.21.136:59046 -> 10.0.13.54:53
+UDP TTL:128 TOS:0x0 ID:913 IpLen:20 DgmLen:56
+Len: 28
+
+[**] [1:27721:3] INDICATOR-COMPROMISE Suspicious .su dns query [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-15:58:12.803451 10.0.21.136:55524 -> 10.0.13.54:53
+UDP TTL:128 TOS:0x0 ID:917 IpLen:20 DgmLen:57
+Len: 29
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-15:58:39.147119 10.0.21.136:49216 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:31936 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x841A8425  Ack: 0xAA8EBE6  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-15:58:39.621517 10.0.21.136:49217 -> 185.82.202.170:80
+TCP TTL:55 TOS:0x0 ID:52091 IpLen:20 DgmLen:673 DF
+***A**** Seq: 0xB36B21A2  Ack: 0xE000EA86  Win: 0x3E00  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-15:59:51.791336 10.0.21.136:49245 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:62834 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x2223909  Ack: 0x1D052B65  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:01:10.084433 10.0.21.136:49248 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:20984 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0xA891BA80  Ack: 0xF5617B74  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:02:34.547622 10.0.21.136:49251 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:36812 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x26095E49  Ack: 0x5700F2C4  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:35180:1] POLICY-OTHER Remote non-JavaScript file found in script tag src attribute [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:03:55.150853 192.185.208.247:80 -> 10.0.21.136:49259
+TCP TTL:49 TOS:0x28 ID:62018 IpLen:20 DgmLen:1409 DF
+***A**** Seq: 0xBDDB8799  Ack: 0x193D0DE3  Win: 0xEE  TcpLen: 20
+[Xref => http://technet.microsoft.com/en-us/security/bulletin/MS15-065][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2015-1729]
+
+[**] [1:32481:2] POLICY-OTHER Remote non-JavaScript file found in script tag src attribute [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:03:55.153750 192.185.208.247:80 -> 10.0.21.136:49259
+TCP TTL:49 TOS:0x28 ID:62020 IpLen:20 DgmLen:1409 DF
+***A**** Seq: 0xBDDB924B  Ack: 0x193D0DE3  Win: 0xEE  TcpLen: 20
+[Xref => http://technet.microsoft.com/en-us/security/bulletin/MS14-065][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2014-6345]
+
+[**] [1:38275:1] EXPLOIT-KIT Angler exploit kit redirection attempt [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:03:55.255186 192.185.208.247:80 -> 10.0.21.136:49259
+TCP TTL:49 TOS:0x28 ID:62028 IpLen:20 DgmLen:1409 DF
+***A**** Seq: 0xBDDBBD13  Ack: 0x193D0DE3  Win: 0xEE  TcpLen: 20
+[Xref => http://malware-traffic-analysis.net/2016/01/26/index.html]
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:55.666222 192.185.208.247 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:1818 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:55.682259 192.185.208.247 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:1824 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:55.801054 192.185.208.247 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:1882 IpLen:20 DgmLen:20 DF
+
+[**] [119:19:1] (http_inspect) LONG HEADER [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:03:55.977246 10.0.21.136:49272 -> 172.217.1.238:80
+TCP TTL:54 TOS:0x0 ID:14593 IpLen:20 DgmLen:1459
+***A**** Seq: 0x906B8842  Ack: 0xCB5E1803  Win: 0xB280  TcpLen: 20
+[Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2009-4873]
+
+[**] [1:37909:1] INDICATOR-OBFUSCATION known javascript packer detected [**]
+[Classification: Misc activity] [Priority: 3] 
+05/13-16:03:55.970850 149.56.5.44:80 -> 10.0.21.136:49270
+TCP TTL:128 TOS:0x0 ID:1933 IpLen:20 DgmLen:16468 DF
+***A**** Seq: 0x8257420D  Ack: 0x7F4409E1  Win: 0x0  TcpLen: 20
+
+[**] [1:32481:2] POLICY-OTHER Remote non-JavaScript file found in script tag src attribute [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:03:57.987833 149.56.5.44:80 -> 10.0.21.136:49283
+TCP TTL:128 TOS:0x0 ID:2443 IpLen:20 DgmLen:10101 DF
+***A**** Seq: 0xE7331F88  Ack: 0xEE3C3D7C  Win: 0xFE00  TcpLen: 20
+[Xref => http://technet.microsoft.com/en-us/security/bulletin/MS14-065][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2014-6345]
+
+[**] [1:32481:2] POLICY-OTHER Remote non-JavaScript file found in script tag src attribute [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:03:57.990952 149.56.5.44:80 -> 10.0.21.136:49284
+TCP TTL:128 TOS:0x0 ID:2450 IpLen:20 DgmLen:8836 DF
+***A**** Seq: 0xF3742BD  Ack: 0x88D1202E  Win: 0xFE00  TcpLen: 20
+[Xref => http://technet.microsoft.com/en-us/security/bulletin/MS14-065][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2014-6345]
+
+[**] [1:32481:2] POLICY-OTHER Remote non-JavaScript file found in script tag src attribute [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:03:58.001718 149.56.5.44:80 -> 10.0.21.136:49282
+TCP TTL:128 TOS:0x0 ID:2461 IpLen:20 DgmLen:9915 DF
+***A**** Seq: 0x56C8548D  Ack: 0x2AEF07B9  Win: 0xFF00  TcpLen: 20
+[Xref => http://technet.microsoft.com/en-us/security/bulletin/MS14-065][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2014-6345]
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:58.764657 172.217.1.227 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:2802 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:58.911024 149.56.5.44 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:2932 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:58.899442 216.58.193.194 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:2975 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:59.003674 216.58.193.194 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:3026 IpLen:20 DgmLen:20 DF
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:03:58.717787 10.0.21.136:49308 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:3289 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x4FC2A17E  Ack: 0x6EDC399  Win: 0x3DF8  TcpLen: 20
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:59.124912 216.58.193.194 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:3201 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:59.283268 149.56.5.44 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:3307 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:59.114890 149.56.5.44 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:3317 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:03:59.295857 149.56.5.44 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:3341 IpLen:20 DgmLen:20 DF
+
+[**] [1:37026:2] POLICY-OTHER SSL/TLS weak RC4 cipher suite use attempt [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:04:00.444662 69.194.244.11:443 -> 10.0.21.136:49346
+TCP TTL:53 TOS:0x68 ID:61794 IpLen:20 DgmLen:1409 DF
+***A**** Seq: 0x921C2FD  Ack: 0x77C528F6  Win: 0x10  TcpLen: 20
+[Xref => http://osvdb.org/show/osvdb/117855][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2015-2808][Xref => http://www.securityfocus.com/bid/73684]
+
+[**] [1:37026:2] POLICY-OTHER SSL/TLS weak RC4 cipher suite use attempt [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:04:00.446964 69.194.244.11:443 -> 10.0.21.136:49347
+TCP TTL:53 TOS:0x68 ID:62787 IpLen:20 DgmLen:1409 DF
+***A**** Seq: 0x311B4056  Ack: 0xBC9C2946  Win: 0x10  TcpLen: 20
+[Xref => http://osvdb.org/show/osvdb/117855][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2015-2808][Xref => http://www.securityfocus.com/bid/73684]
+
+[**] [1:38556:1] EXPLOIT-KIT Angler landing page detected [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:04:00.996360 89.32.40.172:80 -> 10.0.21.136:49350
+TCP TTL:55 TOS:0x0 ID:36518 IpLen:20 DgmLen:1409 DF
+***A**** Seq: 0xC86BF099  Ack: 0x90D987E6  Win: 0x3D4  TcpLen: 20
+
+[**] [1:38555:1] EXPLOIT-KIT Angler landing page detected [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:04:01.690483 89.32.40.172:80 -> 10.0.21.136:49350
+TCP TTL:55 TOS:0x0 ID:36584 IpLen:20 DgmLen:1409 DF
+***A**** Seq: 0xC86D518B  Ack: 0x90D987E6  Win: 0x3D4  TcpLen: 20
+
+[**] [1:38521:1] EXPLOIT-KIT Angler exploit kit redirect page detected [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:04:01.689832 89.32.40.172:80 -> 10.0.21.136:49350
+TCP TTL:128 TOS:0x0 ID:4890 IpLen:20 DgmLen:14457 DF
+***A**** Seq: 0xC86D3175  Ack: 0x90D987E6  Win: 0x2D00  TcpLen: 20
+
+[**] [1:17276:19] FILE-OTHER Multiple vendor Antivirus magic byte detection evasion attempt [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:04:05.056056 89.32.40.172:80 -> 10.0.21.136:49349
+TCP TTL:128 TOS:0x0 ID:5192 IpLen:20 DgmLen:16468 DF
+***A**** Seq: 0xDA16DCEC  Ack: 0x463C2287  Win: 0x0  TcpLen: 20
+[Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3382][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3381][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3380][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3379][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3378][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3377][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3376][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3375][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3374][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3373][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3372][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3371][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2005-3370]
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:04:05.292729 89.32.40.172 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:5215 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:04:05.280130 89.32.40.172 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:5307 IpLen:20 DgmLen:20 DF
+
+[**] [138:4:1] SENSITIVE-DATA U.S. Social Security Numbers (w/out dashes) [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:04:06.828615 10.0.21.136:49260 -> 192.185.208.247:80
+TCP TTL:49 TOS:0x28 ID:4070 IpLen:20 DgmLen:508 DF
+***AP*** Seq: 0x786B3C25  Ack: 0xEAB71BC5  Win: 0x8980  TcpLen: 20
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:04:10.611004 89.32.40.172 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:5973 IpLen:20 DgmLen:20 DF
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.574741 10.0.21.136:49281 -> 172.217.1.227:443
+TCP TTL:128 TOS:0x0 ID:6832 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xE61DC345  Ack: 0x8D797CC3  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.574813 10.0.21.136:49254 -> 216.58.219.36:443
+TCP TTL:128 TOS:0x0 ID:6834 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x2DDFB1A6  Ack: 0xAF63541E  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.574839 10.0.21.136:49253 -> 216.58.219.36:443
+TCP TTL:128 TOS:0x0 ID:6835 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x50E98882  Ack: 0xDBC0A541  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.574865 10.0.21.136:49255 -> 172.217.1.227:443
+TCP TTL:128 TOS:0x0 ID:6836 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xA276DB8C  Ack: 0xDC4825E3  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.575094 10.0.21.136:49280 -> 172.217.1.227:443
+TCP TTL:128 TOS:0x0 ID:6841 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x684F6FC  Ack: 0xC5C2E787  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.575297 10.0.21.136:49256 -> 172.217.1.227:443
+TCP TTL:128 TOS:0x0 ID:6843 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xF9C641F4  Ack: 0x32E8C93F  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.575598 10.0.21.136:49322 -> 216.58.193.194:443
+TCP TTL:128 TOS:0x0 ID:6851 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x7F7B9525  Ack: 0x2C359A3  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.576666 10.0.21.136:49317 -> 216.58.193.194:443
+TCP TTL:128 TOS:0x0 ID:6881 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x4AB12296  Ack: 0x570AC204  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.576783 10.0.21.136:49319 -> 216.58.193.194:443
+TCP TTL:128 TOS:0x0 ID:6882 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x9D7BA474  Ack: 0x2DEE20BA  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.576968 10.0.21.136:49330 -> 216.58.193.194:443
+TCP TTL:128 TOS:0x0 ID:6886 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xBA00FD68  Ack: 0x2D82E850  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577015 10.0.21.136:49323 -> 216.58.193.194:443
+TCP TTL:128 TOS:0x0 ID:6888 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x9393867D  Ack: 0xF6BBF181  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577046 10.0.21.136:49326 -> 216.58.193.194:443
+TCP TTL:128 TOS:0x0 ID:6890 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x50AE0543  Ack: 0x5B21DCD8  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577194 10.0.21.136:49336 -> 216.58.217.193:443
+TCP TTL:128 TOS:0x0 ID:6893 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x5D432389  Ack: 0xD18D5E28  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577219 10.0.21.136:49338 -> 216.58.217.193:443
+TCP TTL:128 TOS:0x0 ID:6895 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x33FAF884  Ack: 0x827D1387  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577233 10.0.21.136:49339 -> 216.58.217.193:443
+TCP TTL:128 TOS:0x0 ID:6896 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x8F9485E6  Ack: 0x45CCBF26  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577248 10.0.21.136:49341 -> 216.58.217.193:443
+TCP TTL:128 TOS:0x0 ID:6897 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x5D802879  Ack: 0xC4ADC021  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577258 10.0.21.136:49340 -> 216.58.217.193:443
+TCP TTL:128 TOS:0x0 ID:6898 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x20D210EB  Ack: 0x6E80A0F4  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577448 10.0.21.136:49351 -> 172.217.2.226:443
+TCP TTL:128 TOS:0x0 ID:6901 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xC10BB32  Ack: 0x8E0530D9  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577495 10.0.21.136:49352 -> 172.217.2.226:443
+TCP TTL:128 TOS:0x0 ID:6903 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xE7B8862A  Ack: 0xF5552A21  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577512 10.0.21.136:49354 -> 185.86.137.32:443
+TCP TTL:128 TOS:0x0 ID:6904 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xD98EE2A9  Ack: 0x786BB334  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.577712 10.0.21.136:49353 -> 185.86.137.32:443
+TCP TTL:128 TOS:0x0 ID:6909 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xF6092BA8  Ack: 0x97C115CE  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.578435 10.0.21.136:49395 -> 37.221.175.145:443
+TCP TTL:128 TOS:0x0 ID:6936 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xC6BA49F3  Ack: 0x9B760F85  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.578446 10.0.21.136:49396 -> 37.221.175.145:443
+TCP TTL:128 TOS:0x0 ID:6937 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x1DADBE71  Ack: 0x530B969C  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.578459 10.0.21.136:49397 -> 162.208.22.34:443
+TCP TTL:128 TOS:0x0 ID:6938 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x43977F57  Ack: 0x26576443  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.578477 10.0.21.136:49398 -> 162.208.22.34:443
+TCP TTL:128 TOS:0x0 ID:6939 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x7254E7C8  Ack: 0x685B0495  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.578552 10.0.21.136:49401 -> 162.208.22.34:443
+TCP TTL:128 TOS:0x0 ID:6942 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x43220F03  Ack: 0x23A7C263  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:32.578564 10.0.21.136:49402 -> 162.208.22.34:443
+TCP TTL:128 TOS:0x0 ID:6943 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x921AD3FB  Ack: 0x476235C4  Win: 0x0  TcpLen: 20
+
+[**] [138:4:1] SENSITIVE-DATA U.S. Social Security Numbers (w/out dashes) [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:04:33.179935 10.0.21.136:49418 -> 216.58.217.206:80
+TCP TTL:54 TOS:0x0 ID:7177 IpLen:20 DgmLen:1437
+***A**** Seq: 0x2CBADA24  Ack: 0x815EBD0E  Win: 0xB280  TcpLen: 20
+
+[**] [119:19:1] (http_inspect) LONG HEADER [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:04:33.179935 10.0.21.136:49418 -> 216.58.217.206:80
+TCP TTL:54 TOS:0x0 ID:7177 IpLen:20 DgmLen:1437
+***A**** Seq: 0x2CBADA24  Ack: 0x815EBD0E  Win: 0xB280  TcpLen: 20
+[Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2009-4873]
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:05:30.588724 10.0.21.136:49431 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:46030 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x7D25CDB4  Ack: 0xEA079B3A  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:06:48.552897 10.0.21.136:49434 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:33221 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0xFFBD9C58  Ack: 0x6A91F4D3  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:08:21.164830 10.0.21.136:49438 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:43277 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0xB4D2F21D  Ack: 0x6996668A  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:09:38.948648 10.0.21.136:49445 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:62913 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0xC918953C  Ack: 0xE0AFEEBF  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:11:00.457226 10.0.21.136:49573 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:36961 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x551F57E7  Ack: 0x1BC5FB79  Win: 0x3DF8  TcpLen: 20
+
+[**] [129:5:1] Bad segment, adjusted size <= 0 [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:11:08.479708 10.0.21.136:49574 -> 185.82.202.170:80
+TCP TTL:128 TOS:0x0 ID:11857 IpLen:20 DgmLen:137 DF
+***AP*** Seq: 0xE356D89C  Ack: 0x6BD15032  Win: 0x100  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:11:00.951693 10.0.21.136:49574 -> 185.82.202.170:80
+TCP TTL:55 TOS:0x0 ID:43877 IpLen:20 DgmLen:673 DF
+***A**** Seq: 0xE356D684  Ack: 0x6BD15032  Win: 0x3D38  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:11:56.205754 10.0.21.136:49573 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:36963 IpLen:20 DgmLen:670 DF
+***AP*** Seq: 0x551F5A5D  Ack: 0x1BC5FE4F  Win: 0x42E0  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:11:56.490975 10.0.21.136:49574 -> 185.82.202.170:80
+TCP TTL:55 TOS:0x0 ID:43880 IpLen:20 DgmLen:673 DF
+***A**** Seq: 0xE356D8FD  Ack: 0x6BD15308  Win: 0x4168  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:13:07.355560 10.0.21.136:49583 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:16424 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x99880032  Ack: 0x209EA72D  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:14:12.420110 10.0.21.136:49586 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:19735 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0xCC0D0366  Ack: 0xACAA6B87  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:15:54.846075 10.0.21.136:49589 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:38664 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x365533B0  Ack: 0x25A61D9C  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:17:01.935190 10.0.21.136:49623 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:18598 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x23D8DE44  Ack: 0x968384BA  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:18:20.201681 10.0.21.136:49673 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:45142 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x2B2EA733  Ack: 0x66C8A8DE  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:19:38.186019 10.0.21.136:49677 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:15492 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0xFEB72B82  Ack: 0x86815835  Win: 0x3DF8  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:20:34.570880 10.0.21.136:49693 -> 216.58.217.196:443
+TCP TTL:128 TOS:0x0 ID:16384 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xAE785781  Ack: 0x9508DF50  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:20:34.571151 10.0.21.136:49699 -> 216.58.217.196:443
+TCP TTL:128 TOS:0x0 ID:16385 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xBB127439  Ack: 0x8D92B8D0  Win: 0x0  TcpLen: 20
+
+[**] [1:16642:11] POLICY-OTHER file URI scheme attempt [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:20:38.748287 174.136.46.174:80 -> 10.0.21.136:49709
+TCP TTL:128 TOS:0x0 ID:16433 IpLen:20 DgmLen:16468 DF
+***A**** Seq: 0x450D583  Ack: 0x76137301  Win: 0x0  TcpLen: 20
+[Xref => http://tools.ietf.org/html/rfc1738][Xref => http://tools.ietf.org/html/rfc1630][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2011-3230]
+
+[**] [1:32481:2] POLICY-OTHER Remote non-JavaScript file found in script tag src attribute [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:20:38.866121 174.136.46.174:80 -> 10.0.21.136:49709
+TCP TTL:128 TOS:0x0 ID:16435 IpLen:20 DgmLen:2573 DF
+***A**** Seq: 0x45115AF  Ack: 0x76137301  Win: 0xFC00  TcpLen: 20
+[Xref => http://technet.microsoft.com/en-us/security/bulletin/MS14-065][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2014-6345]
+
+[**] [1:32481:2] POLICY-OTHER Remote non-JavaScript file found in script tag src attribute [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:20:39.189282 23.235.44.143:80 -> 10.0.21.136:49717
+TCP TTL:128 TOS:0x0 ID:16589 IpLen:20 DgmLen:4068 DF
+***A**** Seq: 0x9F340090  Ack: 0x2A2E81F8  Win: 0xFB00  TcpLen: 20
+[Xref => http://technet.microsoft.com/en-us/security/bulletin/MS14-065][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2014-6345]
+
+[**] [1:32481:2] POLICY-OTHER Remote non-JavaScript file found in script tag src attribute [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:20:39.215182 23.235.44.143:80 -> 10.0.21.136:49718
+TCP TTL:128 TOS:0x0 ID:16605 IpLen:20 DgmLen:4271 DF
+***A**** Seq: 0xA6369965  Ack: 0xF3A88570  Win: 0x0  TcpLen: 20
+[Xref => http://technet.microsoft.com/en-us/security/bulletin/MS14-065][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2014-6345]
+
+[**] [1:32481:2] POLICY-OTHER Remote non-JavaScript file found in script tag src attribute [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:20:39.258879 204.194.222.24:80 -> 10.0.21.136:49715
+TCP TTL:128 TOS:0x0 ID:16613 IpLen:20 DgmLen:2125 DF
+***A**** Seq: 0x77BA071F  Ack: 0x8E3EF1FD  Win: 0xF88B  TcpLen: 20
+[Xref => http://technet.microsoft.com/en-us/security/bulletin/MS14-065][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2014-6345]
+
+[**] [1:32481:2] POLICY-OTHER Remote non-JavaScript file found in script tag src attribute [**]
+[Classification: Potential Corporate Privacy Violation] [Priority: 1] 
+05/13-16:20:39.267634 216.58.219.14:80 -> 10.0.21.136:49720
+TCP TTL:128 TOS:0x0 ID:16622 IpLen:20 DgmLen:11916 DF
+***A**** Seq: 0xB35C008D  Ack: 0x3872B901  Win: 0xFD00  TcpLen: 20
+[Xref => http://technet.microsoft.com/en-us/security/bulletin/MS14-065][Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2014-6345]
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:20:39.392524 174.136.46.174 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:16675 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:20:39.404568 174.136.46.174 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:16696 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:20:39.419821 174.136.46.174 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:16713 IpLen:20 DgmLen:84 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:20:39.640810 174.136.46.174 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:16860 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:20:39.631392 174.136.46.174 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:16865 IpLen:20 DgmLen:20 DF
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:21:13.666245 10.0.21.136:49732 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:39954 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0xB16011B  Ack: 0x31B65DFD  Win: 0x3DF8  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:21:14.648697 10.0.21.136:49695 -> 216.58.217.196:443
+TCP TTL:128 TOS:0x0 ID:17011 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x1CC54340  Ack: 0xD714144  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:21:14.648926 10.0.21.136:49694 -> 216.58.217.196:443
+TCP TTL:128 TOS:0x0 ID:17019 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x47F4388B  Ack: 0xCE09F17B  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:21:14.648953 10.0.21.136:49696 -> 216.58.217.196:443
+TCP TTL:128 TOS:0x0 ID:17021 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xDD2D5809  Ack: 0x363010D2  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:21:14.649246 10.0.21.136:49723 -> 23.235.44.143:443
+TCP TTL:128 TOS:0x0 ID:17036 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xB77C2702  Ack: 0x40398032  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:21:14.649261 10.0.21.136:49722 -> 23.235.44.143:443
+TCP TTL:128 TOS:0x0 ID:17037 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0xC35BA10C  Ack: 0x9D099910  Win: 0x0  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:21:14.649276 10.0.21.136:49721 -> 23.235.44.143:443
+TCP TTL:128 TOS:0x0 ID:17038 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x1D9CAB1B  Ack: 0x2633945D  Win: 0x0  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:22:25.632320 10.0.21.136:49766 -> 5.34.183.40:80
+TCP TTL:50 TOS:0x0 ID:6935 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0xDB8B9411  Ack: 0x47A8132F  Win: 0x3DF8  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:22:59.165980 10.0.21.136:49767 -> 185.82.202.170:80
+TCP TTL:128 TOS:0x0 ID:17590 IpLen:20 DgmLen:40 DF
+***A*R** Seq: 0x328536A3  Ack: 0x847BFB43  Win: 0x0  TcpLen: 20
+
+[**] [1:27721:3] INDICATOR-COMPROMISE Suspicious .su dns query [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:22:59.168292 10.0.21.136:55638 -> 10.0.13.54:53
+UDP TTL:128 TOS:0x0 ID:17591 IpLen:20 DgmLen:57
+Len: 29
+
+[**] [1:27721:3] INDICATOR-COMPROMISE Suspicious .su dns query [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:23:20.087993 10.0.21.136:56573 -> 10.0.13.54:53
+UDP TTL:128 TOS:0x0 ID:17626 IpLen:20 DgmLen:56
+Len: 28
+
+[**] [1:28039:5] INDICATOR-COMPROMISE Suspicious .pw dns query [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:23:35.221733 10.0.21.136:52792 -> 10.0.13.55:53
+UDP TTL:128 TOS:0x0 ID:17654 IpLen:20 DgmLen:63
+Len: 35
+
+[**] [1:28039:5] INDICATOR-COMPROMISE Suspicious .pw dns query [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:23:35.337682 10.0.21.136:63565 -> 10.0.13.55:53
+UDP TTL:128 TOS:0x0 ID:17655 IpLen:20 DgmLen:58
+Len: 30
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:24:17.156325 10.0.21.136:49770 -> 5.34.183.40:80
+TCP TTL:43 TOS:0x0 ID:44478 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x6B58386  Ack: 0x3A3D8A9  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:38552:1] EXPLOIT-KIT Angler landing page detected [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:25:15.125851 192.186.197.133:80 -> 10.0.21.136:49784
+TCP TTL:128 TOS:0x0 ID:17859 IpLen:20 DgmLen:2006 DF
+***A**** Seq: 0x4AA02155  Ack: 0xCC935341  Win: 0xFE00  TcpLen: 20
+
+[**] [1:8375:12] BROWSER-PLUGINS QuickTime Object ActiveX clsid access [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:25:15.233582 192.186.197.133:80 -> 10.0.21.136:49781
+TCP TTL:128 TOS:0x0 ID:17885 IpLen:20 DgmLen:7425 DF
+***A**** Seq: 0xF0DDCB94  Ack: 0xB8B0C5F8  Win: 0xFE00  TcpLen: 20
+[Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2008-0778]
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:25:15.252378 192.186.197.133 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:17890 IpLen:20 DgmLen:20 DF
+
+[**] [1:38552:1] EXPLOIT-KIT Angler landing page detected [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:25:15.252378 192.186.197.133:80 -> 10.0.21.136:49780
+TCP TTL:128 TOS:0x0 ID:17890 IpLen:20 DgmLen:2010 DF
+***A**** Seq: 0x9EED4B8B  Ack: 0x1CCAF73E  Win: 0xFE00  TcpLen: 20
+
+[**] [1:23621:7] INDICATOR-OBFUSCATION known packer routine with secondary obfuscation [**]
+[Classification: Misc activity] [Priority: 3] 
+05/13-16:25:15.257737 192.186.197.133:80 -> 10.0.21.136:49779
+TCP TTL:128 TOS:0x0 ID:17904 IpLen:20 DgmLen:16468 DF
+***A**** Seq: 0x60EBCEE9  Ack: 0xC92EBC2C  Win: 0x0  TcpLen: 20
+[Xref => http://dean.edwards.name/packer/]
+
+[**] [1:37909:1] INDICATOR-OBFUSCATION known javascript packer detected [**]
+[Classification: Misc activity] [Priority: 3] 
+05/13-16:25:15.257737 192.186.197.133:80 -> 10.0.21.136:49779
+TCP TTL:128 TOS:0x0 ID:17904 IpLen:20 DgmLen:16468 DF
+***A**** Seq: 0x60EBCEE9  Ack: 0xC92EBC2C  Win: 0x0  TcpLen: 20
+
+[**] [1:18174:8] BROWSER-IE Microsoft Internet Explorer CSS memory corruption attempt [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:25:15.257737 192.186.197.133:80 -> 10.0.21.136:49779
+TCP TTL:128 TOS:0x0 ID:17904 IpLen:20 DgmLen:16468 DF
+***A**** Seq: 0x60EBCEE9  Ack: 0xC92EBC2C  Win: 0x0  TcpLen: 20
+[Xref => http://cve.mitre.org/cgi-bin/cvename.cgi?name=2004-0842][Xref => http://www.securityfocus.com/bid/10816]
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:25:15.257572 192.186.197.133 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:17913 IpLen:20 DgmLen:20 DF
+
+[**] [1:38556:1] EXPLOIT-KIT Angler landing page detected [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:25:15.960826 85.25.79.151:80 -> 10.0.21.136:49789
+TCP TTL:53 TOS:0x28 ID:38778 IpLen:20 DgmLen:1409 DF
+***A**** Seq: 0x33A44ABB  Ack: 0xF5312E27  Win: 0x1F  TcpLen: 20
+
+[**] [1:38555:1] EXPLOIT-KIT Angler landing page detected [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:25:16.303129 85.25.79.151:80 -> 10.0.21.136:49789
+TCP TTL:53 TOS:0x28 ID:38844 IpLen:20 DgmLen:1409 DF
+***A**** Seq: 0x33A5ABAD  Ack: 0xF5312E27  Win: 0x1F  TcpLen: 20
+
+[**] [1:38521:1] EXPLOIT-KIT Angler exploit kit redirect page detected [**]
+[Classification: Attempted User Privilege Gain] [Priority: 1] 
+05/13-16:25:16.296125 85.25.79.151:80 -> 10.0.21.136:49789
+TCP TTL:128 TOS:0x0 ID:18012 IpLen:20 DgmLen:14490 DF
+***A**** Seq: 0x33A58B97  Ack: 0xF5312E27  Win: 0xFD00  TcpLen: 20
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:25:18.819790 85.25.79.151 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:18042 IpLen:20 DgmLen:20 DF
+
+[**] [139:1:1] (spp_sdf) SDF Combination Alert [**]
+[Classification: Senstive Data] [Priority: 2] 
+05/13-16:25:27.210741 85.25.79.151 -> 10.0.21.136
+PROTO:254 TTL:128 TOS:0x0 ID:18161 IpLen:20 DgmLen:20 DF
+
+[**] [1:38784:2] MALWARE-CNC CryptXXX initial outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:25:29.347871 10.0.21.136:49798 -> 144.76.82.19:443
+TCP TTL:128 TOS:0x0 ID:18267 IpLen:20 DgmLen:92 DF
+***AP*** Seq: 0xC5E86252  Ack: 0xF5E6E690  Win: 0x100  TcpLen: 20
+[Xref => http://virustotal.com/en/file/0b12584302a5a72f467a08046814593ea505fa397785f1012ab973dd961a6c0e/analysis/]
+
+[**] [1:38784:2] MALWARE-CNC CryptXXX initial outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:25:29.518589 10.0.21.136:49799 -> 144.76.82.19:443
+TCP TTL:128 TOS:0x0 ID:18270 IpLen:20 DgmLen:92 DF
+***AP*** Seq: 0x72C175C2  Ack: 0xCD06EA5E  Win: 0x100  TcpLen: 20
+[Xref => http://virustotal.com/en/file/0b12584302a5a72f467a08046814593ea505fa397785f1012ab973dd961a6c0e/analysis/]
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:25:32.160953 10.0.21.136:49800 -> 5.34.183.40:80
+TCP TTL:54 TOS:0x0 ID:22238 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x21A49131  Ack: 0x791CE886  Win: 0x3DF8  TcpLen: 20
+
+[**] [1:38784:2] MALWARE-CNC CryptXXX initial outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:25:33.834610 10.0.21.136:49802 -> 144.76.82.19:443
+TCP TTL:128 TOS:0x0 ID:18400 IpLen:20 DgmLen:92 DF
+***AP*** Seq: 0x51A4BDB6  Ack: 0x41190C7E  Win: 0x100  TcpLen: 20
+[Xref => http://virustotal.com/en/file/0b12584302a5a72f467a08046814593ea505fa397785f1012ab973dd961a6c0e/analysis/]
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:25:32.528016 10.0.21.136:49801 -> 185.82.202.170:80
+TCP TTL:57 TOS:0x0 ID:42140 IpLen:20 DgmLen:673 DF
+***A**** Seq: 0xFD19EDFF  Ack: 0xB261EAFA  Win: 0x2C82  TcpLen: 20
+
+[**] [1:25050:7] MALWARE-CNC Win.Trojan.Zeus variant outbound connection [**]
+[Classification: A Network Trojan was detected] [Priority: 1] 
+05/13-16:28:46.926938 10.0.21.136:49830 -> 5.34.183.40:80
+TCP TTL:54 TOS:0x0 ID:50855 IpLen:20 DgmLen:670 DF
+***A**** Seq: 0x1B7AF992  Ack: 0xB147BA29  Win: 0x3DF8  TcpLen: 20
+
+[**] [129:15:1] Reset outside window [**]
+[Classification: Potentially Bad Traffic] [Priority: 2] 
+05/13-16:29:20.345051 10.0.21.136:49833 -> 185.82.202.170:80
+TCP TTL:128 TOS:0x0 ID:19772 IpLen:20 DgmLen:40
+***A*R** Seq: 0xED9B7919  Ack: 0xB4FAFB88  Win: 0x0  TcpLen: 20
+

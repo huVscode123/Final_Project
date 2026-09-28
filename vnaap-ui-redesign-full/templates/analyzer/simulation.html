@@ -1,0 +1,159 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — 異常模擬檢測{% endblock %}
+
+{% block extra_css %}
+<style>
+.sim-grid{display:grid;grid-template-columns:280px 1fr;gap:16px}
+.attack-list{display:flex;flex-direction:column;gap:8px}
+.attack-card{background:var(--bg-base);border:1px solid var(--border2);border-radius:8px;padding:12px 14px;cursor:pointer;transition:all .15s}
+.attack-card:hover{border-color:var(--accent-glow);background:var(--accent-dim)}
+.attack-card.selected{border-color:var(--accent);background:var(--accent-dim)}
+.attack-card .a-name{font-size:.83rem;font-weight:600;color:var(--text-primary)}
+.attack-card .a-desc{font-size:.7rem;color:var(--text-muted);margin-top:3px;line-height:1.5}
+.sim-steps{display:flex;align-items:center;gap:6px;margin-bottom:16px}
+.sim-step{flex:1;height:3px;background:var(--border);border-radius:2px;position:relative}
+.sim-step.active{background:var(--accent)}
+.sim-step.done{background:var(--green)}
+.result-box{background:var(--bg-elevated);border:1px solid var(--border);border-radius:10px;padding:20px;text-align:center}
+.verdict-anomaly{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red)}
+.verdict-normal{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+.verdict-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:8px;font-size:1rem;font-weight:700;font-family:var(--mono)}
+.spinner-lg{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <div class="page-title">異常模擬檢測</div>
+    <div class="page-sub">產生合成攻擊流量，即時測試 CNN Autoencoder 偵測能力</div>
+  </div>
+</div>
+
+<div class="sim-grid">
+  <!-- 攻擊類型選單 -->
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>選擇模擬攻擊類型</div>
+    <div class="attack-list" id="attackList">
+      <div class="attack-card selected" data-type="port_scan" onclick="selectAttack(this)">
+        <div class="a-name">🔍 Port Scan</div>
+        <div class="a-desc">模擬對單一主機的快速多埠掃描行為</div>
+      </div>
+      <div class="attack-card" data-type="syn_flood" onclick="selectAttack(this)">
+        <div class="a-name">🌊 SYN Flood</div>
+        <div class="a-desc">大量偽造 SYN 封包造成半開連線耗盡資源</div>
+      </div>
+      <div class="attack-card" data-type="arp_spoof" onclick="selectAttack(this)">
+        <div class="a-name">🎭 ARP Spoofing</div>
+        <div class="a-desc">偽造 ARP 回應以中間人方式攔截流量</div>
+      </div>
+      <div class="attack-card" data-type="dns_tunnel" onclick="selectAttack(this)">
+        <div class="a-name">🕳️ DNS Tunneling</div>
+        <div class="a-desc">利用 DNS 查詢夾帶資料，繞過防火牆偵測</div>
+      </div>
+      <div class="attack-card" data-type="brute_force" onclick="selectAttack(this)">
+        <div class="a-name">🔨 Brute Force</div>
+        <div class="a-desc">針對登入服務進行高頻率密碼嘗試</div>
+      </div>
+    </div>
+
+    <div class="form-group" style="margin-top:16px">
+      <label class="form-label">模擬封包數量</label>
+      <input type="number" id="pktCount" class="form-input" value="50" min="10" max="500">
+    </div>
+
+    <button class="btn-primary btn-block" onclick="runSimulation()" id="runBtn">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      執行模擬分析
+    </button>
+  </div>
+
+  <!-- 結果區 -->
+  <div class="card" id="resultPanel">
+    <div class="card-title"><span class="dot" style="background:var(--blue);box-shadow:0 0 6px var(--blue)"></span>模擬結果</div>
+
+    <div class="sim-steps">
+      <div class="sim-step" id="step1"></div>
+      <div class="sim-step" id="step2"></div>
+      <div class="sim-step" id="step3"></div>
+    </div>
+
+    <div id="resultContent">
+      <div class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:44px;height:44px"><path d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2h-2"/></svg>
+        <h3>選擇攻擊類型並執行模擬</h3>
+        <p>系統將生成合成封包資料並送入 CNN Autoencoder 進行即時異常偵測。</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedType = 'port_scan';
+function selectAttack(el) {
+  document.querySelectorAll('.attack-card').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedType = el.dataset.type;
+}
+
+function setStep(n) {
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById('step' + i);
+    el.className = 'sim-step' + (i < n ? ' done' : i === n ? ' active' : '');
+  }
+}
+
+async function runSimulation() {
+  const btn = document.getElementById('runBtn');
+  const content = document.getElementById('resultContent');
+  const pktCount = document.getElementById('pktCount').value;
+  btn.disabled = true;
+
+  setStep(1);
+  content.innerHTML = `<div class="result-box"><div class="spinner-lg"></div><div style="margin-top:14px;font-size:.85rem;color:var(--text-secondary)">正在產生合成封包資料...</div></div>`;
+  await new Promise(r => setTimeout(r, 700));
+
+  setStep(2);
+  content.innerHTML = `<div class="result-box"><div class="spinner-lg"></div><div style="margin-top:14px;font-size:.85rem;color:var(--text-secondary)">CNN Autoencoder 分析中...</div></div>`;
+
+  const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+  try {
+    const r = await fetch('{% url "analyzer:simulate_run" %}', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+      body: JSON.stringify({ attack_type: selectedType, packet_count: parseInt(pktCount) }),
+    });
+    const d = await r.json();
+    setStep(3);
+    await new Promise(res => setTimeout(res, 300));
+
+    if (d.error) {
+      content.innerHTML = `<div class="result-box verdict-anomaly"><div class="verdict-badge">⚠ ERROR</div><p style="margin-top:10px;font-size:.8rem">${d.error}</p></div>`;
+    } else {
+      const isAnomaly = d.is_anomaly;
+      content.innerHTML = `
+        <div class="result-box ${isAnomaly ? 'verdict-anomaly' : 'verdict-normal'}">
+          <div class="verdict-badge">${isAnomaly ? '🚨 ANOMALY DETECTED' : '✓ NORMAL TRAFFIC'}</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px;text-align:left">
+            <div><div style="font-size:.66rem;color:var(--text-muted)">重建誤差</div><div class="mono" style="font-size:1rem;font-weight:700">${d.reconstruction_error?.toFixed(6) ?? '—'}</div></div>
+            <div><div style="font-size:.66rem;color:var(--text-muted)">閾值</div><div class="mono" style="font-size:1rem;font-weight:700;color:var(--yellow)">${d.threshold?.toFixed(6) ?? '—'}</div></div>
+            <div><div style="font-size:.66rem;color:var(--text-muted)">攻擊類型</div><div style="font-size:.85rem;font-weight:600">${d.attack_type_label ?? selectedType}</div></div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:14px;padding:14px">
+          <div style="font-size:.8rem;font-weight:600;margin-bottom:8px">模擬封包摘要</div>
+          <div style="font-size:.78rem;color:var(--text-muted);line-height:1.8">
+            產生 ${d.packet_count ?? pktCount} 個合成封包 · 平均封包大小 ${d.avg_packet_size ?? '—'} bytes
+          </div>
+        </div>`;
+    }
+  } catch(e) {
+    content.innerHTML = `<div class="result-box verdict-anomaly"><div class="verdict-badge">⚠ 連線失敗</div><p style="margin-top:10px;font-size:.8rem">無法連線至分析服務，請稍後再試。</p></div>`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}

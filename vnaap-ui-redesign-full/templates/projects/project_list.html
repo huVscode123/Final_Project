@@ -1,0 +1,74 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — 專案管理{% endblock %}
+
+{% block extra_css %}
+<style>
+.proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.proj-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:18px;transition:border-color .2s,transform .2s;text-decoration:none;display:block;color:inherit}
+.proj-card:hover{border-color:var(--accent-glow);transform:translateY(-2px)}
+.proj-card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px}
+.proj-name{font-size:1rem;font-weight:700;color:var(--text-primary)}
+.proj-desc{font-size:.78rem;color:var(--text-muted);margin-top:4px;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.proj-stats{display:flex;gap:16px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.proj-stat{display:flex;flex-direction:column}
+.proj-stat .n{font-size:1.1rem;font-weight:700;font-family:var(--mono);color:var(--accent)}
+.proj-stat .l{font-size:.65rem;color:var(--text-muted)}
+.proj-members{display:flex;margin-top:12px}
+.member-avatar{width:22px;height:22px;border-radius:50%;background:var(--accent-dim);border:2px solid var(--bg-card);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:700;color:var(--accent);margin-left:-6px}
+.member-avatar:first-child{margin-left:0}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <div class="page-title">專案管理</div>
+    <div class="page-sub">共 {{ projects|length }} 個專案</div>
+  </div>
+  {% if request.user.profile.can_manage_projects %}
+  <a href="{% url 'projects:create' %}" class="btn-primary">
+    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    新增專案
+  </a>
+  {% endif %}
+</div>
+
+{% if projects %}
+<div class="proj-grid">
+  {% for p in projects %}
+  <a href="{% url 'projects:detail' p.pk %}" class="proj-card">
+    <div class="proj-card-header">
+      <div>
+        <div class="proj-name">{{ p.name }}</div>
+        <div class="proj-desc">{{ p.description|default:"尚無描述" }}</div>
+      </div>
+      <span class="status-pill {% if p.is_active %}status-active{% else %}status-idle{% endif %}">
+        {% if p.is_active %}進行中{% else %}已封存{% endif %}
+      </span>
+    </div>
+    <div class="proj-stats">
+      <div class="proj-stat"><span class="n">{{ p.session_count }}</span><span class="l">分析任務</span></div>
+      <div class="proj-stat"><span class="n" style="color:var(--red)">{{ p.alert_count }}</span><span class="l">告警</span></div>
+      <div class="proj-stat"><span class="n" style="color:var(--blue)">{{ p.member_count }}</span><span class="l">成員</span></div>
+    </div>
+    <div class="proj-members">
+      {% for m in p.members_preview %}
+      <div class="member-avatar">{{ m.username|slice:":2"|upper }}</div>
+      {% endfor %}
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card">
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="width:44px;height:44px"><path d="M3 7a2 2 0 012-2h14a2 2 0 012 2v10a2 2 0 01-2 2H5a2 2 0 01-2-2V7z"/><path d="M3 7l9 6 9-6"/></svg>
+    <h3>尚無專案</h3>
+    <p>建立專案以協同管理多個分析任務與團隊成員。</p>
+    {% if request.user.profile.can_manage_projects %}
+    <a href="{% url 'projects:create' %}" class="btn-primary" style="margin-top:14px">建立第一個專案</a>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{% endblock %}

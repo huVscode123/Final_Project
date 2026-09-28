@@ -3,7 +3,8 @@
 # REST API：Token 認證、專案、Session、CNN、Grad-CAM、AI Chat
 # ============================================================
 import os
-import requests
+from analyzer.ai_agent.agent import generate_reply
+from analyzer.ai_agent.gemini_client import GeminiConfigError, GeminiAPIError
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db.models import Q
@@ -574,6 +575,11 @@ class AIChatAPI(APIView):
 
     Response:
         { "reply": "AI 回覆內容", "mode": "..." }
+
+    ── 架構說明 ──
+    直接呼叫 analyzer/ai_agent/ 套件內的 Python 函式
+    generate_reply()，經由 HTTPS 直連 Google Gemini API。
+    不需要 n8n、也不需要 Docker；唯一的外部相依是 Gemini REST API。
     """
 
     def post(self, request):
@@ -590,36 +596,24 @@ class AIChatAPI(APIView):
         if err:
             return err
 
-        payload = {
-            'message': message,
-            'mode':    mode,
-            'context': context,
-            'user': {
-                'username': request.user.username,
-                'is_admin': request.user.profile.is_admin,
-            },
-            # 供 n8n 的 Window Buffer Memory 節點使用，
-            # 讓「同一位使用者」在對話過程中維持記憶（而不是每輪都失憶）。
-            'chat_session_id': f'user-{request.user.pk}',
-        }
-
-        webhook_url = getattr(
-            settings, 'N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
-        timeout = getattr(settings, 'AI_CHAT_TIMEOUT', 30)
-
         try:
-            resp = requests.post(webhook_url, json=payload, timeout=timeout)
-            resp.raise_for_status()
-            data  = resp.json()
-            reply = data.get('reply', data.get('text', ''))
-        except requests.exceptions.ConnectionError:
-            return Response({'reply': 'AI 服務暫時無法連線，請確認 n8n 是否已啟動。'})
-        except requests.exceptions.Timeout:
-            return Response({'reply': 'AI 服務回應逾時，請稍後再試一次。'})
+            reply = generate_reply(
+                message=message,
+                mode=mode,
+                context=context,
+                username=request.user.username,
+            )
+        except GeminiConfigError as e:
+            # 尚未設定 API Key：用 200 + 友善訊息回覆，前端聊天視窗會直接
+            # 顯示這句話，而不是彈出一般錯誤，方便使用者知道要去哪裡設定。
+            return Response({'reply': f'AI 服務尚未設定完成：{e}', 'mode': mode})
+        except GeminiAPIError as e:
+            return Response({'reply': f'AI 服務發生錯誤：{e}', 'mode': mode})
         except Exception as e:
-            return Response({'error': str(e)}, status=500)
+            # 連線逾時／DNS 失敗等網路層例外
+            return Response({'reply': 'AI 服務暫時無法連線，請確認網路狀況或稍後再試。'})
 
-        # 稽核日誌
+        # 稽核日誌（與舊版行為相同）
         try:
             UserActivityLog.objects.create(
                 user=request.user, action='ai_chat',

@@ -118,6 +118,8 @@ class AnalyzerConfig(AppConfig):
 
                 device = torch.device('cpu')
                 for _key, cfg in settings.ANOMALY_MODELS.items():
+                    if not cfg.get('enabled', True):
+                        continue
                     model_path = str(cfg.get('path', ''))
                     if model_path and os.path.exists(model_path):
                         try:

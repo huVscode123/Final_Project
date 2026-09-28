@@ -4,36 +4,36 @@
 {% block extra_css %}
 <style>
 .chat-wrap{display:grid;grid-template-columns:1fr 260px;gap:16px;height:calc(100vh - 150px)}
-.chat-main{display:flex;flex-direction:column;background:rgba(13,17,23,.5);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.chat-main{display:flex;flex-direction:column;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
 .chat-msgs{flex:1;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
-.msg-ai{align-self:flex-start;max-width:78%;background:#161b22;border:1px solid var(--border2);padding:11px 15px;border-radius:4px 14px 14px 14px;color:var(--text-primary);font-size:.855rem;line-height:1.55;white-space:pre-wrap}
+.msg-ai{align-self:flex-start;max-width:78%;background:var(--bg-elevated);border:1px solid var(--border2);padding:11px 15px;border-radius:4px 14px 14px 14px;color:var(--text-primary);font-size:.855rem;line-height:1.55;white-space:pre-wrap}
 .msg-ai .msg-label{font-size:.62rem;color:var(--green);font-weight:700;margin-bottom:5px;font-family:var(--mono)}
-.msg-user{align-self:flex-end;max-width:78%;background:var(--green-dim);border:1px solid rgba(34,197,94,.2);padding:11px 15px;border-radius:14px 14px 4px 14px;color:var(--green);font-size:.855rem;white-space:pre-wrap}
+.msg-user{align-self:flex-end;max-width:78%;background:var(--green-dim);border:1px solid var(--accent-glow);padding:11px 15px;border-radius:14px 14px 4px 14px;color:var(--green);font-size:.855rem;white-space:pre-wrap}
 .msg-thinking{opacity:.5;font-style:italic;font-size:.78rem}
-.chat-input-area{padding:16px;background:#0d1117;border-top:1px solid var(--border);display:flex;gap:10px}
-.chat-input{flex:1;background:#010409;border:1px solid var(--border2);border-radius:8px;padding:9px 14px;color:var(--text-primary);font-size:.855rem;font-family:'Inter',sans-serif;outline:none;resize:none;transition:border-color .2s}
-.chat-input:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(34,197,94,.1)}
-.chat-send{background:var(--green-dim);color:var(--green);border:1px solid rgba(34,197,94,.3);border-radius:8px;padding:9px 16px;cursor:pointer;font-size:.82rem;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
-.chat-send:hover:not(:disabled){background:var(--green);color:#0d1117}
+.chat-input-area{padding:16px;background:var(--bg-elevated);border-top:1px solid var(--border);display:flex;gap:10px}
+.chat-input{flex:1;background:var(--bg-input);border:1px solid var(--border2);border-radius:8px;padding:9px 14px;color:var(--text-primary);font-size:.855rem;font-family:'Inter',sans-serif;outline:none;resize:none;transition:border-color .2s}
+.chat-input:focus{border-color:var(--green);box-shadow:var(--ring)}
+.chat-send{background:var(--green-dim);color:var(--green);border:1px solid var(--accent-glow);border-radius:8px;padding:9px 16px;cursor:pointer;font-size:.82rem;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.chat-send:hover:not(:disabled){background:var(--green);color:var(--accent-ink)}
 .chat-send:disabled{opacity:.4;cursor:not-allowed}
 .sidebar-panel{display:flex;flex-direction:column;gap:12px}
 .ctx-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px}
 .ctx-title{font-size:.75rem;font-weight:600;color:var(--text-muted);font-family:var(--mono);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em}
 .session-chip{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background .15s;font-size:.76rem;border:1px solid transparent}
-.session-chip:hover{background:rgba(34,197,94,.06)}
-.session-chip.selected{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.25)}
+.session-chip:hover{background:var(--accent-dim)}
+.session-chip.selected{background:var(--accent-dim);border-color:var(--accent-glow)}
 .session-chip .sc-id{font-family:var(--mono);color:var(--green);font-weight:700}
 .session-chip .sc-lbl{color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
 .quick-btn{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:6px;border:1px solid var(--border2);background:transparent;cursor:pointer;font-size:.75rem;color:var(--text-secondary);transition:all .15s;margin-bottom:5px}
-.quick-btn:hover{background:rgba(34,197,94,.06);border-color:rgba(34,197,94,.25);color:var(--green)}
+.quick-btn:hover{background:var(--accent-dim);border-color:var(--accent-glow);color:var(--green)}
 .status-indicator{display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--text-muted)}
 .status-indicator .dot{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green)}
 
-/* ── 新增：模式選擇列 ── */
-.mode-bar{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:#0d1117;flex-wrap:wrap}
+/* ── 模式選擇列 ── */
+.mode-bar{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);flex-wrap:wrap}
 .mode-btn{display:flex;align-items:center;gap:6px;padding:7px 13px;border-radius:20px;border:1px solid var(--border2);background:transparent;cursor:pointer;font-size:.76rem;color:var(--text-secondary);transition:all .15s;white-space:nowrap}
-.mode-btn:hover{border-color:rgba(34,197,94,.35);color:var(--green)}
-.mode-btn.active{background:var(--green-dim);border-color:rgba(34,197,94,.4);color:var(--green);font-weight:600}
+.mode-btn:hover{border-color:var(--accent-glow);color:var(--green)}
+.mode-btn.active{background:var(--green-dim);border-color:var(--accent-glow);color:var(--green);font-weight:600}
 .mode-hint{font-size:.72rem;color:var(--text-muted);padding:6px 16px 0}
 </style>
 {% endblock %}
@@ -262,7 +262,7 @@ async function sendMessage() {
     appendMsg('msg-ai', reply, '▸ VNAAP AI · ' + MODE_CONFIG[currentMode].label);
   } catch(e) {
     thinking.remove();
-    appendMsg('msg-ai', '⚠ 無法連線至 AI 服務（請確認 n8n webhook 已啟動）', '▸ SYSTEM');
+    appendMsg('msg-ai', '⚠ 無法連線至 AI 服務，請確認系統或網路狀態。', '▸ SYSTEM');
     document.getElementById('backendStatus').textContent = 'Offline';
     document.getElementById('backendStatus').style.color = 'var(--red)';
   } finally {
@@ -297,7 +297,7 @@ renderQuickButtons('general');
       document.getElementById('backendStatus').style.color = 'var(--green)';
     }
   } catch(e) {
-    document.getElementById('connStatus').textContent = 'AI Offline (n8n)';
+    document.getElementById('connStatus').textContent = 'AI Offline (Gemini API)';
     document.getElementById('backendStatus').textContent = 'Offline';
     document.getElementById('backendStatus').style.color = 'var(--text-muted)';
   }

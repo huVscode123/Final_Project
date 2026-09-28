@@ -42,6 +42,8 @@ DEPLOY_TARGETS = {
     "semi_cicddos2019":  "media/model/semi_cicddos2019.pt",
     "semi_cicids2017":   "media/model/semi_cicids2017.pt",
     "semi_nslkdd":        "media/model/semi_nslkdd.pt",
+    "mta_malware":        "media/model/mta_malware.pt",
+    "semi_mta_malware":   "media/model/semi_mta_malware.pt",
 }
 
 

@@ -1,118 +1,89 @@
 {% extends "base/base.html" %}
-{% load static %}
 {% block title %}VNAAP — 上傳 PCAP{% endblock %}
 
 {% block content %}
 <div class="page-bar">
   <div>
-    <h1 class="page-title">上傳 PCAP 分析</h1>
-    <p class="page-sub">上傳網路封包擷取檔案，執行 AI 驅動的異常偵測分析</p>
+    <div class="page-title">上傳封包檔案</div>
+    <div class="page-sub">支援 .pcap / .pcapng 格式，系統將自動執行規則式偵測與 CNN 異常分析</div>
   </div>
 </div>
 
-<div style="display:grid;grid-template-columns:1.2fr 1fr;gap:18px;align-items:start">
-  <!-- 上傳表單 -->
+<div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px">
   <div class="card">
+    <div class="card-title"><span class="dot"></span>檔案上傳</div>
     <form method="post" enctype="multipart/form-data" id="uploadForm">
       {% csrf_token %}
-      <div class="form-group">
-        <label class="form-label">分析標籤 <span class="text-muted">(選填)</span></label>
-        <input type="text" name="label" class="form-input" placeholder="例如：Office_Network_Test_20260715">
-      </div>
 
-      <div class="form-group">
-        <label class="form-label">所屬專案 <span class="text-muted">(選填)</span></label>
-        <select name="project_id" class="form-input">
-          <option value="">— 不分類至專案 —</option>
-          {% for p in projects %}
-          <option value="{{ p.pk }}">{{ p.name }}{% if p.network_segment %} · {{ p.network_segment }}{% endif %}</option>
-          {% endfor %}
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">異常偵測模型</label>
-        <select name="model_key" class="form-input">
-          {% for model in models %}<option value="{{ model.key }}" {% if not model.ready %}disabled{% endif %}>{{ model.label }}{% if not model.ready %}（尚未訓練）{% endif %}</option>{% endfor %}
-        </select>
-      </div>
-
-      <!-- 拖放上傳區 -->
-      <div class="dropzone" id="dropZone" onclick="document.getElementById('pcap_file').click()">
+      <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
         <div class="dropzone-icon">
-          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
-            <path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-          </svg>
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
         </div>
-        <p class="dropzone-text">點擊選擇或拖放 PCAP 檔案至此</p>
-        <p class="dropzone-hint">支援格式：.pcap · .pcapng · .cap · 最大 500 MB</p>
-        <div id="selectedName" style="display:none;color:var(--green);font-weight:600;font-family:var(--mono);margin-top:10px;font-size:.85rem;"></div>
-        <input type="file" id="pcap_file" name="pcap_file" accept=".pcap,.pcapng,.cap" style="display:none">
+        <div class="dropzone-text" id="dzText">拖曳檔案到這裡，或點擊選擇檔案</div>
+        <div class="dropzone-hint">支援 .pcap / .pcapng · 最大 500MB</div>
+        <input type="file" id="fileInput" name="pcap_file" accept=".pcap,.pcapng" style="display:none" required>
       </div>
 
-      <!-- 上傳進度 -->
-      <div id="uploadProgress" style="display:none;margin-top:12px;">
-        <div class="flex justify-between mb-1">
-          <span class="text-muted" style="font-size:.75rem;">上傳中...</span>
-          <span class="mono text-accent" style="font-size:.75rem;" id="pctText">0%</span>
+      <div class="form-group" style="margin-top:16px">
+        <label class="form-label">任務標籤</label>
+        <input type="text" name="label" class="form-input" placeholder="例如：辦公室閘道器 2026-09-14">
+      </div>
+
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label">所屬專案（選填）</label>
+          <select name="project_id" class="form-input">
+            <option value="">— 不指定 —</option>
+            {% for p in projects %}
+            <option value="{{ p.pk }}">{{ p.name }}</option>
+            {% endfor %}
+          </select>
         </div>
-        <div class="progress"><div class="progress-bar" id="progressFill" style="width:0%"></div></div>
+        <div class="form-group">
+          <label class="form-label">分析模式</label>
+          <select name="analysis_mode" class="form-input">
+            <option value="full">完整分析（規則式 + CNN）</option>
+            <option value="rules_only">僅規則式偵測</option>
+            <option value="cnn_only">僅 CNN 異常偵測</option>
+          </select>
+        </div>
       </div>
 
-      {% if error %}
-      <div class="form-error" style="margin-top:10px;padding:10px 14px;background:var(--red-dim);border:1px solid rgba(239,68,68,.25);border-radius:8px;">
-        ✗ {{ error }}
-      </div>
-      {% endif %}
-
-      <button type="submit" id="submitBtn" class="btn-primary btn-block" style="padding:11px;margin-top:16px;font-size:.88rem;">
-        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-        開始分析
+      <button type="submit" class="btn-primary btn-block" id="submitBtn">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+        開始上傳並分析
       </button>
     </form>
   </div>
 
-  <!-- 右側資訊面板 -->
-  <div style="display:flex;flex-direction:column;gap:14px">
-    <!-- 分析管線 -->
+  <div style="display:flex;flex-direction:column;gap:16px">
     <div class="card">
-      <div class="card-header">
-        <div class="card-title"><span class="dot"></span>分析管線</div>
-      </div>
+      <div class="card-title"><span class="dot" style="background:var(--blue);box-shadow:0 0 6px var(--blue)"></span>分析流程</div>
       <div style="display:flex;flex-direction:column;gap:14px">
-        {% for step_num, step_title, step_desc, step_color in pipeline_steps %}
         <div style="display:flex;gap:12px;align-items:flex-start">
-          <div style="width:26px;height:26px;border-radius:50%;background:{{ step_color }};display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:#0d1117;flex-shrink:0">{{ step_num }}</div>
-          <div>
-            <div style="font-size:.8rem;font-weight:600">{{ step_title }}</div>
-            <div class="text-muted" style="font-size:.72rem;margin-top:2px">{{ step_desc }}</div>
-          </div>
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">1</div>
+          <div><div style="font-size:.82rem;font-weight:600">封包解析</div><div style="font-size:.72rem;color:var(--text-muted);margin-top:2px">使用 Scapy 解析 PCAP，擷取封包中繼資料</div></div>
         </div>
-        {% endfor %}
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">2</div>
+          <div><div style="font-size:.82rem;font-weight:600">規則式偵測</div><div style="font-size:.72rem;color:var(--text-muted);margin-top:2px">比對已知攻擊特徵（Port Scan、SYN Flood 等）</div></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">3</div>
+          <div><div style="font-size:.82rem;font-weight:600">封包影像化</div><div style="font-size:.72rem;color:var(--text-muted);margin-top:2px">將封包欄位轉換為 32×32 影像張量</div></div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:flex-start">
+          <div style="width:24px;height:24px;border-radius:50%;background:var(--accent-dim);color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0">4</div>
+          <div><div style="font-size:.82rem;font-weight:600">CNN 異常偵測</div><div style="font-size:.72rem;color:var(--text-muted);margin-top:2px">透過 Autoencoder 重建誤差判斷異常</div></div>
+        </div>
       </div>
     </div>
 
-    <!-- 提示 -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><span class="dot" style="background:var(--blue);box-shadow:0 0 6px var(--blue)"></span>使用提示</div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <div class="flex items-center gap-2" style="font-size:.78rem;color:var(--text-muted)">
-          <span style="width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
-          建議檔案大小 &lt; 500 MB，超大檔案請先用 tcpdump 切割
-        </div>
-        <div class="flex items-center gap-2" style="font-size:.78rem;color:var(--text-muted)">
-          <span style="width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
-          支援 pcap / pcapng / cap 格式
-        </div>
-        <div class="flex items-center gap-2" style="font-size:.78rem;color:var(--text-muted)">
-          <span style="width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
-          分析完成後可觸發 Grad-CAM 熱力圖視覺化
-        </div>
-        <div class="flex items-center gap-2" style="font-size:.78rem;color:var(--text-muted)">
-          <span style="width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0"></span>
-          結果可匯出為 PDF / JSON / CSV 報告
+    <div class="card" style="background:var(--blue-dim);border-color:rgba(59,130,246,.25)">
+      <div style="display:flex;gap:10px;align-items:flex-start">
+        <svg fill="none" viewBox="0 0 24 24" stroke="var(--blue)" stroke-width="2" style="width:18px;height:18px;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div style="font-size:.78rem;color:var(--text-secondary);line-height:1.6">
+          大型檔案分析可能需要數分鐘，您可以在<a href="{% url 'analyzer:live' %}" style="color:var(--blue)">即時監控</a>頁面追蹤進度，無需停留在此頁面等待。
         </div>
       </div>
     </div>
@@ -122,62 +93,25 @@
 
 {% block extra_js %}
 <script>
-/* 檔案選擇 */
-const fileInput = document.getElementById('pcap_file');
-const nameEl    = document.getElementById('selectedName');
-const dropZone  = document.getElementById('dropZone');
+const dz = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const dzText = document.getElementById('dzText');
 
-fileInput.addEventListener('change', function() {
-  const f = this.files[0];
-  if (f) {
-    nameEl.textContent = '✓ ' + f.name + ' (' + VNAAP.formatBytes(f.size) + ')';
-    nameEl.style.display = 'block';
-    dropZone.classList.add('active');
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) {
+    dzText.textContent = '📄 ' + fileInput.files[0].name + ' (' + VNAAP.formatBytes(fileInput.files[0].size) + ')';
   }
 });
 
-/* 拖放處理 */
-VNAAP.initDropzone(dropZone, function(files) {
-  const file = files[0];
-  if (file) {
-    const dt = new DataTransfer(); dt.items.add(file);
-    fileInput.files = dt.files;
-    fileInput.dispatchEvent(new Event('change'));
-  }
+VNAAP.initDropzone(dz, (files) => {
+  fileInput.files = files;
+  dzText.textContent = '📄 ' + files[0].name + ' (' + VNAAP.formatBytes(files[0].size) + ')';
 });
 
-/* XHR 上傳（含進度條） */
-document.getElementById('uploadForm').addEventListener('submit', function(e) {
-  if (!fileInput.files[0]) return;
-  e.preventDefault();
-  const btn  = document.getElementById('submitBtn');
-  const prog = document.getElementById('uploadProgress');
-  const fill = document.getElementById('progressFill');
-  const pct  = document.getElementById('pctText');
+document.getElementById('uploadForm').addEventListener('submit', function() {
+  const btn = document.getElementById('submitBtn');
   btn.disabled = true;
-  btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite;"></span> 上傳中...';
-  prog.style.display = 'block';
-
-  const xhr = new XMLHttpRequest();
-  xhr.upload.addEventListener('progress', ev => {
-    if (ev.lengthComputable) {
-      const p = Math.round(ev.loaded / ev.total * 100);
-      fill.style.width = p + '%'; pct.textContent = p + '%';
-    }
-  });
-  xhr.addEventListener('load', () => {
-    fill.style.width = '100%'; pct.textContent = '100%';
-    window.location.href = xhr.responseURL;
-  });
-  xhr.addEventListener('error', () => {
-    btn.disabled = false;
-    btn.innerHTML = '<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg> 開始分析';
-    prog.style.display = 'none';
-    showToast('上傳失敗，請重試。', 'error');
-  });
-  xhr.open('POST', '{% url "analyzer:upload" %}');
-  xhr.send(new FormData(this));
+  btn.innerHTML = '<span class="spinner"></span> 上傳並分析中...';
 });
 </script>
-<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
 {% endblock %}

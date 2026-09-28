@@ -117,15 +117,35 @@ class HybridSemiSupervisedTrainer:
         # 保留「未被抽中」的攻擊樣本（holdout），供下方 'optimal' 閾值搜尋使用，
         # 避免用同一批已被分類器看過的樣本做搜尋，造成閾值對訓練資料過擬合。
         rng = np.random.default_rng(42)
-        n = max(1, int(len(X_attack) * self.config['attack_ratio']))
-        attack_idx = rng.choice(len(X_attack), n, replace=False)
-        attack_mask = np.zeros(len(X_attack), dtype=bool)
+        n_attack_avail = len(X_attack)
+        n_normal_avail = len(X_normal)
+        n_attack = max(1, int(n_attack_avail * self.config['attack_ratio']))
+
+        # balance_strategy:
+        #   'undersample'（預設）：正常/攻擊各取 min(所需攻擊數, 正常庫存) 筆，1:1 且不重複
+        #   'oversample'：以攻擊數為準，正常樣本不足時才允許重複抽樣
+        strategy = self.config.get('balance_strategy', 'undersample')
+        n_pairs = n_attack if strategy == 'oversample' else min(n_attack, n_normal_avail)
+
+        if n_pairs > n_normal_avail:
+            print(f'  [Hybrid] 正常樣本 {n_normal_avail:,} < 所需 {n_pairs:,}，'
+                  f'改用重複抽樣（約 {n_pairs / n_normal_avail:.1f}x）')
+        elif n_pairs < n_attack:
+            print(f'  [Hybrid] 正常樣本僅 {n_normal_avail:,} 筆，'
+                  f'分類器微調的攻擊樣本由 {n_attack:,} 降為 {n_pairs:,} 以維持 1:1')
+
+        attack_idx = rng.choice(n_attack_avail, n_pairs, replace=False)
+        normal_idx = rng.choice(n_normal_avail, n_pairs, replace=n_pairs > n_normal_avail)
+
+        # 未被抽中的攻擊樣本作為 holdout，供 'optimal' 閾值搜尋使用
+        attack_mask = np.zeros(n_attack_avail, dtype=bool)
         attack_mask[attack_idx] = True
         attack = X_attack[attack_idx]
         attack_holdout = X_attack[~attack_mask]
+        normal = X_normal[normal_idx]
 
-        normal = X_normal[rng.choice(len(X_normal), n, replace=False)]
-        X=np.concatenate([normal, attack]); y=np.concatenate([np.zeros(n), np.ones(n)])
+        X = np.concatenate([normal, attack])
+        y = np.concatenate([np.zeros(n_pairs), np.ones(n_pairs)])
         opt=torch.optim.Adam(self.classifier.parameters(), lr=self.config['learning_rate']); criterion=nn.CrossEntropyLoss()
         for _ in range(self.config['finetune_epochs']):
             self.classifier.train()

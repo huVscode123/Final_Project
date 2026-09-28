@@ -289,29 +289,20 @@ class CICIDSLoader:
     # 正常流量的標籤值
     NORMAL_LABEL = "BENIGN"
 
-    def __init__(self, data_dir: str = "data/cicids2017"):
+    def __init__(self, data_dir: str = "data/cicids2017", name: str = "CIC-IDS2017"):
         """
         Args:
             data_dir: CIC-IDS2017 CSV 檔案目錄
         """
         self.data_dir = data_dir
+        self.name = name
         self.scaler   = MinMaxScaler()
 
     def load(self, csv_files: list = None,
              max_normal: int = 50000,
              max_attack: int = 30000) -> tuple:
         """
-        載入 CIC-IDS2017 資料集
-
-        Args:
-            csv_files  : 指定要載入的 CSV 路徑列表（None = 自動掃描 data_dir）
-            max_normal : 最大正常樣本數（避免記憶體不足，預設 50000）
-            max_attack : 最大攻擊樣本數
-
-        Returns:
-            X_normal: shape=(N_normal, 32, 32)
-            X_attack: shape=(N_attack, 32, 32)
-            y:        shape=(N,)
+        載入資料集
         """
         if csv_files is None:
             csv_files = sorted(glob.glob(os.path.join(self.data_dir, "*.csv")))
@@ -319,27 +310,31 @@ class CICIDSLoader:
         if not csv_files:
             raise FileNotFoundError(
                 f"在 {self.data_dir} 找不到 CSV 檔案\n"
-                f"請下載 CIC-IDS2017：https://www.unb.ca/cic/datasets/ids-2017.html\n"
-                f"解壓後放到 {self.data_dir}/"
+                f"請確保資料已解壓後放到該目錄"
             )
 
-        print(f"  [CIC-IDS2017] 載入 {len(csv_files)} 個 CSV 檔案")
+        print(f"  [{self.name}] 載入 {len(csv_files)} 個 CSV 檔案", flush=True)
 
         all_normal = []
         all_attack = []
 
+        # 計算每個檔案最多保留的樣本數，避免 OOM
+        max_normal_per_file = max(1, max_normal // len(csv_files) + 1000)
+        max_attack_per_file = max(1, max_attack // len(csv_files) + 1000)
+
         for csv_path in csv_files:
-            print(f"    讀取: {os.path.basename(csv_path)}")
+            print(f"    讀取: {os.path.basename(csv_path)}", flush=True)
             try:
+                # 僅讀取部分列（若檔案過大可考慮用 nrows，但這裡保留全讀並立即釋放）
                 df = pd.read_csv(csv_path, low_memory=False)
             except Exception as e:
-                print(f"    警告：無法讀取 {csv_path}（{e}）")
+                print(f"    警告：無法讀取 {csv_path}（{e}）", flush=True)
                 continue
 
             # 找到標籤欄位（名稱可能有前置空格）
             label_col = self._find_label_column(df)
             if label_col is None:
-                print(f"    警告：找不到標籤欄位，跳過")
+                print(f"    警告：找不到標籤欄位，跳過", flush=True)
                 continue
 
             # 統一清理欄位名稱（移除前後空格）
@@ -350,12 +345,24 @@ class CICIDSLoader:
             normal_names = ["BENIGN", "NORMAL", "NORMAL TRAFFIC"]
             normal_mask = df[label_col].astype(str).str.strip().str.upper().isin(normal_names)
 
-            normal = df[normal_mask].copy()
-            attack = df[~normal_mask].copy()
+            normal = df[normal_mask]
+            attack = df[~normal_mask]
 
-            print(f"      正常: {len(normal):,}  攻擊: {len(attack):,}")
-            all_normal.append(normal)
-            all_attack.append(attack)
+            print(f"      原始 -> 正常: {len(normal):,}  攻擊: {len(attack):,}", flush=True)
+
+            # 立即抽樣以節省記憶體！
+            if len(normal) > max_normal_per_file:
+                normal = normal.sample(max_normal_per_file, random_state=42)
+            if len(attack) > max_attack_per_file:
+                attack = attack.sample(max_attack_per_file, random_state=42)
+
+            all_normal.append(normal.copy())
+            all_attack.append(attack.copy())
+            
+            # 顯式刪除 df 幫助記憶體回收
+            del df
+            del normal
+            del attack
 
         if not all_normal or sum(len(d) for d in all_normal) == 0:
             raise ValueError("沒有成功載入任何正常流量資料")
@@ -364,13 +371,13 @@ class CICIDSLoader:
         df_normal = pd.concat(all_normal, ignore_index=True)
         df_attack = pd.concat(all_attack, ignore_index=True) if all_attack else pd.DataFrame()
 
-        # 限制樣本數（避免記憶體不足）
+        # 再次限制樣本數（因為可能有 rounding errors 或多抽的備用）
         if len(df_normal) > max_normal:
             df_normal = df_normal.sample(max_normal, random_state=42)
         if len(df_attack) > max_attack:
             df_attack = df_attack.sample(max_attack, random_state=42)
 
-        print(f"  [CIC-IDS2017] 使用: 正常 {len(df_normal):,}  攻擊 {len(df_attack):,}")
+        print(f"  [{self.name}] 最終使用: 正常 {len(df_normal):,}  攻擊 {len(df_attack):,}", flush=True)
 
         # 特徵前處理
         label_col = label_col.strip()
@@ -388,7 +395,7 @@ class CICIDSLoader:
             np.ones(len(X_attack),  dtype=np.int32)
         ])
 
-        print(f"  [CIC-IDS2017] 影像尺寸: {X_normal.shape[1:]}")
+        print(f"  [{self.name}] 影像尺寸: {X_normal.shape[1:]}")
         return X_normal, X_attack, y
 
     def _preprocess(self, df: pd.DataFrame, label_col: str,
@@ -492,7 +499,7 @@ class CICDDoS2019Loader(CICIDSLoader):
     """
 
     def __init__(self, data_dir: str = "data/cicddos2019"):
-        super().__init__(data_dir=data_dir)
+        super().__init__(data_dir=data_dir, name="CIC-DDoS2019")
 
     def load(self, csv_files: list = None,
              max_normal: int = 50000,

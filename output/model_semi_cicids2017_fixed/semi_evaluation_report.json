@@ -1,0 +1,96 @@
+{
+    "dataset": "cicids2017",
+    "model_type": "hybrid_semi",
+    "vae_model_type": "cnn_vae",
+    "classifier_type": "cnn_lstm_known_attack",
+    "threshold": 0.00015707019905676135,
+    "threshold_info": {
+        "method": "optimal",
+        "best_f1_on_validation": 0.5444021320640297,
+        "best_percentile": 59
+    },
+    "config": {
+        "latent_dim": 32,
+        "batch_size": 64,
+        "pretrain_epochs": 120,
+        "finetune_epochs": 60,
+        "learning_rate": 0.0005,
+        "attack_ratio": 0.2,
+        "kl_weight": 0.001
+    },
+    "split": {
+        "train_ratio": 0.6,
+        "val_ratio": 0.2,
+        "test_ratio": 0.2,
+        "normal_train": 36000,
+        "normal_val": 12000,
+        "normal_test": 12000,
+        "attack_train": 13909,
+        "attack_val": 4636,
+        "attack_test": 4637,
+        "labelled_attack_ratio": 0.2,
+        "seed": 42
+    },
+    "classifier_only": {
+        "TN": 11086,
+        "FP": 914,
+        "FN": 81,
+        "TP": 4556,
+        "precision": 0.83290676416819,
+        "recall": 0.9825318093594995,
+        "accuracy": 0.9401935445092264,
+        "fpr": 0.07616666666666666,
+        "f1": 0.9015533788458473,
+        "roc_auc": 0.9902517881532601,
+        "pr_auc": 0.9743963712023195
+    },
+    "vae_gate": {
+        "TN": 6992,
+        "FP": 5008,
+        "FN": 1093,
+        "TP": 3544,
+        "precision": 0.41440598690364816,
+        "recall": 0.7642872546905325,
+        "accuracy": 0.633287251307327,
+        "fpr": 0.4173333333333333,
+        "f1": 0.5374175449233439,
+        "roc_auc": 0.7303026112429013,
+        "pr_auc": 0.5571611383973043,
+        "threshold": 0.00015707019905676135
+    },
+    "hybrid_final": {
+        "TN": 6512,
+        "FP": 5488,
+        "FN": 15,
+        "TP": 4622,
+        "precision": 0.45717111770524227,
+        "recall": 0.9967651498813886,
+        "accuracy": 0.6692312315922342,
+        "fpr": 0.45733333333333326,
+        "f1": 0.6268393571569566,
+        "threshold": 0.00015707019905676135,
+        "status_counts": {
+            "normal": 6527,
+            "known_attack": 1558,
+            "unknown_attack": 8552
+        },
+        "known_unknown_overlap": 3912
+    },
+    "unsupervised_vae_baseline": {
+        "model_type": "cnn_vae",
+        "metrics": {
+            "TN": 11385,
+            "FP": 615,
+            "FN": 3293,
+            "TP": 1344,
+            "precision": 0.6860643185298618,
+            "recall": 0.28984257062756086,
+            "accuracy": 0.7651018813488009,
+            "fpr": 0.05124999999999999,
+            "f1": 0.4075197089140759,
+            "roc_auc": 0.7420625584070161,
+            "pr_auc": 0.5733431063298645,
+            "threshold": 0.00034346363681834183
+        }
+    }
+}

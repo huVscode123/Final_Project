@@ -3,11 +3,29 @@
 1. 非監督模型（VAE）— 三個資料集各自獨立訓練
 
 python core/run_training.py --dataset cicddos2019 --data-dir data/cic-ddos2019 --epochs 50 --patience 50
-python core/run_training.py --dataset cicids2017  --data-dir data/cicids2017   --epochs 50 --patience 50
+python core/run_training.py --dataset cicids2017  --data-dir data/cicids2017   --epochs 100 --patience 20
 python core/run_training.py --dataset nslkdd      --data-dir data/nsl-kdd      --epochs 50 --patience 50
 
 
 2. 半監督模型（Hybrid VAE + CNN-LSTM）— 80/20 切分，三個資料集各自獨立訓練
 python core/run_semi_supervised.py --dataset cicddos2019 --data-dir data/cic-ddos2019 --pretrain-epochs 50 --finetune-epochs 50 --attack-ratio 0.2
-python core/run_semi_supervised.py --dataset cicids2017  --data-dir data/cicids2017   --pretrain-epochs 50 --finetune-epochs 50 --attack-ratio 0.2
+python core/run_semi_supervised.py --dataset cicids2017  --data-dir data/cicids2017   --pretrain-epochs 100 --finetune-epochs 20 --attack-ratio 0.2
 python core/run_semi_supervised.py --dataset nslkdd      --data-dir data/nsl-kdd      --pretrain-epochs 50 --finetune-epochs 50 --attack-ratio 0.2
+
+
+
+非監督模型（VAE）(新的用這個，更好)
+python core/run_training_cicids2017_vae_fixed.py --data-dir data/cicids2017 --output output/model_cicids2017_vae_fixed --epochs 120 --patience 20 --latent 32 --batch 64 --lr 5e-4 --kl-weight 1e-3 --threshold-method percentile --pct 95 --max-normal 60000 --max-attack 30000
+
+半監督模型（Hybrid VAE + CNN-LSTM）(新的用這個，更好)
+python core/run_semi_supervised_cicids2017_hybrid_v2.py --data-dir data/cicids2017 --output output/model_semi_cicids2017_hybrid_v2 --pretrain-epochs 120 --finetune-epochs 60 --batch 64 --latent 32 --lr 5e-4 --kl-weight 1e-3 --attack-ratio 0.2 --threshold-method optimal --max-hybrid-fpr 0.05 --max-normal 60000 --max-attack 30000 --compare-unsupervised
+
+
+
+train_mta_malware
+
+「非監督式 CNN-VAE」部分：  訓練次數：150 Epochs
+python core/train_mta_malware.py --malware-dir data/mta_pcaps --only vae --vae-epochs 150 --vae-patience 20 --batch-size 32 --latent-dim 32 --vae-pct 95.0
+
+「半監督式 Hybrid」 部分： Pretrain 100 + Finetune 50 = 150 Epochs
+python core/train_mta_malware.py --malware-dir data/mta_pcaps --only semi --semi-pretrain-epochs 100 --semi-finetune-epochs 50 --semi-attack-ratio 0.3 --batch-size 32 --latent-dim 32

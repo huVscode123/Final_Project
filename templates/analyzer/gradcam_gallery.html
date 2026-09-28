@@ -29,7 +29,7 @@
        class="btn-ghost btn-sm">僅異常</a>
     <a href="{% url 'analyzer:gradcam_gallery' pk=session.pk %}?variant=gradcam"
        class="btn-ghost btn-sm">Grad-CAM</a>
-    <a href="{% url 'analyzer:gradcam_gallery' pk=session.pk %}?variant=gradcam_pp"
+    <a href="{% url 'analyzer:gradcam_gallery' pk=session.pk %}?variant=gradcam%2B%2B"
        class="btn-ghost btn-sm">Grad-CAM++</a>
     <a href="{% url 'analyzer:gradcam_gallery' pk=session.pk %}?variant=scorecam"
        class="btn-ghost btn-sm">Score-CAM</a>
@@ -42,7 +42,7 @@
   {% for img in images %}
   <div class="card" style="padding:0;overflow:hidden;">
     <div style="position:relative;">
-      <img src="{{ img.image.url }}" alt="Grad-CAM #{{ img.packet_index }}"
+      <img src="{{ img.comparison_image.url }}" alt="Grad-CAM #{{ img.packet_index }}"
            style="width:100%;height:200px;object-fit:cover;display:block;">
       {% if img.is_anomaly %}
       <span class="sev-CRITICAL" style="position:absolute;top:8px;right:8px;">異常</span>
@@ -55,11 +55,11 @@
         <span class="mono" style="font-size:0.78rem;">封包 #{{ img.packet_index }}</span>
         <span class="mono text-muted" style="font-size:0.68rem;">{{ img.variant|upper }}</span>
       </div>
-      {% if img.anomaly_score %}
+      {% if img.recon_error %}
       <div class="flex items-center gap-2">
         <span class="text-sec" style="font-size:0.72rem;">分數:</span>
         <span class="mono {% if img.is_anomaly %}text-red{% else %}text-green{% endif %}" style="font-size:0.78rem;">
-          {{ img.anomaly_score|floatformat:4 }}
+          {{ img.recon_error|floatformat:4 }}
         </span>
       </div>
       {% endif %}

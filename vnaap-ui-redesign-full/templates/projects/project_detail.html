@@ -1,0 +1,147 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — {{ project.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+.file-icon{width:34px;height:34px;border-radius:8px;background:var(--accent-dim);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.member-row{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.member-row:last-child{border-bottom:none}
+.member-avatar-lg{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent-active));color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;font-family:var(--mono);flex-shrink:0}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <div class="page-title">{{ project.name }}</div>
+    <div class="page-sub">{{ project.description|default:"尚無描述" }}</div>
+  </div>
+  <div class="page-controls">
+    {% if request.user.profile.can_manage_projects %}
+    <a href="{% url 'projects:edit' project.pk %}" class="btn-ghost">編輯專案</a>
+    {% endif %}
+    <a href="{% url 'analyzer:upload' %}?project={{ project.pk }}" class="btn-primary">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      上傳至此專案
+    </a>
+  </div>
+</div>
+
+<div class="kpi-grid">
+  <div class="kpi-card kpi-accent">
+    <div class="kpi-value">{{ sessions.count }}</div>
+    <div class="kpi-label">分析任務</div>
+  </div>
+  <div class="kpi-card kpi-red">
+    <div class="kpi-value">{{ total_alerts }}</div>
+    <div class="kpi-label">告警總數</div>
+  </div>
+  <div class="kpi-card kpi-blue">
+    <div class="kpi-value">{{ members.count }}</div>
+    <div class="kpi-label">團隊成員</div>
+  </div>
+  <div class="kpi-card kpi-green">
+    <div class="kpi-value">{{ done_count }}</div>
+    <div class="kpi-label">已完成</div>
+  </div>
+</div>
+
+<div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px">
+  <div class="card" style="padding:0;overflow:hidden">
+    <div style="padding:14px 16px;border-bottom:1px solid var(--border)">
+      <div class="card-title" style="margin-bottom:0"><span class="dot"></span>專案內分析任務</div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>標籤</th><th>狀態</th><th>告警</th><th>時間</th><th></th></tr></thead>
+        <tbody>
+          {% for s in sessions %}
+          <tr>
+            <td><a href="{% url 'analyzer:session_detail' s.pk %}" class="mono text-green" style="text-decoration:none">#{{ s.pk }}</a></td>
+            <td style="font-size:.8rem;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.label }}</td>
+            <td><span class="status-pill status-{{ s.task_status }}"><span class="dot"></span>{{ s.get_task_status_display }}</span></td>
+            <td>{% if s.alert_count > 0 %}<span class="text-red mono">{{ s.alert_count }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
+            <td style="color:var(--text-muted);font-size:.72rem" class="mono">{{ s.created_at|date:"m/d H:i" }}</td>
+            <td><a href="{% url 'analyzer:session_detail' s.pk %}" class="btn-ghost btn-sm">詳情</a></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="6" class="empty-state">此專案尚無分析任務</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <!-- 成員清單 -->
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span><span class="dot" style="background:var(--blue);box-shadow:0 0 6px var(--blue)"></span>團隊成員</span>
+        {% if request.user.profile.can_manage_projects %}
+        <button class="btn-ghost btn-sm" onclick="document.getElementById('addMemberModal').classList.add('open')">+ 新增</button>
+        {% endif %}
+      </div>
+      {% for m in members %}
+      <div class="member-row">
+        <div class="member-avatar-lg">{{ m.user.username|slice:":2"|upper }}</div>
+        <div style="flex:1">
+          <div style="font-size:.82rem;font-weight:600">{{ m.user.get_full_name|default:m.user.username }}</div>
+          <div style="font-size:.68rem;color:var(--text-muted)">{{ m.get_role_display }}</div>
+        </div>
+      </div>
+      {% empty %}
+      <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:.8rem">尚無成員</div>
+      {% endfor %}
+    </div>
+
+    <!-- 檔案／附件 -->
+    <div class="card">
+      <div class="card-title"><span class="dot" style="background:var(--purple);box-shadow:0 0 6px var(--purple)"></span>相關檔案</div>
+      {% for f in files %}
+      <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">
+        <div class="file-icon">
+          <svg fill="none" viewBox="0 0 24 24" stroke="var(--accent)" stroke-width="2" style="width:15px;height:15px"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.78rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ f.name }}</div>
+          <div style="font-size:.65rem;color:var(--text-muted)">{{ f.size|filesizeformat }}</div>
+        </div>
+      </div>
+      {% empty %}
+      <div style="text-align:center;padding:16px;color:var(--text-muted);font-size:.8rem">尚無相關檔案</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- 新增成員 Modal -->
+<div class="modal-overlay" id="addMemberModal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">新增團隊成員</div>
+      <button class="modal-close" type="button" onclick="document.getElementById('addMemberModal').classList.remove('open')">&times;</button>
+    </div>
+    <form method="post" action="{% url 'projects:add_member' project.pk %}">
+      {% csrf_token %}
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">使用者帳號</label>
+          <input type="text" name="username" class="form-input" placeholder="輸入帳號" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">角色</label>
+          <select name="role" class="form-input">
+            <option value="member">成員</option>
+            <option value="lead">負責人</option>
+            <option value="viewer">檢視者</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" onclick="document.getElementById('addMemberModal').classList.remove('open')">取消</button>
+        <button type="submit" class="btn-primary">新增成員</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

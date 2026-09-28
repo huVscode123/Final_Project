@@ -1,0 +1,182 @@
+{% extends 'base/base.html' %}
+{% load static %}
+{% block title %}熱力圖分析 — {{ session.label }} — VNAAP{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <h1 class="page-title">熱力圖深度分析</h1>
+    <p class="page-sub">Session #{{ session.pk }} · {{ session.label }} · Grad-CAM 視覺化解釋</p>
+  </div>
+  <div class="page-controls">
+    <a href="{% url 'analyzer:gradcam_gallery' pk=session.pk %}" class="btn-ghost">← 圖庫</a>
+    <a href="{% url 'analyzer:session_detail' pk=session.pk %}" class="btn-ghost">返回 Session</a>
+  </div>
+</div>
+
+<!-- ── 統計 KPI ── -->
+<div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr);">
+  <div class="kpi-card kpi-accent">
+    <div class="kpi-value" data-animate-count="{{ total_count }}">0</div>
+    <div class="kpi-label">Grad-CAM 總影像</div>
+  </div>
+  <div class="kpi-card kpi-red">
+    <div class="kpi-value" data-animate-count="{{ anomaly_count }}">0</div>
+    <div class="kpi-label">異常封包影像</div>
+  </div>
+  <div class="kpi-card kpi-green">
+    <div class="kpi-value" data-animate-count="{{ normal_count }}">0</div>
+    <div class="kpi-label">正常封包影像</div>
+  </div>
+  <div class="kpi-card kpi-blue">
+    <div class="kpi-value mono" style="font-size:1.2rem;">
+      {% if total_count > 0 %}{{ anomaly_count|floatformat:0 }}/{{ total_count }}{% else %}N/A{% endif %}
+    </div>
+    <div class="kpi-label">異常比例</div>
+  </div>
+</div>
+
+{% if cnn_result %}
+<!-- ── CNN 結果摘要 ── -->
+<div class="card">
+  <div class="card-header">
+    <div class="card-title"><span class="dot"></span>CNN 模型分析摘要</div>
+  </div>
+  <div class="grid-3">
+    <div>
+      <div class="text-muted" style="font-size:0.72rem;margin-bottom:4px;">平均重建誤差</div>
+      <div class="mono" style="font-size:1.1rem;font-weight:600;">{{ cnn_result.avg_reconstruction_error|floatformat:6 }}</div>
+    </div>
+    <div>
+      <div class="text-muted" style="font-size:0.72rem;margin-bottom:4px;">使用閾值</div>
+      <div class="mono text-accent" style="font-size:1.1rem;font-weight:600;">{{ cnn_result.threshold_used|floatformat:6 }}</div>
+    </div>
+    <div>
+      <div class="text-muted" style="font-size:0.72rem;margin-bottom:4px;">偵測異常數</div>
+      <div class="mono text-red" style="font-size:1.1rem;font-weight:600;">{{ cnn_result.anomaly_count }}</div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- ── Tabs 區域 ── -->
+<div class="card" data-tabs>
+  <div class="tab-nav">
+    <div class="tab-item active" data-tab="tab-anomaly">🔴 異常封包 ({{ anomaly_count }})</div>
+    <div class="tab-item" data-tab="tab-normal">🟢 正常封包 ({{ normal_count }})</div>
+    <div class="tab-item" data-tab="tab-all">📊 全部 ({{ total_count }})</div>
+  </div>
+  <div class="tab-content">
+    <!-- 異常封包 -->
+    <div class="tab-pane active" id="tab-anomaly">
+      {% if anomaly_images %}
+      <div class="grid-3" style="gap:12px;">
+        {% for img in anomaly_images %}
+        <div class="card" style="padding:0;overflow:hidden;border-color:rgba(239,68,68,0.3);">
+          <img src="{{ img.image.url }}" alt="Anomaly #{{ img.packet_index }}"
+               style="width:100%;height:180px;object-fit:cover;display:block;cursor:pointer;"
+               onclick="showImageModal('{{ img.image.url }}', {{ img.packet_index }}, '{{ img.anomaly_score|floatformat:6 }}', true)">
+          <div style="padding:10px 12px;border-top:1px solid rgba(239,68,68,0.2);">
+            <div class="flex items-center justify-between">
+              <span class="mono" style="font-size:0.75rem;">封包 #{{ img.packet_index }}</span>
+              <span class="mono text-red" style="font-size:0.72rem;">{{ img.anomaly_score|floatformat:4 }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state" style="padding:30px;"><h3>無異常封包影像</h3><p>所有封包均在正常範圍內</p></div>
+      {% endif %}
+    </div>
+
+    <!-- 正常封包 -->
+    <div class="tab-pane" id="tab-normal">
+      {% if normal_images %}
+      <div class="grid-3" style="gap:12px;">
+        {% for img in normal_images %}
+        <div class="card" style="padding:0;overflow:hidden;">
+          <img src="{{ img.image.url }}" alt="Normal #{{ img.packet_index }}"
+               style="width:100%;height:180px;object-fit:cover;display:block;cursor:pointer;"
+               onclick="showImageModal('{{ img.image.url }}', {{ img.packet_index }}, '{{ img.anomaly_score|floatformat:6 }}', false)">
+          <div style="padding:10px 12px;">
+            <div class="flex items-center justify-between">
+              <span class="mono" style="font-size:0.75rem;">封包 #{{ img.packet_index }}</span>
+              <span class="mono text-green" style="font-size:0.72rem;">{{ img.anomaly_score|floatformat:4 }}</span>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state" style="padding:30px;"><h3>無正常封包影像</h3></div>
+      {% endif %}
+    </div>
+
+    <!-- 全部 -->
+    <div class="tab-pane" id="tab-all">
+      {% if images %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>封包索引</th><th>變體</th><th>異常分數</th><th>判定</th><th>操作</th></tr></thead>
+          <tbody>
+            {% for img in images %}
+            <tr>
+              <td class="mono">#{{ img.packet_index }}</td>
+              <td><span class="badge badge-info">{{ img.variant|upper }}</span></td>
+              <td class="mono {% if img.is_anomaly %}text-red{% else %}text-green{% endif %}">{{ img.anomaly_score|floatformat:6 }}</td>
+              <td>{% if img.is_anomaly %}<span class="sev-CRITICAL">異常</span>{% else %}<span class="sev-LOW">正常</span>{% endif %}</td>
+              <td><a href="{{ img.image.url }}" target="_blank" class="btn-ghost btn-sm">查看</a></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="empty-state" style="padding:30px;"><h3>尚無 Grad-CAM 影像</h3></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- 影像放大 Modal -->
+<div class="modal-overlay" id="imageModal">
+  <div class="modal" style="max-width:700px;">
+    <div class="modal-header">
+      <div class="modal-title" id="modalTitle">封包 Grad-CAM</div>
+      <button class="btn-icon modal-close" onclick="closeImageModal()">&times;</button>
+    </div>
+    <div class="modal-body" style="padding:0;">
+      <img id="modalImg" src="" alt="Grad-CAM" style="width:100%;display:block;">
+    </div>
+    <div class="modal-footer">
+      <div class="flex items-center gap-3">
+        <span class="text-sec" style="font-size:0.78rem;">異常分數:</span>
+        <span class="mono" id="modalScore" style="font-size:0.88rem;font-weight:600;">0.000000</span>
+        <span id="modalBadge"></span>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showImageModal(url, idx, score, isAnomaly) {
+  document.getElementById('modalImg').src = url;
+  document.getElementById('modalTitle').textContent = `封包 #${idx} — Grad-CAM 熱力圖`;
+  document.getElementById('modalScore').textContent = score;
+  document.getElementById('modalScore').className = `mono ${isAnomaly ? 'text-red' : 'text-green'}`;
+  document.getElementById('modalBadge').innerHTML = isAnomaly
+    ? '<span class="sev-CRITICAL">異常</span>'
+    : '<span class="sev-LOW">正常</span>';
+  document.getElementById('imageModal').classList.add('active');
+}
+function closeImageModal() {
+  document.getElementById('imageModal').classList.remove('active');
+}
+document.getElementById('imageModal').addEventListener('click', function(e) {
+  if (e.target === this) closeImageModal();
+});
+</script>
+{% endblock %}

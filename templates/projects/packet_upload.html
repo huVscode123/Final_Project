@@ -1,40 +1,67 @@
 {% extends "base/base.html" %}
-{% block title %}VNAAP — Upload PCAP to {{ project.name }}{% endblock %}
+{% block title %}VNAAP — 上傳附件{% endblock %}
+
 {% block content %}
 <div class="page-bar">
   <div>
-    <div class="page-title">Upload Packet File</div>
-    <div class="page-sub">Project: <a href="{% url 'projects:detail' project.pk %}" style="color:var(--green);text-decoration:none">{{ project.name }}</a></div>
-  </div>
-  <a href="{% url 'projects:detail' project.pk %}" class="btn-ghost btn-sm">← Back</a>
-</div>
-<div style="max-width:540px">
-  <div class="card">
-    <form method="post" enctype="multipart/form-data">
-      {% csrf_token %}
-      {% for field in form %}
-      <div class="form-group">
-        <label class="form-label">{{ field.label }}</label>
-        {% if field.name == 'description' %}
-        <textarea name="{{ field.html_name }}" class="form-input" rows="2">{{ field.value|default:'' }}</textarea>
-        {% elif field.name == 'capture_time' %}
-        <input type="datetime-local" name="{{ field.html_name }}" class="form-input"
-               value="{{ field.value|default:'' }}">
-        {% elif field.name == 'file' %}
-        <input type="file" name="{{ field.html_name }}" class="form-input"
-               accept=".pcap,.pcapng,.cap">
-        {% else %}
-        <input type="text" name="{{ field.html_name }}" class="form-input"
-               value="{{ field.value|default:'' }}" placeholder="{{ field.label }}">
-        {% endif %}
-        {% for e in field.errors %}<div style="color:var(--red);font-size:.75rem;margin-top:4px">✗ {{ e }}</div>{% endfor %}
-      </div>
-      {% endfor %}
-      <div class="flex gap-2">
-        <button type="submit" class="btn-primary">Upload File</button>
-        <a href="{% url 'projects:detail' project.pk %}" class="btn-ghost">Cancel</a>
-      </div>
-    </form>
+    <div class="page-title">上傳專案附件</div>
+    <div class="page-sub">{% if project %}上傳檔案至「{{ project.name }}」{% else %}上傳相關文件、截圖或其他佐證資料{% endif %}</div>
   </div>
 </div>
+
+<div class="card" style="max-width:560px">
+  {% if form.errors %}
+  <div style="background:var(--red-dim);border:1px solid rgba(239,68,68,.28);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:.8rem;color:var(--red)">
+    <ul style="list-style:none">
+      {% for field in form %}{% for error in field.errors %}<li>⚠ {{ error }}</li>{% endfor %}{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <form method="post" enctype="multipart/form-data" id="attachForm">
+    {% csrf_token %}
+
+    <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+      <div class="dropzone-icon">
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      </div>
+      <div class="dropzone-text" id="dzText">拖曳檔案到這裡，或點擊選擇檔案</div>
+      <div class="dropzone-hint">支援常見文件、圖片格式 · 最大 50MB</div>
+      <input type="file" id="fileInput" name="file" style="display:none" required>
+    </div>
+
+    <div class="form-group" style="margin-top:16px">
+      <label class="form-label">備註說明</label>
+      <textarea name="description" class="form-input" rows="3" placeholder="說明此附件的用途或內容...">{{ form.note.value|default:'' }}</textarea>
+    </div>
+
+    <button type="submit" class="btn-primary btn-block" id="submitBtn">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      上傳附件
+    </button>
+  </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const dz = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+const dzText = document.getElementById('dzText');
+
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) {
+    dzText.textContent = '📄 ' + fileInput.files[0].name + ' (' + VNAAP.formatBytes(fileInput.files[0].size) + ')';
+  }
+});
+VNAAP.initDropzone(dz, (files) => {
+  fileInput.files = files;
+  dzText.textContent = '📄 ' + files[0].name + ' (' + VNAAP.formatBytes(files[0].size) + ')';
+});
+document.getElementById('attachForm').addEventListener('submit', function() {
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 上傳中...';
+});
+</script>
 {% endblock %}

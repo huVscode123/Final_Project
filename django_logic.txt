@@ -1,51 +1,51 @@
 ========================================================================
-  Network Attack Automated Analysis Platform - Export
-  Export File : django_logic.txt
-  Total files : 29
+  Django 核心業務邏輯彙整 (Python/Logic)
+  匯出時間 : 2026-09-28 15:58:49
+  總檔案數 : 36
 ========================================================================
 
-[Table of Contents]
-  01. accounts/__init__.py
-  02. accounts/admin.py
-  03. accounts/apps.py
-  04. accounts/forms.py
-  05. accounts/models.py
-  06. accounts/urls.py
-  07. accounts/views.py
-  08. analyzer/__init__.py
-  09. analyzer/admin.py
-  10. analyzer/apps.py
-  11. analyzer/models.py
-  12. analyzer/tasks.py
-  13. analyzer/tests.py
-  14. analyzer/tests_root_causes.py
-  15. analyzer/urls.py
-  16. analyzer/views.py
-  17. api/__init__.py
-  18. api/apps.py
-  19. api/permissions.py
-  20. api/serializers.py
-  21. api/urls.py
-  22. api/views.py
-  23. projects/__init__.py
-  24. projects/admin.py
-  25. projects/apps.py
-  26. projects/forms.py
-  27. projects/models.py
-  28. projects/urls.py
-  29. projects/views.py
-
+[檔案目錄]
+  01. accounts\admin.py
+  02. accounts\apps.py
+  03. accounts\forms.py
+  04. accounts\models.py
+  05. accounts\urls.py
+  06. accounts\views.py
+  07. analyzer\admin.py
+  08. analyzer\ai_agent\agent.py
+  09. analyzer\ai_agent\gemini_client.py
+  10. analyzer\apps.py
+  11. analyzer\management\commands\list_gemini_models.py
+  12. analyzer\models.py
+  13. analyzer\tasks.py
+  14. analyzer\tests.py
+  15. analyzer\tests_root_causes.py
+  16. analyzer\urls.py
+  17. analyzer\views.py
+  18. api\apps.py
+  19. api\permissions.py
+  20. api\serializers.py
+  21. api\urls.py
+  22. api\views.py
+  23. network_platform\celery.py
+  24. network_platform\settings.py
+  25. network_platform\urls.py
+  26. network_platform\wsgi.py
+  27. projects\admin.py
+  28. projects\apps.py
+  29. projects\forms.py
+  30. projects\models.py
+  31. projects\urls.py
+  32. projects\views.py
+  33. reports\apps.py
+  34. reports\generators.py
+  35. reports\urls.py
+  36. reports\views.py
 
 ========================================================================
-  [01/29]  accounts/__init__.py
-========================================================================
 
-
-
-========================================================================
-  [02/29]  accounts/admin.py
-========================================================================
-
+// FILE: accounts\admin.py
+----------------------------------------
 # ============================================================
 # accounts/admin.py
 # ============================================================
@@ -98,20 +98,22 @@ class UserActivityLogAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-========================================================================
-  [03/29]  accounts/apps.py
+
 ========================================================================
 
+// FILE: accounts\apps.py
+----------------------------------------
 from django.apps import AppConfig
 
 class AccountsConfig(AppConfig):
     name = 'accounts'
     verbose_name = '使用者系統'
 
-========================================================================
-  [04/29]  accounts/forms.py
+
 ========================================================================
 
+// FILE: accounts\forms.py
+----------------------------------------
 # ============================================================
 # accounts/forms.py
 # ============================================================
@@ -182,10 +184,11 @@ class UserProfileForm(forms.ModelForm):
             self.fields['last_name'].initial  = user.last_name
             self.fields['email'].initial      = user.email
 
-========================================================================
-  [05/29]  accounts/models.py
+
 ========================================================================
 
+// FILE: accounts\models.py
+----------------------------------------
 # ============================================================
 # accounts/models.py
 # 使用者擴充資料（UserProfile）與角色/權限系統
@@ -289,10 +292,11 @@ class UserActivityLog(models.Model):
 
 
 
-========================================================================
-  [06/29]  accounts/urls.py
+
 ========================================================================
 
+// FILE: accounts\urls.py
+----------------------------------------
 # ============================================================
 # accounts/urls.py
 # ============================================================
@@ -312,10 +316,11 @@ urlpatterns = [
     path('admin/user/<int:user_id>/',views.admin_update_user, name='admin_update_user'),
 ]
 
-========================================================================
-  [07/29]  accounts/views.py
+
 ========================================================================
 
+// FILE: accounts\views.py
+----------------------------------------
 # ============================================================
 # accounts/views.py
 # ============================================================
@@ -548,16 +553,11 @@ def admin_update_user(request, user_id):
     return JsonResponse({'error': '無效的操作'}, status=400)
 
 
-========================================================================
-  [08/29]  analyzer/__init__.py
-========================================================================
-
-
 
 ========================================================================
-  [09/29]  analyzer/admin.py
-========================================================================
 
+// FILE: analyzer\admin.py
+----------------------------------------
 # ============================================================
 # analyzer/admin.py
 # ============================================================
@@ -649,10 +649,395 @@ class AnalysisReportAdmin(admin.ModelAdmin):
     list_filter   = ('format',)
     readonly_fields = ('created_at', 'file_size')
 
-========================================================================
-  [10/29]  analyzer/apps.py
+
 ========================================================================
 
+// FILE: analyzer\ai_agent\agent.py
+----------------------------------------
+# -*- coding: utf-8 -*-
+"""
+analyzer/ai_agent/agent.py
+
+AI 客服代理人主邏輯：
+  1. 依對話模式（mode）從 prompts.json 挑選系統提示詞。
+  2. 依使用者輸入的關鍵字，從 knowledge_base.json 找出相關的「操作引導
+     步驟」「資安知識條目」「FAQ」，組進系統提示詞──純關鍵字比對，
+     不需要向量資料庫、不需要額外的本機服務，符合「不使用 Docker」的
+     需求，同時也不會把不相關的內容硬塞給模型。
+  3. 呼叫 gemini_client.generate() 取得回覆。
+
+這裡取代原本 api/views.py::AIChatAPI 呼叫 n8n webhook 的作法：整個 AI
+客服流程現在完全在 Django process 內完成，唯一的外部相依是 Google
+Gemini API（HTTPS 直連公開端點，不是本機服務，因此不需要 Docker）。
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import threading
+from typing import Dict, List, Optional
+
+from . import gemini_client
+from .gemini_client import GeminiAPIError, GeminiConfigError  # noqa: F401  (re-export)
+
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_PROMPTS_PATH = os.path.join(_BASE_DIR, "prompts.json")
+_KB_PATH = os.path.join(_BASE_DIR, "knowledge_base.json")
+
+_lock = threading.Lock()
+_cache: Dict[str, dict] = {}
+
+
+def _load_json(path: str) -> dict:
+    with open(path, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def _get(name: str, path: str) -> dict:
+    """行程內快取 JSON 內容，避免每次請求都重讀磁碟。"""
+    with _lock:
+        if name not in _cache:
+            _cache[name] = _load_json(path)
+        return _cache[name]
+
+
+def _prompts() -> dict:
+    return _get("prompts", _PROMPTS_PATH)
+
+
+def _knowledge_base() -> dict:
+    return _get("kb", _KB_PATH)
+
+
+def reload_knowledge() -> None:
+    """開發時若修改了 prompts.json / knowledge_base.json，呼叫這個函式即可
+    立即生效，不需要重啟 Django（例如可以掛在一個限管理員使用的小工具上）。
+    """
+    with _lock:
+        _cache.pop("prompts", None)
+        _cache.pop("kb", None)
+
+
+_TOKEN_RE = re.compile(r"[A-Za-z0-9\u4e00-\u9fff]+")
+
+
+def _tokenize(text: str) -> List[str]:
+    return _TOKEN_RE.findall((text or "").lower())
+
+
+def _score_entry(query_tokens: List[str], keywords: List[str]) -> int:
+    kw_tokens = set()
+    for kw in keywords:
+        kw_tokens.update(_tokenize(kw))
+    return sum(1 for t in query_tokens if t in kw_tokens)
+
+
+def retrieve_snippets(message: str, mode: str, top_k: int = 2) -> List[str]:
+    """從 knowledge_base.json 依關鍵字比對，挑出最相關的條目（供組進系統提示詞）。
+
+    這是刻意簡化過的「關鍵字比對」版本，不是向量檢索：VNAAP 的知識庫
+    條目數量不大，關鍵字比對已經夠用，而且完全不需要额外的 embedding
+    服務或資料庫，符合這次「不使用 Docker」的限制。
+    """
+    kb = _knowledge_base()
+    query_tokens = _tokenize(message)
+    if not query_tokens:
+        return []
+
+    pools = []
+    if mode == "web_guide":
+        pools.append(("web_guide_steps", kb.get("web_guide_steps", [])))
+    elif mode == "security_knowledge":
+        pools.append(("security_topics", kb.get("security_topics", [])))
+    else:
+        # 一般對話 / 客服對話也常常混雜操作問題或資安問題，兩個知識庫都放入候選。
+        pools.append(("web_guide_steps", kb.get("web_guide_steps", [])))
+        pools.append(("security_topics", kb.get("security_topics", [])))
+    pools.append(("faq", kb.get("faq", [])))
+
+    scored = []
+    for pool_name, entries in pools:
+        for entry in entries:
+            label = entry.get("topic") or entry.get("question") or ""
+            score = _score_entry(query_tokens, entry.get("keywords", []) + [label])
+            if score > 0:
+                scored.append((score, pool_name, entry))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [_format_entry(pool_name, entry) for _, pool_name, entry in scored[:top_k]]
+
+
+def _format_entry(pool_name: str, entry: dict) -> str:
+    if pool_name == "faq":
+        return f"[FAQ] Q: {entry.get('question', '')}\nA: {entry.get('answer', '')}"
+    if pool_name == "web_guide_steps":
+        steps = entry.get("steps", [])
+        steps_text = "\n".join(f"  {i + 1}. {s}" for i, s in enumerate(steps))
+        url = entry.get("url", "")
+        return f"[操作引導：{entry.get('topic', '')}]\n{steps_text}\n(相關頁面: {url})"
+    if pool_name == "security_topics":
+        tips = entry.get("tips", [])
+        tips_text = "\n".join(f"  - {t}" for t in tips)
+        return (
+            f"[資安知識：{entry.get('topic', '')}]\n{entry.get('summary', '')}\n"
+            f"防禦建議：\n{tips_text}"
+        )
+    return json.dumps(entry, ensure_ascii=False)
+
+
+def _mode_prompt(mode: str) -> str:
+    modes = _prompts().get("modes", {})
+    cfg = modes.get(mode) or modes.get("general", {})
+    return cfg.get("system_prompt", "")
+
+
+def _compose_system_instruction(
+    mode: str, message: str, context: Optional[dict], username: Optional[str]
+) -> str:
+    parts = [_prompts().get("base_persona", "").strip()]
+
+    mode_prompt = _mode_prompt(mode).strip()
+    if mode_prompt:
+        parts.append(mode_prompt)
+
+    snippets = retrieve_snippets(message, mode)
+    if snippets:
+        parts.append(
+            "以下是可能相關的內部知識，請優先參考（若與問題無關可忽略，"
+            "請用自己的話重新組織，不要逐字照抄）：\n" + "\n\n".join(snippets)
+        )
+
+    if context and context.get("session"):
+        parts.append(
+            "以下是目前選定的分析任務（Session）資料，僅在使用者的問題與此相關時"
+            "才使用，不要在無關的問題中提及：\n"
+            + json.dumps(context, ensure_ascii=False, indent=2)
+        )
+
+    if username:
+        parts.append(f"目前與你對話的使用者帳號是「{username}」，可視情況稱呼，但不要每句都提。")
+
+    parts.append(
+        "請一律使用繁體中文回覆，語氣友善、清楚、避免不必要的專業術語堆疊；"
+        "遇到你不確定、或系統沒有提供的資訊，請誠實告知使用者你不確定，"
+        "絕對不要編造平台不存在的功能、頁面或數據。"
+    )
+
+    return "\n\n---\n\n".join(p for p in parts if p)
+
+
+def generate_reply(
+    message: str,
+    mode: str,
+    context: Optional[dict] = None,
+    username: Optional[str] = None,
+) -> str:
+    """組出系統提示詞並呼叫 Gemini，回傳純文字回覆。
+
+    Raises:
+        GeminiConfigError / GeminiAPIError（見 gemini_client.py）
+        requests 相關例外（逾時、連線失敗等）
+    """
+    system_instruction = _compose_system_instruction(mode, message, context, username)
+    return gemini_client.generate(system_instruction, message)
+
+
+========================================================================
+
+// FILE: analyzer\ai_agent\gemini_client.py
+----------------------------------------
+# -*- coding: utf-8 -*-
+"""
+analyzer/ai_agent/gemini_client.py
+
+Gemini API 的最小化直接整合（不透過 n8n、不需要 Docker）。
+
+只依賴專案既有的 `requests` 套件（見 requirements.txt），以 REST 方式
+直接呼叫 Google Gemini API：
+
+    POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+    Header: x-goog-api-key: <GEMINI_API_KEY>
+
+API Key 設定方式（擇一，詳見同目錄的 AI_AGENT_SETUP.md）：
+  1. 環境變數： export GEMINI_API_KEY="AIza...."
+  2. 直接寫在 network_platform/settings.py 的 GEMINI_API_KEY 變數裡
+     （僅建議個人 / 教學用途，且該檔案不要推上公開的 git repo）。
+
+Gemini 的可用模型名稱會隨時間調整，若不確定目前這把金鑰可以用哪個
+模型，執行：
+    python manage.py list_gemini_models
+會直接向 API 查詢並列出來，比查文件更準確。
+"""
+from __future__ import annotations
+
+import json
+import logging
+from typing import List, Optional
+
+import requests
+from django.conf import settings
+
+logger = logging.getLogger(__name__)
+
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+
+# 沒有在 settings.py 覆寫時使用的預設值。
+# Gemini 的模型型號會持續更新／汰換，這裡只是一個「先能動」的合理預設，
+# 正式使用前請務必執行 `python manage.py list_gemini_models` 確認。
+DEFAULT_MODEL = "gemini-2.5-flash"
+DEFAULT_TIMEOUT = 30
+DEFAULT_MAX_OUTPUT_TOKENS = 1024
+DEFAULT_TEMPERATURE = 0.4
+
+
+class GeminiConfigError(RuntimeError):
+    """尚未設定 GEMINI_API_KEY，或設定內容明顯無效時拋出。"""
+
+
+class GeminiAPIError(RuntimeError):
+    """Gemini API 回傳非預期狀態碼，或回應格式不符預期時拋出。"""
+
+
+def _get_api_key() -> str:
+    key = (getattr(settings, "GEMINI_API_KEY", "") or "").strip()
+    if not key:
+        raise GeminiConfigError(
+            "尚未設定 GEMINI_API_KEY。請於環境變數，或 "
+            "network_platform/settings.py 中設定你自己的 Gemini API Key "
+            "（詳見 AI_AGENT_SETUP.md 的設定說明）。"
+        )
+    return key
+
+
+def _get_model() -> str:
+    return getattr(settings, "GEMINI_MODEL", DEFAULT_MODEL) or DEFAULT_MODEL
+
+
+def _get_timeout() -> int:
+    return int(getattr(settings, "GEMINI_API_TIMEOUT", DEFAULT_TIMEOUT) or DEFAULT_TIMEOUT)
+
+
+def _get_max_output_tokens() -> int:
+    return int(
+        getattr(settings, "GEMINI_MAX_OUTPUT_TOKENS", DEFAULT_MAX_OUTPUT_TOKENS)
+        or DEFAULT_MAX_OUTPUT_TOKENS
+    )
+
+
+def list_models(api_key: Optional[str] = None) -> List[dict]:
+    """列出目前這把 API Key 實際可用的模型（用來確認 GEMINI_MODEL 該填什麼）。
+
+    使用方式：
+        python manage.py list_gemini_models
+    或在程式中：
+        from analyzer.ai_agent.gemini_client import list_models
+        for m in list_models():
+            print(m["name"])
+    """
+    key = api_key or _get_api_key()
+    url = f"{GEMINI_API_BASE}/models"
+    resp = requests.get(url, headers={"x-goog-api-key": key}, timeout=_get_timeout())
+    resp.raise_for_status()
+    data = resp.json()
+    return data.get("models", [])
+
+
+def generate(
+    system_instruction: str,
+    user_message: str,
+    *,
+    model: Optional[str] = None,
+    temperature: float = DEFAULT_TEMPERATURE,
+    max_output_tokens: Optional[int] = None,
+) -> str:
+    """呼叫 Gemini generateContent，回傳純文字回覆。
+
+    Args:
+        system_instruction: 系統提示詞（人設 + 模式規則 + 知識片段 + 對話上下文
+                             都在呼叫端組好，這裡只負責送出去）
+        user_message      : 使用者這一輪輸入的訊息
+        model             : 覆寫預設模型（否則讀取 settings.GEMINI_MODEL）
+        temperature       : 生成溫度，越高越發散
+        max_output_tokens : 最大輸出 token 數（否則讀取 settings.GEMINI_MAX_OUTPUT_TOKENS）
+
+    Returns:
+        Gemini 回覆的純文字內容。
+
+    Raises:
+        GeminiConfigError: 未設定 API Key。
+        GeminiAPIError   : API 回傳非 2xx，或回應格式不符預期（例如被安全政策擋下）。
+        requests.exceptions.Timeout / ConnectionError:
+            網路逾時或連線失敗，交由呼叫端（api/views.py）處理成給使用者的友善訊息。
+    """
+    api_key = _get_api_key()
+    model_name = model or _get_model()
+    url = f"{GEMINI_API_BASE}/models/{model_name}:generateContent"
+
+    payload = {
+        "systemInstruction": {"parts": [{"text": system_instruction}]},
+        "contents": [
+            {"role": "user", "parts": [{"text": user_message}]},
+        ],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_output_tokens or _get_max_output_tokens(),
+        },
+    }
+
+    resp = requests.post(
+        url,
+        headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+        data=json.dumps(payload),
+        timeout=_get_timeout(),
+    )
+
+    # 針對常見錯誤狀態碼給出可直接行動的中文說明，而不是讓使用者面對原始 HTTP 錯誤。
+    if resp.status_code == 400:
+        raise GeminiAPIError(
+            f"Gemini API 回傳 400（通常代表模型名稱錯誤，或請求格式有問題）："
+            f"{resp.text[:500]}"
+        )
+    if resp.status_code == 403:
+        raise GeminiAPIError(
+            "Gemini API 回傳 403，請確認 API Key 是否正確、是否已在 Google AI "
+            "Studio / Google Cloud 啟用 Generative Language API 的存取權限。"
+        )
+    if resp.status_code == 404:
+        raise GeminiAPIError(
+            f"Gemini API 回傳 404，模型「{model_name}」可能不存在，或你的帳號無權"
+            f"使用。可執行 `python manage.py list_gemini_models` 查詢實際可用的模型。"
+        )
+    if resp.status_code == 429:
+        raise GeminiAPIError("Gemini API 回傳 429（已達速率或配額上限），請稍後再試。")
+    resp.raise_for_status()
+
+    data = resp.json()
+    try:
+        candidates = data["candidates"]
+        if not candidates:
+            raise KeyError("candidates 為空")
+        parts = candidates[0]["content"]["parts"]
+        text = "".join(p.get("text", "") for p in parts)
+        if not text:
+            raise KeyError("parts 內沒有文字內容")
+        return text.strip()
+    except (KeyError, IndexError, TypeError) as e:
+        finish_reason = None
+        try:
+            finish_reason = data["candidates"][0].get("finishReason")
+        except Exception:
+            pass
+        logger.error("Gemini 回應格式不符預期: %s / finishReason=%s", data, finish_reason)
+        if finish_reason == "SAFETY":
+            raise GeminiAPIError("Gemini 因安全政策拒絕回答此請求，請換個方式提問。") from e
+        raise GeminiAPIError(f"無法解析 Gemini 回應內容（finishReason={finish_reason}）。") from e
+
+
+========================================================================
+
+// FILE: analyzer\apps.py
+----------------------------------------
 # ============================================================
 # analyzer/apps.py（修正版）
 #
@@ -773,6 +1158,8 @@ class AnalyzerConfig(AppConfig):
 
                 device = torch.device('cpu')
                 for _key, cfg in settings.ANOMALY_MODELS.items():
+                    if not cfg.get('enabled', True):
+                        continue
                     model_path = str(cfg.get('path', ''))
                     if model_path and os.path.exists(model_path):
                         try:
@@ -790,10 +1177,61 @@ class AnalyzerConfig(AppConfig):
 
         threading.Thread(target=_warmup, daemon=True, name='vnaap-warmup').start()
 
-========================================================================
-  [11/29]  analyzer/models.py
+
 ========================================================================
 
+// FILE: analyzer\management\commands\list_gemini_models.py
+----------------------------------------
+# -*- coding: utf-8 -*-
+"""
+analyzer/management/commands/list_gemini_models.py
+
+用途：設定好 GEMINI_API_KEY 後，執行
+
+    python manage.py list_gemini_models
+
+列出這把 API Key 實際可用的 Gemini 模型名稱與支援的方法，用來確認
+settings.GEMINI_MODEL 該填哪一個字串。Gemini 的可用模型會隨時間調整，
+不同金鑰／地區可用的模型也可能不同，直接向 API 查詢會比查文件更準確。
+"""
+from django.core.management.base import BaseCommand, CommandError
+
+from analyzer.ai_agent import gemini_client
+from analyzer.ai_agent.gemini_client import GeminiConfigError
+
+
+class Command(BaseCommand):
+    help = "列出目前 GEMINI_API_KEY 可用的 Gemini 模型"
+
+    def handle(self, *args, **options):
+        try:
+            models = gemini_client.list_models()
+        except GeminiConfigError as e:
+            raise CommandError(str(e))
+        except Exception as e:
+            raise CommandError(f"查詢失敗：{e}")
+
+        if not models:
+            self.stdout.write(self.style.WARNING("沒有查到任何可用模型，請確認 API Key 是否正確。"))
+            return
+
+        self.stdout.write(self.style.SUCCESS(f"共找到 {len(models)} 個可用模型：\n"))
+        for m in models:
+            name = m.get("name", "").replace("models/", "")
+            methods = m.get("supportedGenerationMethods", [])
+            marker = "✓" if "generateContent" in methods else " "
+            self.stdout.write(f"  [{marker}] {name:<32} ({', '.join(methods)})")
+
+        self.stdout.write(
+            "\n提示：挑一個標示 [✓]（支援 generateContent）的模型名稱，填入 "
+            "settings.py 的 GEMINI_MODEL，或設定環境變數 GEMINI_MODEL。"
+        )
+
+
+========================================================================
+
+// FILE: analyzer\models.py
+----------------------------------------
 # ============================================================
 # analyzer/models.py
 # 分析任務、告警、CNN 結果、視覺化影像儲存
@@ -1007,10 +1445,11 @@ class AnalysisReport(models.Model):
     def __str__(self):
         return f'Report [{self.format.upper()}] Session {self.session_id}'
 
-========================================================================
-  [12/29]  analyzer/tasks.py
+
 ========================================================================
 
+// FILE: analyzer\tasks.py
+----------------------------------------
 # ============================================================
 # analyzer/tasks.py
 # Celery 非同步任務：封包前處理、規則偵測、CNN 分析、Grad-CAM
@@ -1116,14 +1555,20 @@ def run_pcap_analysis(self, session_id):
             from pcap_analyzer import PcapAnalyzer
             analyzer = PcapAnalyzer(pcap_path)
             analyzer.load()
-            
+
+            # [Bug B 修正] 先記錄封包數量，再執行偵測。
+            # 原本 packet_count 賦值在 detect_attacks() 之後，
+            # 一旦偵測拋例外就永遠不執行，導致 DB 中 packet_count=0。
+            session.packet_count = len(analyzer.packets) if hasattr(analyzer, 'packets') else 0
+
             # [Bug 2 修正] detect_attacks 現在回傳複合 dict {"alerts": [...], "summary": ...}
             analysis_result = analyzer.detect_attacks()
             alerts_raw      = analysis_result.get("alerts", [])
             summary_info    = analysis_result.get("summary", {})
-            
-            # 從摘要中取得總封包數
-            session.packet_count = summary_info.get('total_packets', 0)
+
+            # 如果 summary 提供了更精確的封包數，以它為準
+            if summary_info.get('total_packets', 0) > 0:
+                session.packet_count = summary_info['total_packets']
         except ImportError:
             logger.warning('PcapAnalyzer 未安裝，跳過規則式偵測')
             alerts_raw  = []
@@ -1320,7 +1765,20 @@ def run_gradcam(self, session_id, max_images=20,
             with torch.no_grad():
                 err = float(model.reconstruction_error(x_tensor).cpu().numpy()[0])
 
-            is_anomaly = err > threshold
+            # [Bug C 修正] 半監督模型的異常判定不應只看 VAE 重建誤差。
+            # 使用與 model_registry.compute_anomaly_scores() 一致的三態邏輯：
+            #   known_attack   : 分類器判定為攻擊 → is_anomaly=True
+            #   unknown_attack : 分類器判正常但 VAE 超標 → is_anomaly=True
+            #   normal         : 兩者皆正常 → is_anomaly=False
+            if bundle.is_hybrid:
+                with torch.no_grad():
+                    probs = model.classify_known(x_tensor).cpu()
+                    _, label = probs.max(dim=1)
+                    classifier_says_attack = (label.item() == 1)
+                is_anomaly = classifier_says_attack or (err > threshold)
+            else:
+                is_anomaly = err > threshold
+
             if anomaly_only and not is_anomaly:
                 continue
 
@@ -1428,10 +1886,11 @@ def _comparison_png(viz, x_tensor, heatmap):
     plt.close(fig)
     return buf.getvalue()
 
-========================================================================
-  [13/29]  analyzer/tests.py
+
 ========================================================================
 
+// FILE: analyzer\tests.py
+----------------------------------------
 # ============================================================
 # analyzer/tests.py — 配合模擬檢測修正的測試更新
 #
@@ -1766,10 +2225,11 @@ class SimulationFusionTests(TestCase):
             self.assertIsInstance(r['header'], dict)
             self.assertIn('protocol', r['header'])
 
-========================================================================
-  [14/29]  analyzer/tests_root_causes.py
+
 ========================================================================
 
+// FILE: analyzer\tests_root_causes.py
+----------------------------------------
 # -*- coding: utf-8 -*-
 """
 analyzer/tests_root_causes.py
@@ -2473,10 +2933,11 @@ class BackwardCompatibility(_BaseSimTest):
         for field in original_fields:
             self.assertIn(field, data, f"向下相容：舊版欄位 '{field}' 不應消失")
 
-========================================================================
-  [15/29]  analyzer/urls.py
+
 ========================================================================
 
+// FILE: analyzer\urls.py
+----------------------------------------
 # analyzer/urls.py
 from django.urls import path
 from . import views
@@ -2504,10 +2965,11 @@ urlpatterns = [
     path('ai-chat/',                            views.ai_chat,            name='ai_chat'),
 ]
 
-========================================================================
-  [16/29]  analyzer/views.py
+
 ========================================================================
 
+// FILE: analyzer\views.py
+----------------------------------------
 # ============================================================
 # analyzer/views.py
 # ============================================================
@@ -2959,6 +3421,9 @@ def simulation(request):
     """
     models = []
     for key, cfg in settings.ANOMALY_MODELS.items():
+        # 跳過已停用的模型（如 NSL-KDD 因無 PCAP 而停用）
+        if not cfg.get('enabled', True):
+            continue
         path = str(cfg.get('path', ''))
         models.append({
             'key':   key,
@@ -3645,26 +4110,22 @@ def ablation_status_api(request):
         'images': images
     })
 
-========================================================================
-  [17/29]  api/__init__.py
-========================================================================
-
-
 
 ========================================================================
-  [18/29]  api/apps.py
-========================================================================
 
+// FILE: api\apps.py
+----------------------------------------
 from django.apps import AppConfig
 
 class ApiConfig(AppConfig):
     name = 'api'
     verbose_name = 'REST API'
 
-========================================================================
-  [19/29]  api/permissions.py
+
 ========================================================================
 
+// FILE: api\permissions.py
+----------------------------------------
 # ============================================================
 # api/permissions.py（新建檔案，放在 backend/api/permissions.py）
 #
@@ -3712,10 +4173,11 @@ def get_session_or_403(request, pk):
 
     return s, None
 
-========================================================================
-  [20/29]  api/serializers.py
+
 ========================================================================
 
+// FILE: api\serializers.py
+----------------------------------------
 # ============================================================
 # api/serializers.py
 # ============================================================
@@ -3887,10 +4349,11 @@ class AnalysisReportSerializer(serializers.ModelSerializer):
             return req.build_absolute_uri(obj.file.url)
         return None
 
-========================================================================
-  [21/29]  api/urls.py
+
 ========================================================================
 
+// FILE: api\urls.py
+----------------------------------------
 # api/urls.py
 from django.urls import path
 from . import views
@@ -3936,16 +4399,18 @@ urlpatterns = [
     path('admin/stats/', views.SystemStatsAPI.as_view(), name='system_stats'),
 ]
 
-========================================================================
-  [22/29]  api/views.py
+
 ========================================================================
 
+// FILE: api\views.py
+----------------------------------------
 # ============================================================
 # api/views.py
 # REST API：Token 認證、專案、Session、CNN、Grad-CAM、AI Chat
 # ============================================================
 import os
-import requests
+from analyzer.ai_agent.agent import generate_reply
+from analyzer.ai_agent.gemini_client import GeminiConfigError, GeminiAPIError
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.db.models import Q
@@ -4516,6 +4981,11 @@ class AIChatAPI(APIView):
 
     Response:
         { "reply": "AI 回覆內容", "mode": "..." }
+
+    ── 架構說明 ──
+    直接呼叫 analyzer/ai_agent/ 套件內的 Python 函式
+    generate_reply()，經由 HTTPS 直連 Google Gemini API。
+    不需要 n8n、也不需要 Docker；唯一的外部相依是 Gemini REST API。
     """
 
     def post(self, request):
@@ -4532,36 +5002,24 @@ class AIChatAPI(APIView):
         if err:
             return err
 
-        payload = {
-            'message': message,
-            'mode':    mode,
-            'context': context,
-            'user': {
-                'username': request.user.username,
-                'is_admin': request.user.profile.is_admin,
-            },
-            # 供 n8n 的 Window Buffer Memory 節點使用，
-            # 讓「同一位使用者」在對話過程中維持記憶（而不是每輪都失憶）。
-            'chat_session_id': f'user-{request.user.pk}',
-        }
-
-        webhook_url = getattr(
-            settings, 'N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
-        timeout = getattr(settings, 'AI_CHAT_TIMEOUT', 30)
-
         try:
-            resp = requests.post(webhook_url, json=payload, timeout=timeout)
-            resp.raise_for_status()
-            data  = resp.json()
-            reply = data.get('reply', data.get('text', ''))
-        except requests.exceptions.ConnectionError:
-            return Response({'reply': 'AI 服務暫時無法連線，請確認 n8n 是否已啟動。'})
-        except requests.exceptions.Timeout:
-            return Response({'reply': 'AI 服務回應逾時，請稍後再試一次。'})
+            reply = generate_reply(
+                message=message,
+                mode=mode,
+                context=context,
+                username=request.user.username,
+            )
+        except GeminiConfigError as e:
+            # 尚未設定 API Key：用 200 + 友善訊息回覆，前端聊天視窗會直接
+            # 顯示這句話，而不是彈出一般錯誤，方便使用者知道要去哪裡設定。
+            return Response({'reply': f'AI 服務尚未設定完成：{e}', 'mode': mode})
+        except GeminiAPIError as e:
+            return Response({'reply': f'AI 服務發生錯誤：{e}', 'mode': mode})
         except Exception as e:
-            return Response({'error': str(e)}, status=500)
+            # 連線逾時／DNS 失敗等網路層例外
+            return Response({'reply': 'AI 服務暫時無法連線，請確認網路狀況或稍後再試。'})
 
-        # 稽核日誌
+        # 稽核日誌（與舊版行為相同）
         try:
             UserActivityLog.objects.create(
                 user=request.user, action='ai_chat',
@@ -4595,16 +5053,243 @@ class SystemStatsAPI(APIView):
             ],
         })
 
-========================================================================
-  [23/29]  projects/__init__.py
-========================================================================
-
-
 
 ========================================================================
-  [24/29]  projects/admin.py
+
+// FILE: network_platform\celery.py
+----------------------------------------
+# ============================================================
+# network_platform/celery.py
+# ============================================================
+import os
+from celery import Celery
+
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
+
+app = Celery('network_platform')
+app.config_from_object('django.conf:settings', namespace='CELERY')
+app.autodiscover_tasks()
+
+
+@app.task(bind=True)
+def debug_task(self):
+    print(f'Request: {self.request!r}')
+
+
 ========================================================================
 
+// FILE: network_platform\settings.py
+----------------------------------------
+from pathlib import Path
+import os
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-dev-key-請在正式環境替換成隨機字串')
+DEBUG = os.getenv('DJANGO_DEBUG', 'true').lower() == 'true'
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,*').split(',')
+
+INSTALLED_APPS = [
+    'django.contrib.admin',
+    'django.contrib.auth',
+    'django.contrib.contenttypes',
+    'django.contrib.sessions',
+    'django.contrib.messages',
+    'django.contrib.staticfiles',
+    'rest_framework',
+    'rest_framework.authtoken',
+    'corsheaders',
+    'accounts',
+    'projects',
+    'analyzer',
+    'api',
+    'reports',
+]
+
+MIDDLEWARE = [
+    'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
+]
+
+ROOT_URLCONF = 'network_platform.urls'
+
+TEMPLATES = [{
+    'BACKEND': 'django.template.backends.django.DjangoTemplates',
+    'DIRS': [BASE_DIR / 'templates'],
+    'APP_DIRS': True,
+    'OPTIONS': {'context_processors': [
+        'django.template.context_processors.debug',
+        'django.template.context_processors.request',
+        'django.contrib.auth.context_processors.auth',
+        'django.contrib.messages.context_processors.messages',
+    ]},
+}]
+
+WSGI_APPLICATION = 'network_platform.wsgi.application'
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
+    }
+}
+
+AUTH_PASSWORD_VALIDATORS = [
+    {
+        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+    },
+    {
+        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+]
+
+LANGUAGE_CODE = 'zh-hant'
+TIME_ZONE     = 'Asia/Taipei'
+USE_I18N = True
+USE_TZ   = True
+
+STATIC_URL       = '/static/'
+STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT      = BASE_DIR / 'staticfiles'
+MEDIA_URL        = '/media/'
+MEDIA_ROOT       = BASE_DIR / 'media'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.MultiPartParser',
+        'rest_framework.parsers.FormParser',
+    ],
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+}
+
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+CELERY_BROKER_URL         = os.getenv('CELERY_BROKER', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND     = os.getenv('CELERY_BACKEND', 'redis://localhost:6379/0')
+CELERY_ACCEPT_CONTENT     = ['json']
+CELERY_TASK_SERIALIZER    = 'json'
+CELERY_RESULT_SERIALIZER  = 'json'
+CELERY_TIMEZONE           = 'Asia/Taipei'
+CELERY_TASK_ALWAYS_EAGER  = os.getenv('CELERY_EAGER', 'false').lower() == 'true'
+
+CNN_MODEL_PATH  = BASE_DIR / 'media' / 'model' / 'best_model.pt'
+CNN_LATENT_DIM  = 32
+ANOMALY_MODELS = {
+    'unsupervised_vae': {'label': '非監督式 CNN-VAE', 'path': BASE_DIR / 'media' / 'model' / 'best_vae_model.pt', 'type': 'cnn_vae'},
+    'semi_cicddos2019': {'label': '半監督式 CIC-DDoS2019', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicddos2019.pt', 'type': 'hybrid_semi'},
+    'semi_cicids2017': {'label': '半監督式 CICIDS2017', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicids2017.pt', 'type': 'hybrid_semi'},
+    # NSL-KDD 無原始 PCAP 可用，存在不可消除的 train/serve skew，停用但保留程式碼
+    'semi_nslkdd': {'label': '半監督式 NSL-KDD', 'path': BASE_DIR / 'media' / 'model' / 'semi_nslkdd.pt', 'type': 'hybrid_semi', 'enabled': False},
+    # MTA — Malware Traffic Analysis 真實惡意攻擊偵測模型
+    'mta_malware': {'label': '非監督式 真實惡意軟體偵測 (MTA)', 'path': BASE_DIR / 'media' / 'model' / 'mta_malware.pt', 'type': 'cnn_vae'},
+    'semi_mta_malware': {'label': '半監督式 真實惡意軟體偵測 (MTA)', 'path': BASE_DIR / 'media' / 'model' / 'semi_mta_malware.pt', 'type': 'hybrid_semi'},
+}
+# ── [P1-2 修正] 支援環境變數覆蓋 ──
+CNN_THRESHOLD = float(os.getenv('CNN_THRESHOLD', '0.000069'))
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 500 * 1024 * 1024
+
+REPORT_OUTPUT_DIR = BASE_DIR / 'media' / 'reports'
+# ── AI Agent 設定（Gemini 直連，不需要 Docker / n8n）──────────
+# 請在此填入您的 Google Gemini API Key，或透過環境變數設定
+# 取得方式：https://aistudio.google.com/apikey
+GEMINI_API_KEY          = os.getenv('GEMINI_API_KEY', 'YOUR_API_KEY_HERE')  # ← 在此填入您的 API Key
+GEMINI_MODEL            = os.getenv('GEMINI_MODEL', 'gemini-3.8-flash')
+GEMINI_API_TIMEOUT      = int(os.getenv('GEMINI_API_TIMEOUT', '30'))
+GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv('GEMINI_MAX_OUTPUT_TOKENS', '1024'))
+# 舊版相容欄位（部分程式碼仍可能讀取）
+GEMINI_MODEL_NAME = GEMINI_MODEL
+
+# 以下為舊版 n8n 設定（已棄用，保留向後相容）
+N8N_WEBHOOK_URL = os.getenv('N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/ai-chat')
+AI_CHAT_TIMEOUT = int(os.getenv('AI_CHAT_TIMEOUT', '30'))
+
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+LOGIN_URL           = '/accounts/login/'
+LOGIN_REDIRECT_URL  = '/analyzer/'
+LOGOUT_REDIRECT_URL = '/accounts/login/'
+
+
+========================================================================
+
+// FILE: network_platform\urls.py
+----------------------------------------
+# ============================================================
+# network_platform/urls.py
+# ============================================================
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+from django.views.generic import RedirectView
+
+# 客製化後台標題
+admin.site.site_header  = '網路攻擊分析平台 管理後台'
+admin.site.site_title   = 'NetGuard Admin'
+admin.site.index_title  = '系統管理'
+
+urlpatterns = [
+    # ── 後台管理 ──────────────────────────────────────────────
+    path('admin/', admin.site.urls),
+
+    # ── 使用者系統（登入/登出/註冊/個人資料）────────────────
+    path('accounts/', include('accounts.urls', namespace='accounts')),
+
+    # ── 專案管理（前端頁面）──────────────────────────────────
+    path('projects/', include('projects.urls', namespace='projects')),
+
+    # ── 分析模組（前端頁面）──────────────────────────────────
+    path('analyzer/', include('analyzer.urls', namespace='analyzer')),
+
+    # ── 報告匯出 ──────────────────────────────────────────────
+    path('reports/', include('reports.urls', namespace='reports')),
+
+    # ── REST API（/api/v1/...）────────────────────────────────
+    path('api/v1/', include('api.urls', namespace='api')),
+
+    # ── 根路由導向首頁 ────────────────────────────────────────
+    path('', RedirectView.as_view(url='/analyzer/', permanent=False)),
+]
+
+# 開發環境 media / static 提供
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL,  document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+
+
+========================================================================
+
+// FILE: network_platform\wsgi.py
+----------------------------------------
+import os
+from django.core.wsgi import get_wsgi_application
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'network_platform.settings')
+application = get_wsgi_application()
+
+
+========================================================================
+
+// FILE: projects\admin.py
+----------------------------------------
 # ============================================================
 # projects/admin.py
 # ============================================================
@@ -4653,20 +5338,22 @@ class PacketFileAdmin(admin.ModelAdmin):
     def file_size_mb(self, obj):
         return f'{obj.file_size_mb} MB'
 
-========================================================================
-  [25/29]  projects/apps.py
+
 ========================================================================
 
+// FILE: projects\apps.py
+----------------------------------------
 from django.apps import AppConfig
 
 class ProjectsConfig(AppConfig):
     name = 'projects'
     verbose_name = '專案管理'
 
-========================================================================
-  [26/29]  projects/forms.py
+
 ========================================================================
 
+// FILE: projects\forms.py
+----------------------------------------
 # ============================================================
 # projects/forms.py
 # ============================================================
@@ -4734,10 +5421,11 @@ class PacketFileUploadForm(forms.ModelForm):
             raise ValidationError('檔案內容不像是合法的 PCAP/PCAPNG 檔案。')
         return f
 
-========================================================================
-  [27/29]  projects/models.py
+
 ========================================================================
 
+// FILE: projects\models.py
+----------------------------------------
 # ============================================================
 # projects/models.py
 # 專案管理：讓使用者將不同時間點、不同網段的封包分門別類
@@ -4885,10 +5573,11 @@ class PacketFile(models.Model):
         self.save(update_fields=['sha256'])
         return self.sha256
 
-========================================================================
-  [28/29]  projects/urls.py
+
 ========================================================================
 
+// FILE: projects\urls.py
+----------------------------------------
 # projects/urls.py
 from django.urls import path
 from . import views
@@ -4907,10 +5596,11 @@ urlpatterns = [
     path('<int:pk>/files/<int:file_pk>/delete/', views.packet_file_delete, name='file_delete'),
 ]
 
-========================================================================
-  [29/29]  projects/views.py
+
 ========================================================================
 
+// FILE: projects\views.py
+----------------------------------------
 # ============================================================
 # projects/views.py
 # ============================================================
@@ -5148,3 +5838,529 @@ def packet_file_delete(request, pk, file_pk):
         packet_file.delete()
         messages.success(request, f'已刪除「{name}」。')
     return redirect('projects:detail', pk=pk)
+
+
+========================================================================
+
+// FILE: reports\apps.py
+----------------------------------------
+from django.apps import AppConfig
+
+class ReportsConfig(AppConfig):
+    name = 'reports'
+    verbose_name = '報告匯出'
+
+
+========================================================================
+
+// FILE: reports\generators.py
+----------------------------------------
+# ============================================================
+# reports/generators.py
+# 分析報告匯出系統：PDF（ReportLab）/ JSON / CSV
+# ============================================================
+import os
+import io
+import json
+import csv
+from datetime import datetime
+
+from django.conf import settings
+from django.utils import timezone
+from django.core.files.base import ContentFile
+
+from analyzer.models import AnalysisSession, Alert, CNNResult, AnalysisReport
+
+
+class ReportGenerator:
+    """
+    統一報告生成介面。
+
+    使用方式：
+        gen    = ReportGenerator(session, user)
+        report = gen.generate('pdf')   # 回傳 AnalysisReport 物件
+        report = gen.generate('json')
+        report = gen.generate('csv')
+    """
+
+    def __init__(self, session: AnalysisSession, user):
+        self.session = session
+        self.user    = user
+        self.alerts  = list(session.alerts.order_by('-timestamp'))
+        self.cnn     = getattr(session, 'cnn_result', None)
+        self.gcam_imgs = list(session.gradcam_images.filter(is_anomaly=True)[:5])
+
+    def generate(self, fmt: str) -> AnalysisReport:
+        fmt = fmt.lower()
+        if fmt == 'pdf':
+            return self._generate_pdf()
+        elif fmt == 'json':
+            return self._generate_json()
+        elif fmt == 'csv':
+            return self._generate_csv()
+        else:
+            raise ValueError(f'不支援的格式: {fmt}')
+
+    # ── PDF ──────────────────────────────────────────────────
+    def _generate_pdf(self) -> AnalysisReport:
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib import colors
+            from reportlab.lib.units import cm
+            from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                            Table, TableStyle, Image as RLImage,
+                                            HRFlowable, PageBreak)
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        except ImportError:
+            raise ImportError('請安裝 reportlab：pip install reportlab')
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buf, pagesize=A4,
+            leftMargin=2*cm, rightMargin=2*cm,
+            topMargin=2*cm, bottomMargin=2*cm,
+        )
+
+        styles = getSampleStyleSheet()
+        # 自定義樣式
+        title_style = ParagraphStyle(
+            'CustomTitle', parent=styles['Title'],
+            fontSize=20, spaceAfter=12, textColor=colors.HexColor('#1f6feb'),
+        )
+        h1_style = ParagraphStyle(
+            'H1', parent=styles['Heading1'],
+            fontSize=14, textColor=colors.HexColor('#0d1117'),
+            borderPad=4, backColor=colors.HexColor('#e6f0ff'),
+            leftIndent=6, spaceAfter=8,
+        )
+        h2_style = ParagraphStyle(
+            'H2', parent=styles['Heading2'],
+            fontSize=12, textColor=colors.HexColor('#1f6feb'),
+        )
+        body_style = styles['Normal']
+        body_style.fontSize = 10
+
+        severity_colors = {
+            'CRITICAL': colors.HexColor('#f85149'),
+            'HIGH':     colors.HexColor('#ff7b72'),
+            'MEDIUM':   colors.HexColor('#d29922'),
+            'LOW':      colors.HexColor('#3fb950'),
+        }
+
+        story = []
+
+        # ── 封面 ──────────────────────────────────────────────
+        story.append(Spacer(1, 1*cm))
+        story.append(Paragraph('網路攻擊分析報告', title_style))
+        story.append(Paragraph(
+            f'<font color="#8b949e">Network Security Analysis Report</font>',
+            ParagraphStyle('sub', parent=styles['Normal'],
+                           fontSize=12, alignment=TA_LEFT)))
+        story.append(HRFlowable(width='100%', thickness=2,
+                                color=colors.HexColor('#1f6feb')))
+        story.append(Spacer(1, 0.5*cm))
+
+        meta_data = [
+            ['Session 名稱', self.session.label],
+            ['分析模式',    self.session.get_mode_display()],
+            ['分析狀態',    self.session.get_task_status_display()],
+            ['封包數量',    str(self.session.packet_count)],
+            ['告警總數',    str(self.session.alert_count)],
+            ['產生時間',    datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
+            ['產生者',      self.user.get_full_name() or self.user.username],
+        ]
+        if self.session.project:
+            meta_data.insert(1, ['所屬專案', self.session.project.name])
+
+        meta_table = Table(meta_data, colWidths=[4*cm, 12*cm])
+        meta_table.setStyle(TableStyle([
+            ('FONTSIZE',  (0, 0), (-1, -1), 10),
+            ('BACKGROUND',(0, 0), (0, -1), colors.HexColor('#f0f6ff')),
+            ('TEXTCOLOR', (0, 0), (0, -1), colors.HexColor('#1f6feb')),
+            ('FONTNAME',  (0, 0), (0, -1), 'Helvetica-Bold'),
+            ('GRID',      (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d7de')),
+            ('ROWBACKGROUNDS', (0, 0), (-1, -1),
+             [colors.white, colors.HexColor('#f6f8fa')]),
+            ('PADDING',   (0, 0), (-1, -1), 6),
+        ]))
+        story.append(meta_table)
+        story.append(Spacer(1, 0.8*cm))
+
+        # ── CNN 分析結果 ──────────────────────────────────────
+        if self.cnn:
+            story.append(Paragraph('1. CNN Autoencoder 異常偵測結果', h1_style))
+            cnn_data = [
+                ['指標', '數值'],
+                ['重建誤差閾值',   f'{self.cnn.threshold:.6f}'],
+                ['正常封包數量',   str(self.cnn.normal_count)],
+                ['異常封包數量',   str(self.cnn.anomaly_count)],
+                ['平均正常誤差',   f'{self.cnn.avg_normal_error:.6f}'],
+                ['平均異常誤差',   f'{self.cnn.avg_attack_error:.6f}'],
+                ['偵測率',         f'{self.cnn.detection_rate*100:.2f}%'],
+            ]
+            cnn_table = Table(cnn_data, colWidths=[6*cm, 10*cm])
+            cnn_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f6feb')),
+                ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
+                ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE',   (0, 0), (-1, -1), 10),
+                ('GRID',       (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d7de')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+                 [colors.white, colors.HexColor('#f6f8fa')]),
+                ('PADDING',    (0, 0), (-1, -1), 6),
+            ]))
+            story.append(cnn_table)
+            story.append(Spacer(1, 0.6*cm))
+
+            # Grad-CAM 影像（最多 3 張）
+            if self.gcam_imgs:
+                story.append(Paragraph('Grad-CAM 熱力圖（異常封包）', h2_style))
+                img_row = []
+                for gcam in self.gcam_imgs[:3]:
+                    if gcam.comparison_image:
+                        try:
+                            img_path = gcam.comparison_image.path
+                            rl_img = RLImage(img_path, width=5*cm, height=2.5*cm)
+                            img_row.append(rl_img)
+                        except Exception:
+                            pass
+                if img_row:
+                    while len(img_row) < 3:
+                        img_row.append('')
+                    img_table = Table([img_row], colWidths=[5.5*cm]*3)
+                    img_table.setStyle(TableStyle([
+                        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                    ]))
+                    story.append(img_table)
+                story.append(Spacer(1, 0.6*cm))
+
+        # ── 告警摘要 ──────────────────────────────────────────
+        story.append(Paragraph('2. 告警偵測摘要', h1_style))
+
+        # 嚴重程度統計
+        sev_counts = {}
+        for a in self.alerts:
+            sev_counts[a.severity] = sev_counts.get(a.severity, 0) + 1
+
+        if sev_counts:
+            sev_data = [['嚴重程度', '數量']] + [
+                [k, str(v)] for k, v in sorted(
+                    sev_counts.items(),
+                    key=lambda x: ['CRITICAL','HIGH','MEDIUM','LOW'].index(x[0])
+                    if x[0] in ['CRITICAL','HIGH','MEDIUM','LOW'] else 99
+                )
+            ]
+            sev_table = Table(sev_data, colWidths=[4*cm, 4*cm])
+            sev_ts = [
+                ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f6feb')),
+                ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
+                ('GRID',       (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d7de')),
+                ('PADDING',    (0, 0), (-1, -1), 6),
+            ]
+            for i, row in enumerate(sev_data[1:], 1):
+                sev = row[0]
+                c   = severity_colors.get(sev, colors.gray)
+                sev_ts.append(('TEXTCOLOR', (0, i), (0, i), c))
+                sev_ts.append(('FONTNAME',  (0, i), (0, i), 'Helvetica-Bold'))
+            sev_table.setStyle(TableStyle(sev_ts))
+            story.append(sev_table)
+            story.append(Spacer(1, 0.4*cm))
+
+        # 詳細告警清單（前 30 筆）
+        if self.alerts:
+            story.append(Paragraph('告警詳情（前 30 筆）', h2_style))
+            alert_data = [['#', '類型', '嚴重程度', '來源 IP', '說明']]
+            for i, a in enumerate(self.alerts[:30], 1):
+                detail_short = (a.detail[:60] + '...') if len(a.detail) > 60 else a.detail
+                alert_data.append([
+                    str(i), a.attack_type, a.severity,
+                    a.src_ip, detail_short,
+                ])
+            alert_table = Table(alert_data,
+                                colWidths=[0.8*cm, 3.5*cm, 2.5*cm, 3*cm, 6.2*cm])
+            a_ts = [
+                ('FONTNAME',   (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1f6feb')),
+                ('TEXTCOLOR',  (0, 0), (-1, 0), colors.white),
+                ('FONTSIZE',   (0, 0), (-1, -1), 8),
+                ('GRID',       (0, 0), (-1, -1), 0.3, colors.HexColor('#d0d7de')),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+                 [colors.white, colors.HexColor('#f6f8fa')]),
+                ('PADDING',    (0, 0), (-1, -1), 4),
+                ('VALIGN',     (0, 0), (-1, -1), 'TOP'),
+            ]
+            for i, a in enumerate(self.alerts[:30], 1):
+                c = severity_colors.get(a.severity, colors.gray)
+                a_ts.append(('TEXTCOLOR', (2, i), (2, i), c))
+                a_ts.append(('FONTNAME',  (2, i), (2, i), 'Helvetica-Bold'))
+            alert_table.setStyle(TableStyle(a_ts))
+            story.append(alert_table)
+
+        # ── 頁尾 ──────────────────────────────────────────────
+        story.append(PageBreak())
+        story.append(Spacer(1, 5*cm))
+        story.append(HRFlowable(width='100%', thickness=1,
+                                color=colors.HexColor('#d0d7de')))
+        story.append(Paragraph(
+            f'本報告由網路攻擊分析平台自動產生｜{datetime.now().strftime("%Y-%m-%d")}',
+            ParagraphStyle('footer', parent=styles['Normal'],
+                           fontSize=8, textColor=colors.gray,
+                           alignment=TA_CENTER)))
+
+        doc.build(story)
+        pdf_bytes = buf.getvalue()
+
+        report = AnalysisReport(
+            session=self.session, generated_by=self.user, format='pdf',
+            file_size=len(pdf_bytes),
+        )
+        filename = (f'report_{self.session.pk}_'
+                    f'{datetime.now().strftime("%Y%m%d_%H%M%S")}.pdf')
+        report.file.save(filename, ContentFile(pdf_bytes), save=False)
+        report.save()
+        return report
+
+    # ── JSON ─────────────────────────────────────────────────
+    def _generate_json(self) -> AnalysisReport:
+        data = {
+            'meta': {
+                'session_id':    self.session.pk,
+                'label':         self.session.label,
+                'mode':          self.session.mode,
+                'task_status':   self.session.task_status,
+                'packet_count':  self.session.packet_count,
+                'alert_count':   self.session.alert_count,
+                'project':       self.session.project.name if self.session.project else None,
+                'created_at':    self.session.created_at.isoformat(),
+                'finished_at':   self.session.finished_at.isoformat() if self.session.finished_at else None,
+                'generated_at':  datetime.now().isoformat(),
+                'generated_by':  self.user.username,
+            },
+            'cnn_result': None,
+            'alerts':     [],
+            'gradcam_summary': {
+                'total_images':   self.session.gradcam_images.count(),
+                'anomaly_images': self.session.gradcam_images.filter(is_anomaly=True).count(),
+            },
+        }
+
+        if self.cnn:
+            data['cnn_result'] = {
+                'threshold':        self.cnn.threshold,
+                'normal_count':     self.cnn.normal_count,
+                'anomaly_count':    self.cnn.anomaly_count,
+                'avg_normal_error': self.cnn.avg_normal_error,
+                'avg_attack_error': self.cnn.avg_attack_error,
+                'detection_rate':   self.cnn.detection_rate,
+            }
+
+        for a in self.alerts:
+            data['alerts'].append({
+                'attack_type': a.attack_type,
+                'severity':    a.severity,
+                'src_ip':      a.src_ip,
+                'dst_ip':      a.dst_ip,
+                'dst_port':    a.dst_port,
+                'detail':      a.detail,
+                'suggestion':  a.suggestion,
+                'timestamp':   a.timestamp.isoformat(),
+            })
+
+        json_bytes = json.dumps(data, ensure_ascii=False, indent=2).encode('utf-8')
+        report = AnalysisReport(
+            session=self.session, generated_by=self.user, format='json',
+            file_size=len(json_bytes),
+        )
+        filename = (f'report_{self.session.pk}_'
+                    f'{datetime.now().strftime("%Y%m%d_%H%M%S")}.json')
+        report.file.save(filename, ContentFile(json_bytes), save=False)
+        report.save()
+        return report
+
+    # ── CSV ──────────────────────────────────────────────────
+    def _generate_csv(self) -> AnalysisReport:
+        buf = io.StringIO()
+        writer = csv.writer(buf)
+
+        # Session 摘要區塊
+        writer.writerow(['=== Session 摘要 ==='])
+        writer.writerow(['Session ID', self.session.pk])
+        writer.writerow(['標籤',        self.session.label])
+        writer.writerow(['模式',        self.session.get_mode_display()])
+        writer.writerow(['封包數',      self.session.packet_count])
+        writer.writerow(['告警數',      self.session.alert_count])
+        writer.writerow(['產生時間',    datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+        writer.writerow([])
+
+        # CNN 結果
+        if self.cnn:
+            writer.writerow(['=== CNN 分析結果 ==='])
+            writer.writerow(['閾值', '正常封包', '異常封包',
+                             '平均正常誤差', '平均異常誤差', '偵測率'])
+            writer.writerow([
+                self.cnn.threshold,
+                self.cnn.normal_count,
+                self.cnn.anomaly_count,
+                self.cnn.avg_normal_error,
+                self.cnn.avg_attack_error,
+                f'{self.cnn.detection_rate*100:.2f}%',
+            ])
+            writer.writerow([])
+
+        # 告警清單
+        writer.writerow(['=== 告警清單 ==='])
+        writer.writerow(['#', '攻擊類型', '嚴重程度', '來源 IP',
+                         '目標 IP', '目標 Port', '說明', '建議', '時間'])
+        for i, a in enumerate(self.alerts, 1):
+            writer.writerow([
+                i, a.attack_type, a.severity,
+                a.src_ip, a.dst_ip, a.dst_port or '',
+                a.detail, a.suggestion,
+                a.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+            ])
+
+        csv_bytes = buf.getvalue().encode('utf-8-sig')  # BOM for Excel
+        report = AnalysisReport(
+            session=self.session, generated_by=self.user, format='csv',
+            file_size=len(csv_bytes),
+        )
+        filename = (f'report_{self.session.pk}_'
+                    f'{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv')
+        report.file.save(filename, ContentFile(csv_bytes), save=False)
+        report.save()
+        return report
+
+
+========================================================================
+
+// FILE: reports\urls.py
+----------------------------------------
+# reports/urls.py
+from django.urls import path
+from . import views
+
+app_name = 'reports'
+
+urlpatterns = [
+    path('export/<int:session_pk>/',   views.export_report,  name='export'),
+    path('download/<int:pk>/',         views.download_report, name='download'),
+    path('session/<int:session_pk>/',  views.report_list,    name='list'),
+]
+
+
+========================================================================
+
+// FILE: reports\views.py
+----------------------------------------
+# ============================================================
+# reports/views.py
+# 報告匯出：前端觸發與下載
+# ============================================================
+from django.shortcuts import render, get_object_or_404, redirect
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.http import FileResponse, Http404
+from django.views.decorators.http import require_POST
+
+from analyzer.models import AnalysisSession, AnalysisReport
+
+
+@login_required
+@require_POST
+def export_report(request, session_pk):
+    """
+    POST /reports/export/<session_pk>/
+    觸發報告匯出並導向下載。
+    """
+    session = get_object_or_404(AnalysisSession, pk=session_pk)
+
+    if not request.user.profile.can_export_report:
+        messages.error(request, '您沒有匯出報告的權限。')
+        return redirect('analyzer:session_detail', pk=session_pk)
+
+    fmt = request.POST.get('format', 'pdf').lower()
+    if fmt not in ('pdf', 'json', 'csv'):
+        messages.error(request, '不支援的格式。')
+        return redirect('analyzer:session_detail', pk=session_pk)
+
+    try:
+        from .generators import ReportGenerator
+        gen    = ReportGenerator(session, request.user)
+        report = gen.generate(fmt)
+
+        from accounts.views import _log_action
+        _log_action(request, 'export_report',
+                    f'Session {session_pk} format={fmt}')
+        messages.success(request, f'報告已產生（{fmt.upper()}）。')
+        return redirect('reports:download', pk=report.pk)
+
+    except ImportError as e:
+        messages.error(request, f'缺少必要套件：{e}')
+    except Exception as e:
+        messages.error(request, f'報告產生失敗：{e}')
+
+    return redirect('analyzer:session_detail', pk=session_pk)
+
+
+@login_required
+def download_report(request, pk):
+    """
+    GET /reports/download/<pk>/
+    下載指定報告檔案（串流輸出）。
+    """
+    report = get_object_or_404(AnalysisReport, pk=pk)
+    session = report.session
+
+    # 存取控制
+    user = request.user
+    allowed = (
+        user.profile.is_admin
+        or report.generated_by == user
+        or session.created_by == user
+        or (session.project and (
+            session.project.owner == user or
+            session.project.members.filter(pk=user.pk).exists()
+        ))
+    )
+    if not allowed:
+        raise Http404
+
+    content_types = {
+        'pdf':  'application/pdf',
+        'json': 'application/json',
+        'csv':  'text/csv; charset=utf-8-sig',
+    }
+    content_type = content_types.get(report.format, 'application/octet-stream')
+
+    try:
+        response = FileResponse(
+            report.file.open('rb'),
+            content_type=content_type,
+        )
+        response['Content-Disposition'] = (
+            f'attachment; filename="{report.file.name.split("/")[-1]}"'
+        )
+        return response
+    except FileNotFoundError:
+        raise Http404('報告檔案不存在，請重新產生。')
+
+
+@login_required
+def report_list(request, session_pk):
+    """
+    GET /reports/session/<session_pk>/
+    列出 Session 的所有報告。
+    """
+    session = get_object_or_404(AnalysisSession, pk=session_pk)
+    reports = session.reports.order_by('-created_at')
+    return render(request, 'reports/report_list.html', {
+        'session': session,
+        'reports': reports,
+    })
+
+
+========================================================================
+

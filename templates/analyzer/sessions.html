@@ -4,119 +4,91 @@
 {% block content %}
 <div class="page-bar">
   <div>
-    <h1 class="page-title">分析任務列表</h1>
-    <p class="page-sub">所有可存取的分析任務記錄</p>
+    <div class="page-title">分析任務列表</div>
+    <div class="page-sub">共 {{ sessions|length }} 筆任務</div>
   </div>
-  <a href="{% url 'analyzer:upload' %}" class="btn-primary">
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:14px;height:14px"><path d="M12 4v16m8-8H4"/></svg>
-    新增分析
-  </a>
+  <div class="page-controls">
+    <a href="{% url 'analyzer:upload' %}" class="btn-primary">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+      上傳新分析
+    </a>
+  </div>
 </div>
 
 <!-- 篩選列 -->
-<form method="get" class="card" style="padding:12px 16px">
-  <div class="flex items-center gap-3 flex-wrap">
-    <input type="text" name="q" value="{{ q }}" placeholder="搜尋標籤或檔名…"
-           class="form-input" style="max-width:220px">
-    <select name="status" class="form-input" style="max-width:140px">
+<div class="card" style="padding:12px 16px">
+  <form method="get" class="flex gap-2 items-center flex-wrap">
+    <select name="status" class="form-input" style="max-width:160px" onchange="this.form.submit()">
       <option value="">全部狀態</option>
-      <option value="done"    {% if status_filter == 'done' %}selected{% endif %}>✓ 已完成</option>
-      <option value="running" {% if status_filter == 'running' %}selected{% endif %}>⟳ 執行中</option>
-      <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>⏳ 等待中</option>
-      <option value="failed"  {% if status_filter == 'failed' %}selected{% endif %}>✗ 失敗</option>
+      <option value="pending" {% if request.GET.status == 'pending' %}selected{% endif %}>等待中</option>
+      <option value="running" {% if request.GET.status == 'running' %}selected{% endif %}>分析中</option>
+      <option value="done" {% if request.GET.status == 'done' %}selected{% endif %}>已完成</option>
+      <option value="failed" {% if request.GET.status == 'failed' %}selected{% endif %}>失敗</option>
     </select>
-    <select name="project" class="form-input" style="max-width:180px">
+    <select name="project" class="form-input" style="max-width:200px" onchange="this.form.submit()">
       <option value="">全部專案</option>
       {% for p in projects %}
-      <option value="{{ p.pk }}" {% if proj_filter == p.pk|stringformat:'s' %}selected{% endif %}>{{ p.name }}</option>
+      <option value="{{ p.pk }}" {% if request.GET.project == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
       {% endfor %}
     </select>
-    <button type="submit" class="btn-ghost btn-sm">
-      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:12px;height:12px"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      篩選
-    </button>
-    {% if q or status_filter or proj_filter %}
-    <a href="{% url 'analyzer:sessions' %}" class="btn-ghost btn-sm text-muted">✕ 清除</a>
+    <input type="text" name="q" class="form-input" placeholder="搜尋標籤..." style="max-width:200px" value="{{ request.GET.q|default:'' }}">
+    <button type="submit" class="btn-ghost btn-sm">篩選</button>
+    {% if request.GET.status or request.GET.project or request.GET.q %}
+    <a href="{% url 'analyzer:sessions' %}" class="btn-ghost btn-sm">清除</a>
     {% endif %}
-  </div>
-</form>
+  </form>
+</div>
 
-<!-- 任務表格 -->
 <div class="card" style="padding:0;overflow:hidden">
-  {% if sessions %}
   <div class="table-wrap">
     <table data-sortable>
-      <thead><tr>
-        <th data-sort="number">ID</th>
-        <th data-sort="date">建立時間</th>
-        <th data-sort="text">標籤</th>
-        <th>狀態</th>
-        <th style="text-align:center" data-sort="number">封包數</th>
-        <th style="text-align:center" data-sort="number">告警</th>
-        <th style="text-align:center">CNN</th>
-        <th style="text-align:center">Grad-CAM</th>
-        <th>專案</th>
-        <th style="text-align:right">操作</th>
-      </tr></thead>
+      <thead>
+        <tr>
+          <th data-sort="number">ID</th>
+          <th data-sort="text">標籤</th>
+          <th>狀態</th>
+          <th data-sort="number">封包數</th>
+          <th data-sort="number">告警數</th>
+          <th>CNN 偵測率</th>
+          <th>專案</th>
+          <th data-sort="date">建立時間</th>
+          <th></th>
+        </tr>
+      </thead>
       <tbody>
         {% for s in sessions %}
         <tr>
-          <td class="mono text-accent" style="font-size:.82rem">#{{ s.pk }}</td>
-          <td class="mono text-muted" style="font-size:.75rem">{{ s.created_at|date:"Y-m-d H:i" }}</td>
-          <td style="max-width:200px">
-            <div class="truncate" style="font-size:.82rem">{{ s.label|truncatechars:38 }}</div>
-            <div class="text-muted" style="font-size:.67rem">{{ s.get_mode_display }}</div>
-          </td>
-          <td>
-            <span class="status-pill status-{{ s.task_status }}">
-              <span class="dot"></span>{{ s.get_task_status_display }}
-            </span>
-          </td>
-          <td style="text-align:center" class="mono">{{ s.packet_count|default:"—" }}</td>
-          <td style="text-align:center">
-            {% if s.alert_count > 0 %}
-            <span class="flex items-center justify-end gap-1" style="justify-content:center">
-              <span style="width:5px;height:5px;border-radius:50%;background:var(--red);display:inline-block"></span>
-              <span class="mono text-red">{{ s.alert_count }}</span>
-            </span>
-            {% else %}<span class="text-muted mono">0</span>{% endif %}
-          </td>
-          <td style="text-align:center">
-            {% if s.cnn_result %}
-            <span class="mono text-green" style="font-size:.75rem">{{ s.cnn_result.detection_rate|floatformat:1 }}%</span>
-            {% else %}<span class="text-muted">—</span>{% endif %}
-          </td>
-          <td style="text-align:center">
-            {% with gc=s.gradcam_images.count %}
-            {% if gc > 0 %}<span class="mono text-orange" style="font-size:.75rem">{{ gc }}張</span>
-            {% else %}<span class="text-muted">—</span>{% endif %}
-            {% endwith %}
-          </td>
-          <td>
-            {% if s.project %}
-            <a href="{% url 'projects:detail' s.project.pk %}"
-               class="text-muted" style="font-size:.75rem">
-              {{ s.project.name|truncatechars:16 }}
-            </a>
-            {% else %}<span class="text-muted" style="font-size:.75rem">—</span>{% endif %}
-          </td>
-          <td style="text-align:right">
-            <a href="{% url 'analyzer:session_detail' s.pk %}" class="btn-primary btn-sm">詳情 →</a>
-          </td>
+          <td><a href="{% url 'analyzer:session_detail' s.pk %}" class="mono text-green" style="text-decoration:none">#{{ s.pk }}</a></td>
+          <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ s.label }}</td>
+          <td><span class="status-pill status-{{ s.task_status }}"><span class="dot"></span>{{ s.get_task_status_display }}</span></td>
+          <td class="mono">{{ s.packet_count }}</td>
+          <td>{% if s.alert_count > 0 %}<span class="text-red mono">{{ s.alert_count }}</span>{% else %}<span class="text-muted">0</span>{% endif %}</td>
+          <td>{% if s.cnn_result %}<span style="color:var(--green);font-family:var(--mono);font-size:.8rem">{{ s.cnn_result.detection_rate|floatformat:1 }}%</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+          <td style="color:var(--text-muted);font-size:.78rem">{{ s.project.name|truncatechars:20|default:"—" }}</td>
+          <td style="color:var(--text-muted);font-size:.75rem" class="mono">{{ s.created_at|date:"Y-m-d H:i" }}</td>
+          <td><a href="{% url 'analyzer:session_detail' s.pk %}" class="btn-ghost btn-sm">詳情</a></td>
         </tr>
+        {% empty %}
+        <tr><td colspan="9">
+          <div class="empty-state">
+            <h3>尚無分析任務</h3>
+            <p><a href="{% url 'analyzer:upload' %}">上傳第一個 PCAP 開始分析</a></p>
+          </div>
+        </td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
-  {% else %}
-  <div class="empty-state" style="padding:56px">
-    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" style="width:48px;height:48px;margin:0 auto 16px">
-      <path d="M9 17v-2m3 2v-4m3 4v-6m2 10H5a2 2 0 01-2-2V5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2z"/>
-    </svg>
-    <h3>尚無分析記錄</h3>
-    <p style="margin-top:8px">
-      <a href="{% url 'analyzer:upload' %}" class="text-accent" style="text-decoration:none">上傳您的第一個 PCAP 檔案</a>
-    </p>
+
+  {% if sessions.has_other_pages %}
+  <div style="display:flex;justify-content:center;gap:6px;padding:14px;border-top:1px solid var(--border)">
+    {% if sessions.has_previous %}
+    <a href="?page={{ sessions.previous_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" class="btn-ghost btn-sm">← 上一頁</a>
+    {% endif %}
+    <span style="padding:5px 12px;font-size:.78rem;color:var(--text-muted)">第 {{ sessions.number }} / {{ sessions.paginator.num_pages }} 頁</span>
+    {% if sessions.has_next %}
+    <a href="?page={{ sessions.next_page_number }}{% if request.GET.status %}&status={{ request.GET.status }}{% endif %}" class="btn-ghost btn-sm">下一頁 →</a>
+    {% endif %}
   </div>
   {% endif %}
 </div>

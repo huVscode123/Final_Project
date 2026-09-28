@@ -1,0 +1,306 @@
+{% extends "base/base.html" %}
+{% block title %}VNAAP — AI 助手{% endblock %}
+
+{% block extra_css %}
+<style>
+.chat-wrap{display:grid;grid-template-columns:1fr 260px;gap:16px;height:calc(100vh - 150px)}
+.chat-main{display:flex;flex-direction:column;background:var(--bg-card);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.chat-msgs{flex:1;padding:20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+.msg-ai{align-self:flex-start;max-width:78%;background:var(--bg-elevated);border:1px solid var(--border2);padding:11px 15px;border-radius:4px 14px 14px 14px;color:var(--text-primary);font-size:.855rem;line-height:1.55;white-space:pre-wrap}
+.msg-ai .msg-label{font-size:.62rem;color:var(--green);font-weight:700;margin-bottom:5px;font-family:var(--mono)}
+.msg-user{align-self:flex-end;max-width:78%;background:var(--green-dim);border:1px solid var(--accent-glow);padding:11px 15px;border-radius:14px 14px 4px 14px;color:var(--green);font-size:.855rem;white-space:pre-wrap}
+.msg-thinking{opacity:.5;font-style:italic;font-size:.78rem}
+.chat-input-area{padding:16px;background:var(--bg-elevated);border-top:1px solid var(--border);display:flex;gap:10px}
+.chat-input{flex:1;background:var(--bg-input);border:1px solid var(--border2);border-radius:8px;padding:9px 14px;color:var(--text-primary);font-size:.855rem;font-family:'Inter',sans-serif;outline:none;resize:none;transition:border-color .2s}
+.chat-input:focus{border-color:var(--green);box-shadow:var(--ring)}
+.chat-send{background:var(--green-dim);color:var(--green);border:1px solid var(--accent-glow);border-radius:8px;padding:9px 16px;cursor:pointer;font-size:.82rem;font-weight:600;transition:all .2s;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.chat-send:hover:not(:disabled){background:var(--green);color:var(--accent-ink)}
+.chat-send:disabled{opacity:.4;cursor:not-allowed}
+.sidebar-panel{display:flex;flex-direction:column;gap:12px}
+.ctx-card{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:14px}
+.ctx-title{font-size:.75rem;font-weight:600;color:var(--text-muted);font-family:var(--mono);margin-bottom:10px;text-transform:uppercase;letter-spacing:.06em}
+.session-chip{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:6px;cursor:pointer;transition:background .15s;font-size:.76rem;border:1px solid transparent}
+.session-chip:hover{background:var(--accent-dim)}
+.session-chip.selected{background:var(--accent-dim);border-color:var(--accent-glow)}
+.session-chip .sc-id{font-family:var(--mono);color:var(--green);font-weight:700}
+.session-chip .sc-lbl{color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px}
+.quick-btn{display:block;width:100%;text-align:left;padding:7px 10px;border-radius:6px;border:1px solid var(--border2);background:transparent;cursor:pointer;font-size:.75rem;color:var(--text-secondary);transition:all .15s;margin-bottom:5px}
+.quick-btn:hover{background:var(--accent-dim);border-color:var(--accent-glow);color:var(--green)}
+.status-indicator{display:flex;align-items:center;gap:6px;font-size:.7rem;color:var(--text-muted)}
+.status-indicator .dot{width:5px;height:5px;border-radius:50%;background:var(--green);box-shadow:0 0 5px var(--green)}
+
+/* ── 模式選擇列 ── */
+.mode-bar{display:flex;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--bg-elevated);flex-wrap:wrap}
+.mode-btn{display:flex;align-items:center;gap:6px;padding:7px 13px;border-radius:20px;border:1px solid var(--border2);background:transparent;cursor:pointer;font-size:.76rem;color:var(--text-secondary);transition:all .15s;white-space:nowrap}
+.mode-btn:hover{border-color:var(--accent-glow);color:var(--green)}
+.mode-btn.active{background:var(--green-dim);border-color:var(--accent-glow);color:var(--green);font-weight:600}
+.mode-hint{font-size:.72rem;color:var(--text-muted);padding:6px 16px 0}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-bar">
+  <div>
+    <div class="page-title">AI Security Assistant</div>
+    <div class="page-sub">客服對話・網頁使用引導・資安知識・分析結果白話文解讀</div>
+  </div>
+  <div class="status-indicator">
+    <span class="dot"></span>
+    <span id="connStatus">Connecting to AI...</span>
+  </div>
+</div>
+
+<div class="chat-wrap">
+  <!-- Chat Main -->
+  <div class="chat-main">
+    <!-- 模式選擇列 -->
+    <div class="mode-bar">
+      <button class="mode-btn active" data-mode="general" onclick="selectMode('general', this)">💬 一般對話</button>
+      <button class="mode-btn" data-mode="customer_service" onclick="selectMode('customer_service', this)">🎧 客服對話</button>
+      <button class="mode-btn" data-mode="web_guide" onclick="selectMode('web_guide', this)">🧭 網頁使用引導</button>
+      <button class="mode-btn" data-mode="security_knowledge" onclick="selectMode('security_knowledge', this)">🛡️ 資安知識</button>
+      <button class="mode-btn" data-mode="explain_result" onclick="selectMode('explain_result', this)">📊 白話文解讀結果</button>
+    </div>
+    <div class="mode-hint" id="modeHint">請選擇對話模式，或直接開始輸入問題（預設為一般對話）。</div>
+
+    <div class="chat-msgs" id="chatMsgs">
+      <div class="msg-ai">
+        <div class="msg-label">▸ VNAAP AI ASSISTANT</div>
+        你好！我是 VNAAP 資安 AI 助手「小網」。我可以依照上方模式協助你：
+        <ul style="margin:8px 0 0 16px;line-height:1.8;font-size:.82rem;color:var(--text-secondary)">
+          <li><b>客服對話</b>：平台操作、帳號、專案協作等問題</li>
+          <li><b>網頁使用引導</b>：手把手教你怎麼上傳封包、看報告</li>
+          <li><b>資安知識</b>：用白話解釋常見攻擊手法與防禦觀念</li>
+          <li><b>白話文解讀結果</b>：把 CNN 偵測結果翻成一般人看得懂的說明</li>
+        </ul>
+        <div style="margin-top:10px;font-size:.78rem;color:var(--text-muted)">
+          若要解讀分析結果，請先於右側清單選擇一個已完成的 Session。
+        </div>
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <textarea id="userInput" class="chat-input" rows="1"
+                placeholder="輸入你的問題..."
+                onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+      <button class="chat-send" id="sendBtn" onclick="sendMessage()">
+        傳送
+        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><path d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Right Sidebar -->
+  <div class="sidebar-panel">
+    <!-- Session Context -->
+    <div class="ctx-card">
+      <div class="ctx-title">Session Context</div>
+      <div id="selectedCtx" style="font-size:.72rem;color:var(--green);margin-bottom:8px;font-family:var(--mono)">
+        None selected
+      </div>
+      <div style="max-height:200px;overflow-y:auto;display:flex;flex-direction:column;gap:3px">
+        <div class="session-chip {% if not request.GET.session %}selected{% endif %}"
+             onclick="selectSession(null,'No context')" id="chip-none">
+          <span class="sc-id">—</span>
+          <span class="sc-lbl">No context</span>
+        </div>
+        {% for s in sessions %}
+        <div class="session-chip" onclick="selectSession('{{ s.pk }}','{{ s.label|truncatechars:20 }}')" id="chip-{{ s.pk }}">
+          <span class="sc-id">#{{ s.pk }}</span>
+          <span class="sc-lbl">{{ s.label|truncatechars:18 }}</span>
+        </div>
+        {% empty %}
+        <div style="font-size:.72rem;color:var(--text-muted);text-align:center;padding:8px">
+          尚無完成的 Session
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Quick Questions（依模式動態切換）-->
+    <div class="ctx-card">
+      <div class="ctx-title">快速提問</div>
+      <div id="quickBtnList"></div>
+    </div>
+
+    <!-- API Status -->
+    <div class="ctx-card">
+      <div class="ctx-title">Connection</div>
+      <div style="font-size:.75rem;color:var(--text-muted);line-height:1.8">
+        <div>Endpoint: <span class="mono" style="color:var(--text-secondary)">/api/v1/ai/chat/</span></div>
+        <div>Mode: <span class="mono" id="currentModeLabel" style="color:var(--text-secondary)">一般對話</span></div>
+        <div>Backend: <span class="mono" id="backendStatus" style="color:var(--text-muted)">Checking...</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let selectedSessionId = null;
+let currentMode = 'general';
+const msgs = document.getElementById('chatMsgs');
+
+/* 各模式對應的說明文字 + 快速提問按鈕 */
+const MODE_CONFIG = {
+  general: {
+    label: '一般對話',
+    hint: '請選擇對話模式，或直接開始輸入問題（預設為一般對話）。',
+    quick: [
+      '你可以幫我做什麼？',
+      'VNAAP 是什麼樣的系統？',
+    ],
+  },
+  customer_service: {
+    label: '客服對話',
+    hint: '關於帳號、專案協作、報告匯出等平台操作問題，都可以在這裡問我。',
+    quick: [
+      '我要怎麼把同事加入我的專案？',
+      '報告可以匯出成哪些格式？',
+      '忘記密碼該怎麼辦？',
+    ],
+  },
+  web_guide: {
+    label: '網頁使用引導',
+    hint: '手把手教學：如何上傳封包、查看分析結果、產生 Grad-CAM 等。',
+    quick: [
+      '要怎麼上傳我的 PCAP 檔案？',
+      '要怎麼看某次分析的告警清單？',
+      '如何產生 Grad-CAM 熱力圖？',
+    ],
+  },
+  security_knowledge: {
+    label: '資安知識',
+    hint: '用白話文認識常見的網路攻擊手法與基本防禦觀念，適合新手。',
+    quick: [
+      '什麼是 SYN Flood 攻擊？',
+      'ARP 欺騙是什麼意思？',
+      '一般人可以怎麼保護自己的網路安全？',
+    ],
+  },
+  explain_result: {
+    label: '白話文解讀結果',
+    hint: '請先於右側選擇一個已完成的 Session，我會用白話文幫你解釋這次分析結果。',
+    quick: [
+      '請幫我用白話文解釋這次的分析結果',
+      '這次有沒有需要擔心的地方？',
+      '接下來我該怎麼處理？',
+    ],
+  },
+};
+
+function renderQuickButtons(mode) {
+  const list = document.getElementById('quickBtnList');
+  list.innerHTML = '';
+  MODE_CONFIG[mode].quick.forEach(q => {
+    const btn = document.createElement('button');
+    btn.className = 'quick-btn';
+    btn.textContent = q;
+    btn.onclick = () => quickAsk(q);
+    list.appendChild(btn);
+  });
+}
+
+function selectMode(mode, btnEl) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btnEl.classList.add('active');
+  document.getElementById('modeHint').textContent = MODE_CONFIG[mode].hint;
+  document.getElementById('currentModeLabel').textContent = MODE_CONFIG[mode].label;
+  renderQuickButtons(mode);
+}
+
+function selectSession(sid, label) {
+  selectedSessionId = sid;
+  document.getElementById('selectedCtx').textContent = sid ? `Session #${sid} · ${label}` : 'None selected';
+  document.querySelectorAll('.session-chip').forEach(c => c.classList.remove('selected'));
+  document.getElementById(sid ? 'chip-' + sid : 'chip-none').classList.add('selected');
+}
+
+function quickAsk(text) {
+  document.getElementById('userInput').value = text;
+  sendMessage();
+}
+
+function appendMsg(cls, html, label='') {
+  const div = document.createElement('div');
+  div.className = cls;
+  if (label) div.innerHTML = `<div class="msg-label">${label}</div>${html}`;
+  else div.textContent = html;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const btn   = document.getElementById('sendBtn');
+  const text  = input.value.trim();
+  if (!text) return;
+
+  appendMsg('msg-user', text);
+  input.value = '';
+  input.style.height = 'auto';
+  btn.disabled = true;
+
+  const thinking = appendMsg('msg-ai msg-thinking', '⟳ 思考中...', '▸ VNAAP AI');
+
+  const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+  try {
+    const r = await fetch('/api/v1/ai/chat/', {
+      method: 'POST',
+      headers: { 'Content-Type':'application/json', 'X-CSRFToken': csrf },
+      body: JSON.stringify({
+        message: text,
+        mode: currentMode,
+        session_id: selectedSessionId,
+      }),
+    });
+    const d = await r.json();
+    thinking.remove();
+    const reply = d.reply || d.error || '⚠ 無回應';
+    appendMsg('msg-ai', reply, '▸ VNAAP AI · ' + MODE_CONFIG[currentMode].label);
+  } catch(e) {
+    thinking.remove();
+    appendMsg('msg-ai', '⚠ 無法連線至 AI 服務（請確認 n8n webhook 已啟動）', '▸ SYSTEM');
+    document.getElementById('backendStatus').textContent = 'Offline';
+    document.getElementById('backendStatus').style.color = 'var(--red)';
+  } finally {
+    btn.disabled = false;
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+}
+
+/* Auto-resize textarea */
+document.getElementById('userInput').addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+/* 初始化快速提問按鈕 */
+renderQuickButtons('general');
+
+/* Check AI status */
+(async () => {
+  try {
+    const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+    const r = await fetch('/api/v1/ai/chat/', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-CSRFToken':csrf},
+      body: JSON.stringify({message:'ping', mode:'general'}),
+    });
+    const d = await r.json();
+    if (d.reply) {
+      document.getElementById('connStatus').textContent = 'AI Connected';
+      document.getElementById('connStatus').style.color = 'var(--green)';
+      document.getElementById('backendStatus').textContent = 'Online';
+      document.getElementById('backendStatus').style.color = 'var(--green)';
+    }
+  } catch(e) {
+    document.getElementById('connStatus').textContent = 'AI Offline (n8n)';
+    document.getElementById('backendStatus').textContent = 'Offline';
+    document.getElementById('backendStatus').style.color = 'var(--text-muted)';
+  }
+})();
+</script>
+{% endblock %}
