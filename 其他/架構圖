@@ -19,7 +19,7 @@ final_project/
     │   ├── run_training_cicids2017_vae_fixed.py             (針對 CICIDS2017 的 VAE 訓練修正版)            (新增，取代舊的)
     │   ├── run_semi_supervised_cicids2017_hybrid_v2.py      (針對 CICIDS2017 的半監督 Hybrid 修正版)       (新增，取代舊的)
     │   ├── run_threshold_tuning.py                          (整合：訓練 + 閾值掃描 + 消融實驗 + 壓縮)
-    │   ├── train_mta_malware.py / prepare_mta_pcaps.py      (真實惡意軟體 MTA 訓練腳本與準備工具)
+    │   ├── train_mta_malware.py / prepare_mta_pcaps.py      (真實惡意軟體 MTA 訓練腳本與準備工具)           (新增，新模型)
     │   ├── train_packet_native_vae.py / train_pcap_native.py(原生 PCAP 視覺化訓練)
     │   ├── batch_pcap_evaluate.py / cicids2017_labels.json  (PCAP 批次評估腳本與標籤對照表)                (新增，做大量PCAP測試和做統計與分析數據)
     │   ├── ablation_study.py                                (CAE 消融實驗模組，支援潛在空間等六維度)
