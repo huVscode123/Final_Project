@@ -130,7 +130,7 @@ REPORT_OUTPUT_DIR = BASE_DIR / 'media' / 'reports'
 # ── AI Agent 設定（Gemini 直連，不需要 Docker / n8n）──────────
 # 請在此填入您的 Google Gemini API Key，或透過環境變數設定
 # 取得方式：https://aistudio.google.com/apikey
-GEMINI_API_KEY          = os.getenv('GEMINI_API_KEY', 'AQ.Ab8RN6KW3jqy4VQsPDYdB7ky5MUMnATy75Nq_jiwQ0JvlGCpJw')  # ← 在此填入您的 API Key
+GEMINI_API_KEY          = os.getenv('GEMINI_API_KEY', 'your-api-key-here')  # ← 在此填入您的 API Key
 GEMINI_MODEL            = os.getenv('GEMINI_MODEL', 'gemini-3.8-flash')
 GEMINI_API_TIMEOUT      = int(os.getenv('GEMINI_API_TIMEOUT', '30'))
 GEMINI_MAX_OUTPUT_TOKENS = int(os.getenv('GEMINI_MAX_OUTPUT_TOKENS', '1024'))
