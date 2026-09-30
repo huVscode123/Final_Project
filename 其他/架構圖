@@ -6,25 +6,32 @@ final_project/
     ├── core/                                         核心引擎 (核心邏輯與 AI 模型)
     │   ├── parser.py / config.py / anomaly_detector.py      (封包解析、全域配置、特徵/規則偵測)
     │   ├── capture.py / pcap_analyzer.py                    (即時抓包、離線 PCAP 分析引擎)
-    │   ├── packet_visualizer.py / dataset_builder.py        (封包影像化、二進位資料集建構)
+    │   ├── packet_visualizer.py / pcap_flow_converter.py    (封包影像化、PCAP Flow 轉換器)
+    │   ├── dataset_builder.py / packet_dataset_builder.py   (二進位資料集建構)
     │   ├── dataset_loader.py / data_augmentor.py            (多資料集載入、資料增強策略)
-    │   ├── cnn_autoencoder.py / trainer.py                  (CAE 模型定義、基礎訓練器與 EarlyStopping)
-    │   ├── semi_supervised_trainer.py / run_semi_supervised.py (半監督式訓練核心與執行腳本)
+    │   ├── cnn_autoencoder.py / variational_autoencoder.py  (CAE / VAE 模型定義)
+    │   ├── hybrid_semi_supervised.py                        (CNN-VAE + CNN-LSTM 混合模型)
+    │   ├── trainer.py / training_common.py                  (基礎訓練器與共用邏輯)
     │   ├── anomaly_scorer.py / threshold_tuner.py           (異常重建評分、自動閾值掃描)
     │   ├── threshold_tuner_semi.py                          (半監督專用閾值調校工具)
-    │   ├── report_generator.py                              (自動化 Markdown/PDF 分析報告生成)
+    │   ├── report_generator.py / model_registry.py          (分析報告生成、模型註冊中心)
     │   ├── run_training.py / run_full_pipeline.py           (訓練進入點、全流程自動化管線)
+    │   ├── run_training_cicids2017_vae_fixed.py             (針對 CICIDS2017 的 VAE 訓練修正版)            (新增，取代舊的)
+    │   ├── run_semi_supervised_cicids2017_hybrid_v2.py      (針對 CICIDS2017 的半監督 Hybrid 修正版)       (新增，取代舊的)
     │   ├── run_threshold_tuning.py                          (整合：訓練 + 閾值掃描 + 消融實驗 + 壓縮)
+    │   ├── train_mta_malware.py / prepare_mta_pcaps.py      (真實惡意軟體 MTA 訓練腳本與準備工具)
+    │   ├── train_packet_native_vae.py / train_pcap_native.py(原生 PCAP 視覺化訓練)
+    │   ├── batch_pcap_evaluate.py / cicids2017_labels.json  (PCAP 批次評估腳本與標籤對照表)                (新增，做大量PCAP測試和做統計與分析數據)
     │   ├── ablation_study.py                                (CAE 消融實驗模組，支援潛在空間等六維度)
     │   ├── model_compression.py                             (模型壓縮：剪枝、量化、知識蒸餾評估) 
     │   ├── comparison_benchmark.py                          (訓練策略基準比較：Semi-supervised vs Unsupervised) 
     │   ├── storage.py / session_manager.py / cleaner.py     (資料持久化、Session 生命週期、環境清理)
     │   ├── generate_attack_pcap.py                          (流量模擬：SYN Flood, ARP Spoof, ICMP Flood 等)
-    │   ├── Semi-supervised model and trainer/                  (半監督模型特定資料集實作)
+    │   ├── Semi-supervised model and trainer/               (半監督模型特定資料集實作)
     │   │   ├── cnn_autoencoder.py                           (半監督專用模型變體)
-    │   │   ├── semi_supervised_cicddos2019.py               (針對 CIC-DDoS2019 的訓練實作)
-    │   │   ├── semi_supervised_cicids2017.py                (針對 CIC-IDS2017 的訓練實作)
-    │   │   └── semi_supervised_nslkdd.py                    (針對 NSL-KDD 的訓練實作)
+    │   │   ├── semi_supervised_cicddos2019.py               (針對 CIC-DDoS2019 的訓練實作)         (關閉，不使用)
+    │   │   ├── semi_supervised_cicids2017.py                (針對 CIC-IDS2017 的訓練實作)          (關閉，不使用，有替代的)
+    │   │   └── semi_supervised_nslkdd.py                    (針對 NSL-KDD 的訓練實作)              (關閉，不使用)
     │   ├── cnn_gradcam/                                     (XAI 可解釋性 AI 套件)
     │   │   ├── gradcam_core.py                              (Grad-CAM 核心演算法：MSE-based / Pixel-based)
     │   │   ├── gradcam_hooks.py                             (層級梯度 Hook 管理器)
@@ -35,13 +42,19 @@ final_project/
     │   └── tests/                                           (核心單元與整合測試)
     │       ├── test_parser.py / test_anomaly.py             (解析器與規則偵測測試)
     │       ├── test_cnn_model.py / test_dataset_loader.py   (模型與資料載入測試)
-    │       └── test_gradcam_*.py                            (Grad-CAM 完整測試套件)
+    │       ├── test_gradcam_*.py                            (Grad-CAM 完整測試套件)
+    │       └── test_pcap_flow_converter.py                  (Flow 轉換測試)
     │
     ├── analyzer/                  分析管理應用 (Django App)
     │   ├── models.py              (AnalysisSession, Alert, CNNResult 資料模型)
     │   ├── views.py               (儀表板、檔案上傳、即時分析、Session 詳情邏輯)
     │   ├── tasks.py               (Celery 非同步任務：背景執行 PCAP 分析與模型推論)
-    │   └── urls.py                (前端路徑路由)
+    │   ├── urls.py                (前端路徑路由)
+    │   ├── ai_agent/              (內建 AI Agent 模組)
+    │   │   ├── agent.py           (LLM 對話核心與知識庫檢索)
+    │   │   └── gemini_client.py   (Gemini API 呼叫客戶端)
+    │   └── management/commands/   (自訂 Django 管理指令)
+    │       └── list_gemini_models.py (查詢可用 Gemini 模型)
     │
     ├── api/                       系統接口應用 (Django App)
     │   ├── serializers.py         (DRF 序列化器，處理 Session/Alert 轉換)
@@ -66,20 +79,23 @@ final_project/
     │   └── urls.py                (全域根路由)
     │
     ├── templates/                 HTML 模板系統 (Tailwind CSS + Chart.js)
-    │   ├── base.html              (主佈局檔案，包含 Sidebar 與 Navbar)
+    │   ├── base/base.html         (主佈局檔案，包含 Sidebar 與 Navbar)
     │   ├── analyzer/              (分析相關頁面：dashboard, upload, live, ai_chat)
     │   ├── projects/              (專案管理頁面)
     │   └── accounts/              (登入、註冊、個人資料頁面)
     │
     ├── output/                    系統輸出物 (自動生成)
-    │   ├── model/ / model_semi/   (訓練完成的模型權重 .pth 與權重檔案)
+    │   ├── model_*/               (各類訓練完成的模型權重 .pt，如 model_mta_malware)
     │   ├── ablation/              (消融實驗數據與對比圖表)
     │   ├── compression/           (壓縮後模型與 Trade-off 報告)
-    │   ├── dataset_*/             (從 PCAP 轉換後的 .npy 數值矩陣)
+    │   ├── dataset_*/             (從 PCAP 轉換後的數值矩陣)
     │   └── gradcam_test_output/   (Grad-CAM 視覺化分析熱力圖)
     │
-    ├── data/                      原始訓練數據 (需手動放置)
-    │   ├── cicids2017/ / nsl-kdd/ / cic-ddos2019/
+    ├── data/                      原始訓練數據 (模型讀取用)
+    │   ├── mta_pcaps/ / cicids2017/ / nsl-kdd/ / cic-ddos2019/
+    │
+    ├── PCAPs/                     原始未處理的流量封包集
+    │   └── malware_traffic_analysis-master/ (原始 Github 下載與解壓檔案)
     │
     ├── media/                     媒體儲存空間
     │   ├── uploads/               (用戶上傳的原始 PCAP 檔案)
@@ -89,12 +105,17 @@ final_project/
     ├── 根目錄工具與文件
     │   ├── GEMINI.md              (核心技術指南與開發範例)
     │   ├── SEMI_SUPERVISED_README.md (半監督學習模組專用說明)
+    │   ├── EXPERIMENT_GUIDE.md    (實驗操作指南)
     │   ├── manage.py              (Django 管理入口)
     │   ├── requirements.txt       (Python 依賴套件清單)
-    │   ├── export_source.py       (程式碼匯出工具)
-    │   ├── export_split_code.py   (程式碼切割與模組化匯出工具)
+    │   ├── export_source.py       (全程式碼匯出工具)
+    │   ├── export_split_code.py   (前端/後端/邏輯切割匯出工具)
+    │   ├── export_core.py         (核心模組匯出工具)
     │   └── db.sqlite3             (預設關聯式資料庫)
+    │
+    └── docs/                      說明文件
+        └── AI_Agent_Setup.md      (AI Agent 設定與知識庫說明)
 
 ============================================================
-更新日期: 2026-05-27
-狀態: 已同步最新程式碼結構 (包含 Accounts, Projects, Reports 模組)
+更新日期: 2026-09-30
+狀態: 已同步最新程式碼結構 (包含 PCAP 批次評估模組)
