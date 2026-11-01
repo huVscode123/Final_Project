@@ -1,0 +1,16 @@
+{
+  "model": "output/threshold_study/mta_malware/vae/best_vae_mta_malware.pt",
+  "model_type": "cnn_vae",
+  "mode": "packet",
+  "model_threshold": 0.0001409839969710447,
+  "representation": "packet_bytes_visualizer",
+  "labels": null,
+  "scaler": null,
+  "tcp_termination": null,
+  "bulk_mode": null,
+  "flag_mode": null,
+  "missing_window_value": null,
+  "converter_version": null,
+  "calibration_csv": null,
+  "started": "2026-10-20T23:01:40"
+}

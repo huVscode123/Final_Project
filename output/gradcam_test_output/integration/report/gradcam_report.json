@@ -1,0 +1,765 @@
+{
+    "meta": {
+        "model_name": "CNNAutoencoder (latent=32)",
+        "dataset": "simulate",
+        "variant": "gradcam",
+        "target_layer": "encoder_conv",
+        "generated_at": "2026-10-28T22:33:50.980139",
+        "n_normal": 10,
+        "n_attack": 10
+    },
+    "summary": {
+        "normal": {
+            "count": 10,
+            "recon_score_mean": 0.11515168398618698,
+            "recon_score_std": 0.0013608510842291147,
+            "recon_score_p95": 0.11687086969614029,
+            "cam_intensity_mean": 0.0,
+            "cam_intensity_std": 0.0
+        },
+        "attack": {
+            "count": 10,
+            "recon_score_mean": 0.12348564341664314,
+            "recon_score_std": 0.0021991950457339164,
+            "recon_score_p95": 0.12678429260849952,
+            "cam_intensity_mean": 0.0,
+            "cam_intensity_std": 0.0
+        },
+        "top5_important_features": [
+            {
+                "name": "dst_host_count",
+                "importance": 0.0
+            },
+            {
+                "name": "srv_diff_host_rate",
+                "importance": 0.0
+            },
+            {
+                "name": "diff_srv_rate",
+                "importance": 0.0
+            },
+            {
+                "name": "same_srv_rate",
+                "importance": 0.0
+            },
+            {
+                "name": "srv_rerror_rate",
+                "importance": 0.0
+            }
+        ]
+    },
+    "feature_importance": [
+        {
+            "name": "duration",
+            "importance": 0.0
+        },
+        {
+            "name": "protocol_type",
+            "importance": 0.0
+        },
+        {
+            "name": "service",
+            "importance": 0.0
+        },
+        {
+            "name": "flag",
+            "importance": 0.0
+        },
+        {
+            "name": "src_bytes",
+            "importance": 0.0
+        },
+        {
+            "name": "dst_bytes",
+            "importance": 0.0
+        },
+        {
+            "name": "land",
+            "importance": 0.0
+        },
+        {
+            "name": "wrong_fragment",
+            "importance": 0.0
+        },
+        {
+            "name": "urgent",
+            "importance": 0.0
+        },
+        {
+            "name": "hot",
+            "importance": 0.0
+        },
+        {
+            "name": "num_failed_logins",
+            "importance": 0.0
+        },
+        {
+            "name": "logged_in",
+            "importance": 0.0
+        },
+        {
+            "name": "num_compromised",
+            "importance": 0.0
+        },
+        {
+            "name": "root_shell",
+            "importance": 0.0
+        },
+        {
+            "name": "su_attempted",
+            "importance": 0.0
+        },
+        {
+            "name": "num_root",
+            "importance": 0.0
+        },
+        {
+            "name": "num_file_creations",
+            "importance": 0.0
+        },
+        {
+            "name": "num_shells",
+            "importance": 0.0
+        },
+        {
+            "name": "num_access_files",
+            "importance": 0.0
+        },
+        {
+            "name": "num_outbound_cmds",
+            "importance": 0.0
+        },
+        {
+            "name": "is_host_login",
+            "importance": 0.0
+        },
+        {
+            "name": "is_guest_login",
+            "importance": 0.0
+        },
+        {
+            "name": "count",
+            "importance": 0.0
+        },
+        {
+            "name": "srv_count",
+            "importance": 0.0
+        },
+        {
+            "name": "serror_rate",
+            "importance": 0.0
+        },
+        {
+            "name": "srv_serror_rate",
+            "importance": 0.0
+        },
+        {
+            "name": "rerror_rate",
+            "importance": 0.0
+        },
+        {
+            "name": "srv_rerror_rate",
+            "importance": 0.0
+        },
+        {
+            "name": "same_srv_rate",
+            "importance": 0.0
+        },
+        {
+            "name": "diff_srv_rate",
+            "importance": 0.0
+        },
+        {
+            "name": "srv_diff_host_rate",
+            "importance": 0.0
+        },
+        {
+            "name": "dst_host_count",
+            "importance": 0.0
+        }
+    ],
+    "normal_samples": [
+        {
+            "sample_idx": 0,
+            "label": "Normal",
+            "recon_score": 0.11531909,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 1,
+            "label": "Normal",
+            "recon_score": 0.11308125,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 2,
+            "label": "Normal",
+            "recon_score": 0.11677165,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 3,
+            "label": "Normal",
+            "recon_score": 0.11695205,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 4,
+            "label": "Normal",
+            "recon_score": 0.11332681,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 5,
+            "label": "Normal",
+            "recon_score": 0.11607216,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 6,
+            "label": "Normal",
+            "recon_score": 0.11581255,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 7,
+            "label": "Normal",
+            "recon_score": 0.11559737,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 8,
+            "label": "Normal",
+            "recon_score": 0.11530381,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 9,
+            "label": "Normal",
+            "recon_score": 0.11328009,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        }
+    ],
+    "attack_samples": [
+        {
+            "sample_idx": 3,
+            "label": "Attack",
+            "recon_score": 0.12786084,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 6,
+            "label": "Attack",
+            "recon_score": 0.12546851,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 7,
+            "label": "Attack",
+            "recon_score": 0.12486225,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 0,
+            "label": "Attack",
+            "recon_score": 0.12405568,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 1,
+            "label": "Attack",
+            "recon_score": 0.12405258,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 4,
+            "label": "Attack",
+            "recon_score": 0.12334438,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 2,
+            "label": "Attack",
+            "recon_score": 0.12296145,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 8,
+            "label": "Attack",
+            "recon_score": 0.12081887,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 5,
+            "label": "Attack",
+            "recon_score": 0.12072241,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        },
+        {
+            "sample_idx": 9,
+            "label": "Attack",
+            "recon_score": 0.12070946,
+            "cam_mean": 0.0,
+            "cam_max": 0.0,
+            "top_k_pixels": [
+                [
+                    31,
+                    31
+                ],
+                [
+                    31,
+                    30
+                ],
+                [
+                    31,
+                    29
+                ],
+                [
+                    31,
+                    28
+                ],
+                [
+                    31,
+                    27
+                ]
+            ]
+        }
+    ]
+}

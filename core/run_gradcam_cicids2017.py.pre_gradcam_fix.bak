@@ -1,0 +1,996 @@
+# -*- coding: utf-8 -*-
+"""Run Grad-CAM / Grad-CAM++ / Score-CAM on the 8 Chapter 4.6 cases.
+
+Run this script from the project root or call it by its path:
+
+    python core/run_gradcam_cicids2017.py \
+      --input data/cicids2017/Monday-WorkingHours.pcap_ISCX.csv \
+             data/cicids2017/Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv \
+      --variants gradcam gradcam++ scorecam \
+      --output output/gradcam_cicids2017_compare
+
+The script reuses:
+- the exact 8 CSV row indices documented in Chapter 4.6;
+- the trained CNN-VAE checkpoint and its threshold;
+- the matching training-time RobustScaler + feature_columns pickle;
+- the CNN-VAE full anomaly score (reconstruction MSE + weighted KL).
+
+It does not train a model or fit a new scaler.
+"""
+from __future__ import annotations
+
+import argparse
+import itertools
+import json
+import math
+import pickle
+import sys
+import time
+import warnings
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Sequence, Tuple
+
+import numpy as np
+import pandas as pd
+import torch
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+CORE_DIR = PROJECT_ROOT / "core"
+if str(CORE_DIR) not in sys.path:
+    sys.path.insert(0, str(CORE_DIR))
+
+from model_registry import load_anomaly_model
+from cnn_gradcam.gradcam_core import GradCAM
+
+
+# These row positions and reported scores come from Table 16 of the uploaded
+# Chapter 4 document. Row indices are zero-based and exclude the CSV header.
+SAMPLE_MANIFEST: List[Dict[str, Any]] = [
+    {
+        "sample_id": "001", "expected_group": "TN", "source": "monday",
+        "row_index": 41093, "expected_label": "BENIGN",
+        "reported_score_ch4": 0.0008199103,
+    },
+    {
+        "sample_id": "002", "expected_group": "TN", "source": "monday",
+        "row_index": 3024, "expected_label": "BENIGN",
+        "reported_score_ch4": 0.0008196523,
+    },
+    {
+        "sample_id": "003", "expected_group": "FP", "source": "monday",
+        "row_index": 18563, "expected_label": "BENIGN",
+        "reported_score_ch4": 0.0008200092,
+    },
+    {
+        "sample_id": "004", "expected_group": "FP", "source": "friday_ddos",
+        "row_index": 12194, "expected_label": "BENIGN",
+        "reported_score_ch4": 0.0008200349,
+    },
+    {
+        "sample_id": "005", "expected_group": "TP", "source": "friday_ddos",
+        "row_index": 22571, "expected_label": "DDoS",
+        "reported_score_ch4": 0.0008203784,
+    },
+    {
+        "sample_id": "006", "expected_group": "TP", "source": "friday_ddos",
+        "row_index": 27472, "expected_label": "DDoS",
+        "reported_score_ch4": 0.0008265119,
+    },
+    {
+        "sample_id": "007", "expected_group": "FN", "source": "friday_ddos",
+        "row_index": 24061, "expected_label": "DDoS",
+        "reported_score_ch4": 0.0007910964,
+    },
+    {
+        "sample_id": "008", "expected_group": "FN", "source": "friday_ddos",
+        "row_index": 46589, "expected_label": "DDoS",
+        "reported_score_ch4": 0.0007910617,
+    },
+]
+
+BENIGN_LABELS = {"BENIGN", "NORMAL", "NORMAL TRAFFIC"}
+VARIANT_DIRS = {
+    "gradcam": "gradcam",
+    "gradcam++": "gradcampp",
+    "scorecam": "scorecam",
+}
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="CICIDS2017 CNN-VAE：Grad-CAM、Grad-CAM++、Score-CAM 個案分析"
+    )
+    parser.add_argument(
+        "--input", nargs=2,
+        metavar=("MONDAY_CSV", "FRIDAY_DDOS_CSV"),
+        default=[
+            "data/cicids2017/Monday-WorkingHours.pcap_ISCX.csv",
+            "data/cicids2017/Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+        ],
+        help="依序指定 Monday CSV 與 Friday Afternoon DDoS CSV。",
+    )
+    parser.add_argument("--model", default=None, help="CNN-VAE checkpoint (.pt)。")
+    parser.add_argument("--scaler", default=None, help="訓練期 preprocessor (.pkl)。")
+    parser.add_argument(
+        "--variants", nargs="+",
+        choices=["gradcam", "gradcam++", "scorecam"],
+        default=["gradcam", "gradcam++", "scorecam"],
+        help="要執行的方法；預設三種全部執行。",
+    )
+    parser.add_argument(
+        "--output", default="output/gradcam_cicids2017_compare",
+        help="結果輸出目錄。",
+    )
+    parser.add_argument(
+        "--device", choices=["auto", "cpu", "cuda"], default="auto",
+        help="推論裝置。",
+    )
+    parser.add_argument(
+        "--scorecam-batch-size", type=int, default=32,
+        help="Score-CAM 每次批次推論的遮罩樣本數。",
+    )
+    parser.add_argument(
+        "--scorecam-temperature", type=float, default=1.0,
+        help="Score-CAM 標準化異常分數差的 softmax temperature。",
+    )
+    parser.add_argument(
+        "--smooth-sigma", type=float, default=1.0,
+        help="CAM Gaussian smoothing sigma；0 表示不平滑。",
+    )
+    parser.add_argument(
+        "--expected-threshold", type=float,
+        default=0.0008199410804081708,
+        help="第四章原紀錄閾值；若 checkpoint 閾值不同，預設停止避免案例分類錯配。",
+    )
+    parser.add_argument(
+        "--allow-threshold-mismatch", action="store_true",
+        help="允許 checkpoint 閾值與第四章原紀錄不同（仍會輸出實際分類差異）。",
+    )
+    parser.add_argument(
+        "--run-feature-occlusion", action="store_true",
+        help="額外對 8 筆樣本的 78 個特徵逐一設為 0，輸出完整遮蔽敏感度 CSV。",
+    )
+    parser.add_argument(
+        "--max-rows", type=int, default=50000,
+        help="每個來源 CSV 最多讀取列數；必須大於最大指定 row_index。",
+    )
+    parser.add_argument(
+        "--no-overlay", action="store_true",
+        help="不輸出圖片；通常不建議啟用。",
+    )
+    return parser.parse_args()
+
+
+def resolve_path(value: str | Path) -> Path:
+    path = Path(value).expanduser()
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path.resolve()
+
+
+def resolve_model_path(explicit_path: str | None) -> Path:
+    if explicit_path:
+        path = resolve_path(explicit_path)
+        if not path.is_file():
+            raise FileNotFoundError(f"找不到指定 checkpoint：{path}")
+        return path
+
+    candidates = [
+        PROJECT_ROOT / "output/model_cicids2017_vae_fixed/best_vae_cicids2017.pt",
+        PROJECT_ROOT / "output/model_cicids2017/best_vae_cicids2017.pt",
+        PROJECT_ROOT / "output/threshold_study/unsup_cicids2017/best_vae_cicids2017.pt",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    raise FileNotFoundError(
+        "找不到 CICIDS2017 CNN-VAE checkpoint。請使用 --model 指定。嘗試過：\n"
+        + "\n".join(str(path) for path in candidates)
+    )
+
+
+def resolve_scaler_path(
+    explicit_path: str | None,
+    model_path: Path,
+    checkpoint_config: Dict[str, Any],
+) -> Path:
+    candidates: List[Path] = []
+    if explicit_path:
+        candidates.append(resolve_path(explicit_path))
+    configured = checkpoint_config.get("scaler_path")
+    if configured:
+        configured_path = Path(str(configured)).expanduser()
+        if not configured_path.is_absolute():
+            configured_path = PROJECT_ROOT / configured_path
+        candidates.append(configured_path.resolve())
+    candidates.extend([
+        model_path.parent / "cicids2017_preprocessor.pkl",
+        PROJECT_ROOT / "output/model_cicids2017_vae_fixed/cicids2017_preprocessor.pkl",
+        PROJECT_ROOT / "output/model_cicids2017/cicids2017_preprocessor.pkl",
+        PROJECT_ROOT / "output/threshold_study/unsup_cicids2017/cicids2017_preprocessor.pkl",
+    ])
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.resolve()
+    raise FileNotFoundError(
+        "找不到與 checkpoint 配對的 CICIDS2017 preprocessor .pkl。"
+        "請使用 --scaler 指定訓練期 scaler，不可在本次測試資料重新 fit。\n"
+        + "\n".join(str(path) for path in candidates)
+    )
+
+
+def clean_column_name(value: Any) -> str:
+    return str(value).replace("\ufeff", "").strip()
+
+
+def find_label_column(columns: Sequence[str]) -> str:
+    for name in columns:
+        if clean_column_name(name).lower() == "label":
+            return name
+    raise ValueError("CSV 找不到 Label 欄位，無法驗證 TN/FP/TP/FN 樣本。")
+
+
+def build_column_map(columns: Sequence[str]) -> Dict[str, str]:
+    result: Dict[str, str] = {}
+    for raw_name in columns:
+        normalized = clean_column_name(raw_name)
+        if normalized in result:
+            raise ValueError(f"CSV 清理欄名後出現重複欄位：{normalized!r}")
+        result[normalized] = raw_name
+    return result
+
+
+def read_rows_for_source(
+    csv_path: Path,
+    sample_specs: Sequence[Dict[str, Any]],
+    feature_columns: Sequence[str],
+    max_rows: int,
+) -> Dict[int, Tuple[np.ndarray, str]]:
+    """Read only rows needed for one source file and the saved feature schema."""
+    if not csv_path.is_file():
+        raise FileNotFoundError(f"找不到 CICIDS2017 CSV：{csv_path}")
+    max_index = max(int(item["row_index"]) for item in sample_specs)
+    if max_rows <= max_index:
+        raise ValueError(
+            f"--max-rows={max_rows} 不足以讀取 row_index={max_index}；"
+            f"請將 --max-rows 設為至少 {max_index + 1}。"
+        )
+
+    header = pd.read_csv(csv_path, nrows=0, low_memory=False).columns.tolist()
+    column_map = build_column_map(header)
+    label_name = find_label_column(header)
+
+    missing = [name for name in feature_columns if name not in column_map]
+    if missing:
+        raise ValueError(
+            f"{csv_path.name} 缺少 {len(missing)} 個訓練期特徵欄位：{missing[:12]}"
+        )
+
+    raw_features = [column_map[name] for name in feature_columns]
+    required_raw = raw_features + [label_name]
+    frame = pd.read_csv(
+        csv_path,
+        usecols=required_raw,
+        nrows=max_index + 1,
+        low_memory=False,
+    )
+    frame.columns = [clean_column_name(name) for name in frame.columns]
+    label_clean_name = clean_column_name(label_name)
+
+    if len(frame) <= max_index:
+        raise IndexError(
+            f"{csv_path.name} 只有 {len(frame)} 筆資料，無法讀取 row_index={max_index}。"
+        )
+
+    result: Dict[int, Tuple[np.ndarray, str]] = {}
+    for item in sample_specs:
+        row_index = int(item["row_index"])
+        row = frame.iloc[row_index]
+        numeric = pd.to_numeric(row[list(feature_columns)], errors="coerce")
+        values = numeric.to_numpy(dtype=np.float64, copy=True)
+
+        # The training cleaner maps NaN to zero. Infinite values are not
+        # replaced using a one-row min/max because that would not reproduce
+        # the training set's column-wise finite min/max calculation.
+        if np.isinf(values).any():
+            bad_features = [
+                feature_columns[i]
+                for i, value in enumerate(values)
+                if not np.isfinite(value) and not np.isnan(value)
+            ]
+            raise ValueError(
+                f"{csv_path.name} row {row_index} 含 Inf：{bad_features[:8]}。"
+                "此案例需使用與訓練相同的全資料清理統計量，不應直接以 0 替代 Inf。"
+            )
+        values = np.nan_to_num(values, nan=0.0).astype(np.float32)
+        label = str(row[label_clean_name]).strip()
+        result[row_index] = (values, label)
+
+    return result
+
+
+def transform_features(
+    raw_features: np.ndarray,
+    scaler: Any,
+    image_size: int,
+    normalization: str,
+) -> Tuple[np.ndarray, np.ndarray]:
+    if raw_features.ndim != 1:
+        raise ValueError(f"單筆特徵必須是一維陣列，目前 shape={raw_features.shape}")
+    scaled = scaler.transform(raw_features.reshape(1, -1)).astype(np.float32)[0]
+    if not np.isfinite(scaled).all():
+        raise ValueError("scaler.transform 後出現 NaN 或 Inf。")
+
+    normalization_name = str(normalization or "clip_0_1").strip().lower()
+    if normalization_name in {"clip_0_1", "clip", "minmax_0_1"}:
+        scaled = np.clip(scaled, 0.0, 1.0)
+    elif normalization_name in {"none", "identity", ""}:
+        pass
+    else:
+        raise ValueError(
+            f"不支援 preprocessor normalization={normalization!r}；"
+            "請依訓練期前處理方式新增對應轉換，不能自行猜測。"
+        )
+
+    pixel_count = image_size * image_size
+    if len(scaled) > pixel_count:
+        warnings.warn(
+            f"特徵數 {len(scaled)} 大於影像像素數 {pixel_count}，將依專案規則截取前 {pixel_count} 個。",
+            RuntimeWarning,
+        )
+        image_values = scaled[:pixel_count]
+    elif len(scaled) < pixel_count:
+        image_values = np.pad(scaled, (0, pixel_count - len(scaled)))
+    else:
+        image_values = scaled
+    image = image_values.reshape(1, 1, image_size, image_size).astype(np.float32)
+    return scaled.astype(np.float32), image
+
+
+def load_samples(
+    input_paths: Sequence[Path],
+    feature_columns: Sequence[str],
+    scaler: Any,
+    image_size: int,
+    normalization: str,
+    max_rows: int,
+) -> Tuple[List[Dict[str, Any]], np.ndarray]:
+    paths = {"monday": input_paths[0], "friday_ddos": input_paths[1]}
+    samples_by_source: Dict[str, Dict[int, Tuple[np.ndarray, str]]] = {}
+    for source in ("monday", "friday_ddos"):
+        specs = [item for item in SAMPLE_MANIFEST if item["source"] == source]
+        samples_by_source[source] = read_rows_for_source(
+            paths[source], specs, feature_columns, max_rows
+        )
+
+    sample_records: List[Dict[str, Any]] = []
+    model_inputs: List[np.ndarray] = []
+    for spec in SAMPLE_MANIFEST:
+        raw, label = samples_by_source[spec["source"]][int(spec["row_index"])]
+        scaled, image = transform_features(
+            raw, scaler, image_size, normalization
+        )
+        record = dict(spec)
+        record.update({
+            "source_file": paths[spec["source"]].name,
+            "actual_label": label,
+            "raw_feature_count": int(len(raw)),
+            "scaled_feature_count": int(len(scaled)),
+        })
+        sample_records.append(record)
+        model_inputs.append(image)
+
+    X = np.concatenate(model_inputs, axis=0).astype(np.float32)
+    return sample_records, X
+
+
+def score_samples(
+    model: torch.nn.Module,
+    X: np.ndarray,
+    device: torch.device,
+    threshold: float,
+) -> Tuple[np.ndarray, List[Dict[str, Any]]]:
+    tensor = torch.from_numpy(X).to(device)
+    model.eval()
+    with torch.no_grad():
+        scores = model.reconstruction_error(tensor).detach().cpu().numpy().astype(float)
+    if not np.isfinite(scores).all():
+        raise RuntimeError("CNN-VAE 異常分數含有 NaN 或 Inf。")
+
+    details: List[Dict[str, Any]] = []
+    for spec, score in zip(SAMPLE_MANIFEST, scores):
+        actual_label = str(spec["expected_label"])
+        # The actual label is replaced by CSV label by the caller afterwards.
+        details.append({"score": float(score), "predicted_attack": bool(score > threshold)})
+    return scores, details
+
+
+def confusion_group(actual_label: str, predicted_attack: bool) -> str:
+    is_attack = str(actual_label).strip().upper() not in BENIGN_LABELS
+    if is_attack and predicted_attack:
+        return "TP"
+    if is_attack and not predicted_attack:
+        return "FN"
+    if not is_attack and predicted_attack:
+        return "FP"
+    return "TN"
+
+
+def save_heatmap_images(
+    image: np.ndarray,
+    heatmap: np.ndarray,
+    sample_id: str,
+    variant: str,
+    output_dir: Path,
+    cmap: str = "jet",
+) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    image_array = np.asarray(image)
+    if image_array.ndim == 4:
+        input_image = image_array[0, 0]
+    elif image_array.ndim == 3:
+        input_image = image_array[0]
+    elif image_array.ndim == 2:
+        input_image = image_array
+    else:
+        raise ValueError(f"輸入影像維度錯誤：{image_array.shape}")
+
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4))
+    axes[0].imshow(input_image, cmap="gray", vmin=0, vmax=1)
+    axes[0].set_title("Original feature image")
+    axes[1].imshow(heatmap, cmap=cmap, vmin=0, vmax=1)
+    axes[1].set_title(f"{variant} heatmap")
+    axes[2].imshow(input_image, cmap="gray", vmin=0, vmax=1)
+    axes[2].imshow(heatmap, cmap=cmap, alpha=0.48, vmin=0, vmax=1)
+    axes[2].set_title("Overlay")
+
+    for axis in axes:
+        axis.set_xticks([])
+        axis.set_yticks([])
+    fig.suptitle(f"Sample {sample_id} | {variant}")
+    fig.tight_layout()
+    fig.savefig(output_dir / f"sample_{sample_id}_triptych.png", dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+    # Save standalone heatmap and overlay as well for insertion into reports.
+    fig, axis = plt.subplots(figsize=(5, 5))
+    axis.imshow(heatmap, cmap=cmap, vmin=0, vmax=1)
+    axis.set_title(f"{sample_id} - {variant} heatmap")
+    axis.axis("off")
+    fig.tight_layout()
+    fig.savefig(output_dir / f"sample_{sample_id}_heatmap.png", dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+    fig, axis = plt.subplots(figsize=(5, 5))
+    axis.imshow(input_image, cmap="gray", vmin=0, vmax=1)
+    axis.imshow(heatmap, cmap=cmap, alpha=0.48, vmin=0, vmax=1)
+    axis.set_title(f"{sample_id} - {variant} overlay")
+    axis.axis("off")
+    fig.tight_layout()
+    fig.savefig(output_dir / f"sample_{sample_id}_overlay.png", dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_three_method_comparison(
+    sample_id: str,
+    image: np.ndarray,
+    heatmaps: Dict[str, np.ndarray],
+    output_dir: Path,
+) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    figure, axes = plt.subplots(1, 4, figsize=(16, 4))
+    image_array = np.asarray(image)
+    if image_array.ndim == 4:
+        input_image = image_array[0, 0]
+    elif image_array.ndim == 3:
+        input_image = image_array[0]
+    elif image_array.ndim == 2:
+        input_image = image_array
+    else:
+        raise ValueError(f"輸入影像維度錯誤：{image_array.shape}")
+    axes[0].imshow(input_image, cmap="gray", vmin=0, vmax=1)
+    axes[0].set_title("Original")
+    for axis, variant in zip(axes[1:], ("gradcam", "gradcam++", "scorecam")):
+        axis.imshow(input_image, cmap="gray", vmin=0, vmax=1)
+        axis.imshow(heatmaps[variant], cmap="jet", alpha=0.48, vmin=0, vmax=1)
+        axis.set_title(variant)
+    for axis in axes:
+        axis.axis("off")
+    figure.suptitle(f"Sample {sample_id}: CAM method comparison")
+    figure.tight_layout()
+    figure.savefig(output_dir / f"sample_{sample_id}_all_methods.png", dpi=180, bbox_inches="tight")
+    plt.close(figure)
+
+
+def spearman_correlation(left: np.ndarray, right: np.ndarray) -> float:
+    left_rank = pd.Series(left).rank(method="average").to_numpy(dtype=float)
+    right_rank = pd.Series(right).rank(method="average").to_numpy(dtype=float)
+    if np.std(left_rank) < 1e-12 or np.std(right_rank) < 1e-12:
+        return float("nan")
+    return float(np.corrcoef(left_rank, right_rank)[0, 1])
+
+
+def jaccard_top_k(left: np.ndarray, right: np.ndarray, k: int = 10) -> float:
+    k = min(k, len(left), len(right))
+    left_set = set(np.argsort(left)[-k:].tolist())
+    right_set = set(np.argsort(right)[-k:].tolist())
+    union = left_set | right_set
+    return float(len(left_set & right_set) / len(union)) if union else float("nan")
+
+
+def write_comparison_tables(
+    output_dir: Path,
+    feature_rows: List[Dict[str, Any]],
+    pixel_rows: List[Dict[str, Any]],
+    sample_heatmaps: Dict[str, Dict[str, np.ndarray]],
+    feature_columns: Sequence[str],
+    runtime_rows: List[Dict[str, Any]],
+) -> None:
+    feature_df = pd.DataFrame(feature_rows)
+    feature_df.to_csv(output_dir / "feature_heatmap_values.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(pixel_rows).to_csv(
+        output_dir / "heatmap_pixels.csv", index=False, encoding="utf-8-sig"
+    )
+
+    runtime_df = pd.DataFrame(runtime_rows)
+    runtime_df.to_csv(output_dir / "sample_scores_and_runtime.csv", index=False, encoding="utf-8-sig")
+
+    available_variants = [
+        name for name in ("gradcam", "gradcam++", "scorecam")
+        if name in set(feature_df["variant"].tolist())
+    ]
+
+    summary_rows: List[Dict[str, Any]] = []
+    for variant in available_variants:
+        for group in ("TN", "FP", "TP", "FN"):
+            part = feature_df[
+                (feature_df["variant"] == variant)
+                & (feature_df["expected_group"] == group)
+            ]
+            if part.empty:
+                continue
+            means = part.groupby("feature_name")["heatmap_value"].mean()
+            ranked = means.sort_values(ascending=False)
+            group_sample_ids = set(part["sample_id"].unique())
+            runtime_part = runtime_df[
+                (runtime_df["variant"] == variant)
+                & (runtime_df["sample_id"].isin(group_sample_ids))
+            ]
+            summary_rows.append({
+                "variant": variant,
+                "case_group": group,
+                "sample_count": int(part["sample_id"].nunique()),
+                "mean_feature_heatmap": float(part["heatmap_value"].mean()),
+                "max_mean_feature_heatmap": float(ranked.iloc[0]),
+                "top1_feature": str(ranked.index[0]),
+                "top5_features": " | ".join(ranked.head(5).index.astype(str)),
+                "mean_runtime_seconds_per_sample": float(runtime_part["runtime_seconds"].mean()),
+            })
+    pd.DataFrame(summary_rows).to_csv(
+        output_dir / "variant_summary.csv", index=False, encoding="utf-8-sig"
+    )
+
+    comparison_rows: List[Dict[str, Any]] = []
+    pairs = list(itertools.combinations(available_variants, 2))
+    for sample_id, maps in sample_heatmaps.items():
+        for left_name, right_name in pairs:
+            left = maps[left_name].reshape(-1)[:len(feature_columns)]
+            right = maps[right_name].reshape(-1)[:len(feature_columns)]
+            case_group = next(
+                row["expected_group"] for row in feature_rows
+                if row["sample_id"] == sample_id and row["variant"] == left_name
+            )
+            comparison_rows.append({
+                "sample_id": sample_id,
+                "case_group": case_group,
+                "method_a": left_name,
+                "method_b": right_name,
+                "spearman_rho": spearman_correlation(left, right),
+                "top10_jaccard": jaccard_top_k(left, right, k=10),
+            })
+
+    # Append an explicit across-sample mean row for each method pair.
+    aggregate_rows: List[Dict[str, Any]] = []
+    if comparison_rows:
+        detail_df = pd.DataFrame(comparison_rows)
+        for (left_name, right_name), part in detail_df.groupby(["method_a", "method_b"]):
+            aggregate_rows.append({
+                "sample_id": "ALL_SAMPLES_MEAN",
+                "case_group": "ALL",
+                "method_a": left_name,
+                "method_b": right_name,
+                "spearman_rho": float(part["spearman_rho"].mean()),
+                "top10_jaccard": float(part["top10_jaccard"].mean()),
+            })
+    comparison_rows.extend(aggregate_rows)
+    pd.DataFrame(comparison_rows, columns=[
+        "sample_id", "case_group", "method_a", "method_b",
+        "spearman_rho", "top10_jaccard",
+    ]).to_csv(
+        output_dir / "variant_comparison.csv", index=False, encoding="utf-8-sig"
+    )
+
+    # Method-level global top-10 comparison figure. The displayed values are
+    # averages of per-sample normalized feature heatmap values.
+    if available_variants:
+        fig, axes = plt.subplots(
+            1, len(available_variants),
+            figsize=(6 * len(available_variants), 6),
+            sharey=True,
+            squeeze=False,
+        )
+        for axis, variant in zip(axes[0], available_variants):
+            subset = feature_df[feature_df["variant"] == variant]
+            means = subset.groupby("feature_name")["heatmap_value"].mean().sort_values().tail(10)
+            axis.barh(means.index.astype(str), means.values)
+            axis.set_title(variant)
+            axis.set_xlabel("Mean normalized heatmap value")
+            axis.grid(axis="x", alpha=0.25)
+        fig.suptitle("Top-10 feature heatmap responses (mean over fixed cases)")
+        fig.tight_layout()
+        fig.savefig(output_dir / "variant_comparison_top10.png", dpi=180, bbox_inches="tight")
+        plt.close(fig)
+
+
+def run_feature_occlusion(
+    model: torch.nn.Module,
+    X: np.ndarray,
+    sample_records: Sequence[Dict[str, Any]],
+    feature_columns: Sequence[str],
+    device: torch.device,
+    output_path: Path,
+) -> None:
+    """Mask each valid feature pixel to zero and re-score the same sample."""
+    model.eval()
+    tensor = torch.from_numpy(X).to(device)
+    with torch.no_grad():
+        baseline = model.reconstruction_error(tensor).cpu().numpy().astype(float)
+
+    rows: List[Dict[str, Any]] = []
+    for sample_index, record in enumerate(sample_records):
+        for feature_index, feature_name in enumerate(feature_columns):
+            row = feature_index // X.shape[-1]
+            col = feature_index % X.shape[-1]
+            masked = tensor[sample_index:sample_index + 1].clone()
+            original_value = float(masked[0, 0, row, col].item())
+            masked[0, 0, row, col] = 0.0
+            with torch.no_grad():
+                masked_score = float(model.reconstruction_error(masked).item())
+            rows.append({
+                "sample_id": record["sample_id"],
+                "expected_group": record["expected_group"],
+                "feature_index": feature_index,
+                "feature_name": feature_name,
+                "scaled_input_value": original_value,
+                "original_score": float(baseline[sample_index]),
+                "masked_score": masked_score,
+                "delta_original_minus_masked": float(baseline[sample_index] - masked_score),
+            })
+    pd.DataFrame(rows).to_csv(output_path, index=False, encoding="utf-8-sig")
+
+
+def main() -> int:
+    args = parse_args()
+    if len(set(args.variants)) != len(args.variants):
+        raise ValueError("--variants 不可重複指定同一方法。")
+    if args.scorecam_batch_size < 1:
+        raise ValueError("--scorecam-batch-size 必須 >= 1")
+
+    input_paths = [resolve_path(path) for path in args.input]
+    model_path = resolve_model_path(args.model)
+    output_dir = resolve_path(args.output)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.device == "auto":
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    elif args.device == "cuda":
+        if not torch.cuda.is_available():
+            raise RuntimeError("指定 --device cuda，但目前 PyTorch 無法使用 CUDA。")
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+
+    print("[1/7] 載入 CNN-VAE checkpoint…")
+    bundle = load_anomaly_model(str(model_path), device=device)
+    if bundle.model_type != "cnn_vae":
+        raise TypeError(
+            f"目前載入的是 model_type={bundle.model_type!r}，本實驗限定 cnn_vae。"
+        )
+    if not callable(getattr(bundle.model, "loss_per_sample", None)):
+        raise TypeError("checkpoint 模型未提供 loss_per_sample()，無法保證 VAE 完整分數可微分。")
+    model_threshold = float(bundle.threshold)
+    if not math.isfinite(model_threshold) or model_threshold <= 0:
+        raise ValueError(f"checkpoint threshold 不合理：{model_threshold}")
+    if args.expected_threshold is not None and not math.isclose(
+        model_threshold, args.expected_threshold, rel_tol=1e-6, abs_tol=1e-10
+    ):
+        message = (
+            f"checkpoint threshold={model_threshold:.16g}，"
+            f"但第四章記錄 threshold={args.expected_threshold:.16g}。"
+        )
+        if not args.allow_threshold_mismatch:
+            raise ValueError(
+                message + " 為避免 TN/FP/TP/FN 樣本分類與原章節不同，已停止。"
+                "請指定正確 checkpoint，或加上 --allow-threshold-mismatch。"
+            )
+        warnings.warn(message + " 將以 checkpoint 的實際 threshold 計算分類。")
+
+    print("[2/7] 載入訓練期 scaler 與 feature_columns…")
+    scaler_path = resolve_scaler_path(args.scaler, model_path, bundle.config)
+    with scaler_path.open("rb") as file:
+        preprocessor = pickle.load(file)
+    if not isinstance(preprocessor, dict):
+        raise TypeError("preprocessor .pkl 必須是 dict。")
+    scaler = preprocessor.get("scaler")
+    feature_columns = [clean_column_name(name) for name in preprocessor.get("feature_columns", [])]
+    if scaler is None or not feature_columns:
+        raise ValueError("preprocessor .pkl 必須包含 scaler 與 feature_columns。")
+    if len(feature_columns) != 78:
+        raise ValueError(
+            f"本章既有 4.6 實驗使用 78 個特徵，但 preprocessor 有 {len(feature_columns)} 個；"
+            "請確認 checkpoint/scaler 配對，不要混用其他版本。"
+        )
+    if len(feature_columns) != len(set(feature_columns)):
+        raise ValueError("preprocessor.feature_columns 清理後有重複名稱。")
+
+    cfg_feature_columns = bundle.config.get("feature_columns")
+    if cfg_feature_columns:
+        checkpoint_columns = [clean_column_name(name) for name in cfg_feature_columns]
+        if checkpoint_columns != feature_columns:
+            raise ValueError("checkpoint config.feature_columns 與 preprocessor 欄位順序不一致。")
+
+    image_size = int(preprocessor.get("image_size", bundle.config.get("image_size", 32)))
+    if image_size != 32:
+        raise ValueError(f"本章模型輸入應為 32x32，目前 preprocessor image_size={image_size}。")
+    normalization = str(preprocessor.get("normalization", "clip_0_1"))
+    print(
+        f"  checkpoint : {model_path}\n"
+        f"  preprocessor: {scaler_path}\n"
+        f"  model type  : {bundle.model_type}\n"
+        f"  threshold   : {model_threshold:.16g}\n"
+        f"  KL weight   : {float(bundle.model.kl_weight):.8g}\n"
+        f"  features    : {len(feature_columns)}\n"
+        f"  device      : {device}"
+    )
+
+    print("[3/7] 依第四章固定列索引載入 8 筆樣本…")
+    sample_records, X = load_samples(
+        input_paths=input_paths,
+        feature_columns=feature_columns,
+        scaler=scaler,
+        image_size=image_size,
+        normalization=normalization,
+        max_rows=args.max_rows,
+    )
+
+    print("[4/7] 計算 VAE 完整異常分數並核對 TN/FP/TP/FN…")
+    scores, _ = score_samples(bundle.model, X, device, model_threshold)
+    selected_rows: List[Dict[str, Any]] = []
+    for index, (record, score) in enumerate(zip(sample_records, scores)):
+        actual_label = str(record["actual_label"])
+        predicted_attack = bool(score > model_threshold)
+        observed_group = confusion_group(actual_label, predicted_attack)
+        reported_score = float(record["reported_score_ch4"])
+        record.update({
+            "threshold_used": model_threshold,
+            "actual_score": float(score),
+            "reported_score_ch4": reported_score,
+            "score_difference_vs_ch4": float(score - reported_score),
+            "predicted_label": "ATTACK" if predicted_attack else "NORMAL",
+            "observed_group": observed_group,
+            "case_group_matches_ch4": observed_group == record["expected_group"],
+        })
+        if observed_group != record["expected_group"]:
+            warnings.warn(
+                f"案例 {record['sample_id']} 預期 {record['expected_group']}，"
+                f"但目前 checkpoint/scaler 得到 {observed_group}。請確認資料版本、scaler、"
+                "checkpoint 與列索引完全一致。"
+            )
+        selected_rows.append(record.copy())
+        print(
+            f"  {record['sample_id']} {record['expected_group']} -> {observed_group} | "
+            f"score={score:.10f} | label={actual_label}"
+        )
+
+    pd.DataFrame(selected_rows).to_csv(
+        output_dir / "selected_samples.csv", index=False, encoding="utf-8-sig"
+    )
+
+    # Save the exact transformed input vectors used by all CAM methods.
+    scaled_input_rows: List[Dict[str, Any]] = []
+    for sample_index, record in enumerate(sample_records):
+        flat = X[sample_index, 0].reshape(-1)
+        for feature_index, feature_name in enumerate(feature_columns):
+            row, col = divmod(feature_index, image_size)
+            scaled_input_rows.append({
+                "sample_id": record["sample_id"],
+                "expected_group": record["expected_group"],
+                "feature_index": feature_index,
+                "row": row,
+                "column": col,
+                "feature_name": feature_name,
+                "scaled_value": float(flat[feature_index]),
+            })
+    pd.DataFrame(scaled_input_rows).to_csv(
+        output_dir / "scaled_feature_inputs.csv", index=False, encoding="utf-8-sig"
+    )
+
+    print("[5/7] 執行 CAM 方法…")
+    all_feature_rows: List[Dict[str, Any]] = []
+    all_pixel_rows: List[Dict[str, Any]] = []
+    runtime_rows: List[Dict[str, Any]] = []
+    maps_by_sample: Dict[str, Dict[str, np.ndarray]] = {
+        record["sample_id"]: {} for record in sample_records
+    }
+    output_image_root = output_dir / "images"
+    resolved_target_layers: Dict[str, str] = {}
+
+    for variant in args.variants:
+        variant_dir = output_dir / VARIANT_DIRS[variant]
+        variant_dir.mkdir(parents=True, exist_ok=True)
+        print(f"  - {variant}")
+        with GradCAM(
+            model=bundle.model,
+            target_layer=bundle.gradcam_target_layer,
+            variant=variant,
+            target_type="mse",
+            device=device,
+            score_mode="vae",
+            scorecam_batch_size=args.scorecam_batch_size,
+            scorecam_temperature=args.scorecam_temperature,
+            smooth_sigma=args.smooth_sigma,
+        ) as cam:
+            print(f"    target layer: {cam._resolved_layer}")
+            resolved_target_layers[variant] = cam._resolved_layer
+            for sample_index, record in enumerate(sample_records):
+                sample_id = record["sample_id"]
+                sample_x = X[sample_index:sample_index + 1]
+                start_time = time.perf_counter()
+                heatmap = cam.generate(sample_x, smooth=(args.smooth_sigma > 0))[0]
+                elapsed = time.perf_counter() - start_time
+                maps_by_sample[sample_id][variant] = heatmap
+                np.save(
+                    variant_dir / f"sample_{sample_id}_heatmap.npy",
+                    heatmap.astype(np.float32),
+                )
+
+                if not args.no_overlay:
+                    save_heatmap_images(
+                        sample_x[0], heatmap, sample_id, variant,
+                        output_image_root / VARIANT_DIRS[variant],
+                    )
+
+                for pixel_index in range(image_size * image_size):
+                    row, col = divmod(pixel_index, image_size)
+                    is_feature = pixel_index < len(feature_columns)
+                    all_pixel_rows.append({
+                        "variant": variant,
+                        "sample_id": sample_id,
+                        "expected_group": record["expected_group"],
+                        "observed_group": record["observed_group"],
+                        "pixel_index": pixel_index,
+                        "row": row,
+                        "column": col,
+                        "is_feature_pixel": is_feature,
+                        "feature_name": feature_columns[pixel_index] if is_feature else "PADDING",
+                        "heatmap_value": float(heatmap[row, col]),
+                    })
+
+                for feature_index, feature_name in enumerate(feature_columns):
+                    row, col = divmod(feature_index, image_size)
+                    heat_value = float(heatmap[row, col])
+                    all_feature_rows.append({
+                        "variant": variant,
+                        "sample_id": sample_id,
+                        "expected_group": record["expected_group"],
+                        "observed_group": record["observed_group"],
+                        "feature_index": feature_index,
+                        "row": row,
+                        "column": col,
+                        "feature_name": feature_name,
+                        "scaled_input_value": float(sample_x[0, 0, row, col]),
+                        "heatmap_value": heat_value,
+                    })
+
+                runtime_rows.append({
+                    "variant": variant,
+                    "sample_id": sample_id,
+                    "expected_group": record["expected_group"],
+                    "observed_group": record["observed_group"],
+                    "runtime_seconds": float(elapsed),
+                    "heatmap_mean_32x32": float(heatmap.mean()),
+                    "heatmap_max_32x32": float(heatmap.max()),
+                    "feature_region_mean_78": float(
+                        np.mean([heatmap[i // image_size, i % image_size]
+                                 for i in range(len(feature_columns))])
+                    ),
+                })
+
+    # A side-by-side overlay is created only when all three methods were run.
+    if not args.no_overlay and set(args.variants) == {"gradcam", "gradcam++", "scorecam"}:
+        for index, record in enumerate(sample_records):
+            sid = record["sample_id"]
+            save_three_method_comparison(
+                sid, X[index], maps_by_sample[sid], output_image_root / "all_methods"
+            )
+
+    write_comparison_tables(
+        output_dir=output_dir,
+        feature_rows=all_feature_rows,
+        pixel_rows=all_pixel_rows,
+        sample_heatmaps=maps_by_sample,
+        feature_columns=feature_columns,
+        runtime_rows=runtime_rows,
+    )
+
+    if args.run_feature_occlusion:
+        print("[6/7] 額外執行 8 x 78 個單特徵遮蔽測試…")
+        run_feature_occlusion(
+            model=bundle.model,
+            X=X,
+            sample_records=sample_records,
+            feature_columns=feature_columns,
+            device=device,
+            output_path=output_dir / "feature_occlusion_all78.csv",
+        )
+    else:
+        print("[6/7] 未指定 --run-feature-occlusion，保留既有 4.6.4 遮蔽實驗結果。")
+
+    metadata = {
+        "dataset": "CICIDS2017",
+        "model_type": bundle.model_type,
+        "model_checkpoint": str(model_path),
+        "preprocessor": str(scaler_path),
+        "threshold": model_threshold,
+        "threshold_rule": "anomaly_score > threshold => ATTACK",
+        "score_definition": "reconstruction_mse + kl_weight * kl_divergence",
+        "kl_weight": float(bundle.model.kl_weight),
+        "scorecam_method": {
+            "mask": "upsampled per-channel activation normalized to [0,1]",
+            "channel_score": "VAE anomaly score on masked input",
+            "weight": "softmax((masked_score - baseline_score) / (std_delta * temperature))",
+            "temperature": float(args.scorecam_temperature),
+            "batch_size": int(args.scorecam_batch_size),
+        },
+        "target_layer": "auto-detected last Conv2d in encoder",
+        "resolved_target_layers": resolved_target_layers,
+        "variants": args.variants,
+        "sample_count": len(sample_records),
+        "feature_count": len(feature_columns),
+        "image_size": [image_size, image_size],
+        "normalization": normalization,
+        "samples": selected_rows,
+        "notes": [
+            "All methods use the same eight fixed samples, checkpoint, scaler, feature order and VAE anomaly-score target.",
+            "Only the first 78 row-major image positions correspond to CICIDS2017 feature columns; other pixels are padding.",
+            "Each heatmap is normalized per sample to [0,1]; compare ranks/correlation rather than absolute intensity across samples.",
+            "Score-CAM channel weights use standardized anomaly-score differences because VAE scores are small-valued.",
+        ],
+    }
+    (output_dir / "run_metadata.json").write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+    print("[7/7] 分析完成。輸出檔案：")
+    for path in sorted(output_dir.rglob("*")):
+        if path.is_file():
+            try:
+                relative = path.relative_to(output_dir)
+            except ValueError:
+                relative = path
+            print(f"  {relative}")
+    print(f"\n結果目錄：{output_dir}")
+    print("請先檢查 selected_samples.csv 的 case_group_matches_ch4 全部是否為 True。")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(f"ERROR: {type(exc).__name__}: {exc}", file=sys.stderr)
+        raise

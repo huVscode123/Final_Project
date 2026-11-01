@@ -90,7 +90,8 @@ class HybridSemiSupervisedTrainer:
         if y is not None: tensors.append(torch.from_numpy(y.astype(np.int64)))
         return DataLoader(TensorDataset(*tensors), batch_size=self.config['batch_size'], shuffle=shuffle)
 
-    def train_full(self, X_normal, X_attack, threshold_method='optimal'):
+    def train_full(self, X_normal, X_attack, threshold_method='optimal',
+                   X_normal_val=None):
         """完整訓練流程：VAE 預訓練（正常基線）→ CNN-LSTM 分類器微調
         （少量標記攻擊）→ 計算未知異常閾值 → 儲存 checkpoint。
 
@@ -98,8 +99,16 @@ class HybridSemiSupervisedTrainer:
           'optimal'    - 在「未參與分類器微調」的攻擊樣本（holdout）與
                          正常樣本上做 F1 最佳化閾值搜尋（與舊版
                          SemiSupervisedTrainer / run_training.py 一致）。
+          'youden'     - 同樣使用 holdout 攻擊樣本，但以 Youden's Index
+                         (J = TPR - FPR) 在 ROC 曲線上找最佳閾值；
+                         可用 config['youden_max_fpr'] 限制 FPR 上限。
           其他任意值    - 退回 config['unknown_percentile']（預設 95）
                          的正常流量重建誤差百分位數。
+
+        X_normal_val:
+          （選填）未參與 VAE 預訓練的正常驗證樣本。提供時，閾值校準
+          改用這份資料計算正常分數；未提供則沿用 X_normal（訓練資料，
+          VAE 對其重建偏好，閾值會偏低、測試時 FPR 偏高）。
 
         [Bug 修正] 舊版此參數雖然存在於函式簽章，但函式本體完全沒有
         使用它，一律採用 percentile 方式，導致
@@ -152,13 +161,41 @@ class HybridSemiSupervisedTrainer:
             for x, labels in self._loader(X, y):
                 x=x.to(self.device); labels=labels.to(self.device); opt.zero_grad(); loss=criterion(self.classifier(x), labels); loss.backward(); opt.step()
 
-        normal_scores = self._scores(X_normal)
-        if threshold_method == 'optimal' and len(attack_holdout) >= 2:
+        if threshold_method not in ('percentile', 'optimal', 'youden'):
+            print(f'  [Hybrid] 未知的 threshold_method={threshold_method!r}，'
+                  f'改用 percentile')
+        calib_normal = X_normal_val if (X_normal_val is not None and len(X_normal_val) > 0) \
+            else X_normal
+        if X_normal_val is None and threshold_method in ('optimal', 'youden'):
+            print('  [Hybrid][警告] 未提供 X_normal_val，正常分數取自訓練資料，'
+                  '閾值可能偏低；建議傳入未參與訓練的正常驗證集')
+        normal_scores = self._scores(calib_normal)
+        self.threshold_info = {'method': threshold_method}
+
+        if threshold_method in ('optimal', 'youden') and len(attack_holdout) < 2:
+            print(f'  [Hybrid][警告] holdout 攻擊樣本僅 {len(attack_holdout)} 筆，'
+                  f'無法做 {threshold_method} 搜尋，退回 percentile')
+
+        if threshold_method == 'youden' and len(attack_holdout) >= 2:
+            from training_common import compute_youden_threshold
+            attack_scores = self._scores(attack_holdout)
+            self.threshold, best_j, j_info = compute_youden_threshold(
+                normal_scores, attack_scores,
+                max_fpr=self.config.get('youden_max_fpr'),
+                fallback_pct=self.config['unknown_percentile'],
+            )
+            self.threshold_info.update({'youden_j': best_j, **j_info})
+            tag = 'fallback→percentile' if j_info.get('fallback') else \
+                f"TPR={j_info['tpr']:.3f}, FPR={j_info['fpr']:.3f}"
+            print(f'  [Hybrid] Youden 閾值（holdout 攻擊樣本={len(attack_holdout)}，'
+                  f'J={best_j:.4f}，{tag}）: {self.threshold:.6f}')
+        elif threshold_method == 'optimal' and len(attack_holdout) >= 2:
             from training_common import compute_optimal_threshold_vectorized
             attack_scores = self._scores(attack_holdout)
             self.threshold, best_f1, best_pct = compute_optimal_threshold_vectorized(
                 normal_scores, attack_scores
             )
+            self.threshold_info.update({'f1': best_f1, 'percentile': best_pct})
             print(f'  [Hybrid] 最佳閾值搜尋（holdout 攻擊樣本={len(attack_holdout)}，'
                   f'F1={best_f1:.4f}，{best_pct}th 百分位）: {self.threshold:.6f}')
         else:
@@ -171,6 +208,7 @@ class HybridSemiSupervisedTrainer:
             'model_type': 'hybrid_semi', 'vae_state': self.model.state_dict(),
             'classifier_state': self.classifier.state_dict(), 'config': self.config,
             'threshold': self.threshold,
+            'threshold_info': getattr(self, 'threshold_info', {}),
         }, os.path.join(self.output_dir, f'semi_{self.model_name}.pt'))
         return self.threshold
 

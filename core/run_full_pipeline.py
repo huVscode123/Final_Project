@@ -134,7 +134,7 @@ def main():
  
     # 閾值設定
     parser.add_argument("--metric",  default="f1",
-                        choices=["f1","recall","precision"],
+                        choices=["f1","recall","precision","youden_j"],
                         help="自動選閾值的最佳化目標（預設 f1）")
     parser.add_argument("--no-update-settings", action="store_true",
                         help="訓練完成後不自動更新 settings.py")

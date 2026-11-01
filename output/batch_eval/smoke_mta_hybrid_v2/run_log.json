@@ -1,0 +1,12 @@
+[
+  {
+    "tag": "malware_traffic_analysis-master__2016-05-13-traffic-analysis-exercise_2016-05-13-traffic-analysis-exercise.pcap",
+    "stage": "score",
+    "ok": true,
+    "seconds": 1.4,
+    "n_read": 2001,
+    "n_scored": 200,
+    "n_fail": 0,
+    "linktype": 1
+  }
+]

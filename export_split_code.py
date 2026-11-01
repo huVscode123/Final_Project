@@ -59,6 +59,15 @@ def export_to_file(file_list, output_path, title):
                 out.write(f"  [讀取錯誤]: {e}\n")
             out.write("\n\n" + "=" * 72 + "\n\n")
     print(f"成功匯出: {output_path}")
+    # 同步產生無副檔名版本，供不同工具或路徑需求存取
+    if output_path.endswith(".txt"):
+        no_ext_path = output_path[:-4]
+        try:
+            import shutil
+            shutil.copyfile(output_path, no_ext_path)
+            print(f"同步複製: {no_ext_path}")
+        except Exception as e:
+            print(f"複製無副檔名失敗: {e}")
 
 if __name__ == "__main__":
     # 執行後端匯出 (包含 manage.py, requirements.txt)

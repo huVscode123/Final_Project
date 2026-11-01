@@ -166,7 +166,15 @@ def main():
  
     # 評估相關
     parser.add_argument("--threshold-method", default="optimal",
-                        choices=["percentile", "optimal"], help="閾值計算方法")
+                        choices=["percentile", "optimal", "youden"],
+                        help="閾值計算方法：percentile / optimal(F1 最佳化) / "
+                             "youden(Youden's Index = TPR-FPR)")
+    parser.add_argument("--youden-max-fpr", type=float, default=None,
+                        help="youden 模式的 FPR 上限（例如 0.05）；不設定則不限制")
+    parser.add_argument("--normal-val-ratio", type=float, default=0.0,
+                        help="自訓練用正常流量切出多少比例作為「閾值校準驗證集」"
+                             "（不參與 VAE 訓練；預設 0 = 沿用舊行為）。"
+                             "使用 optimal / youden 時建議設 0.15~0.2")
     parser.add_argument("--pct",              type=int, default=95)
     parser.add_argument("--output",           default=None,
                         help="模型輸出目錄（預設: output/model_semi_<dataset>）")
@@ -176,6 +184,10 @@ def main():
     args = parser.parse_args()
     if not 0.0 < args.attack_ratio < 1.0:
         parser.error('--attack-ratio 必須介於 0 與 1 之間')
+    if not 0.0 <= args.normal_val_ratio < 0.5:
+        parser.error('--normal-val-ratio 必須介於 0 與 0.5 之間')
+    if args.youden_max_fpr is not None and not 0.0 < args.youden_max_fpr < 1.0:
+        parser.error('--youden-max-fpr 必須介於 0 與 1 之間')
  
     # 各資料集使用獨立輸出目錄與模型後綴
     DATASET_SUFFIX = {
@@ -258,15 +270,29 @@ def main():
         "beta":  args.beta,
         "margin": args.margin,
         "attack_ratio": args.attack_ratio,
+        "youden_max_fpr": args.youden_max_fpr,
     }
     
     semi_trainer = HybridSemiSupervisedTrainer(config=config, output_dir=args.output, model_name=model_name)
     
     # train_full 內部會依序執行 load_data -> pretrain -> finetune -> plot_training_curve -> compute_threshold
+    # 閾值校準用的正常驗證集：從訓練正常流量切出，不參與 VAE 訓練，
+    # 避免用「模型已看過的資料」估計正常分數造成閾值偏低。
+    X_normal_val = None
+    if args.normal_val_ratio > 0:
+        _rng = np.random.default_rng(123)
+        _perm = _rng.permutation(len(X_train_normal))
+        _n_val = max(1, int(len(X_train_normal) * args.normal_val_ratio))
+        X_normal_val = X_train_normal[_perm[:_n_val]]
+        X_train_normal = X_train_normal[_perm[_n_val:]]
+        print(f"  [閾值校準] 從訓練正常流量切出 {len(X_normal_val):,} 筆驗證集，"
+              f"VAE 訓練剩 {len(X_train_normal):,} 筆")
+
     threshold = semi_trainer.train_full(
-        X_normal=X_train_normal, 
+        X_normal=X_train_normal,
         X_attack=X_train_attack_pool,
-        threshold_method=args.threshold_method
+        threshold_method=args.threshold_method,
+        X_normal_val=X_normal_val,
     )
  
     # ══════════════════════════════════════════════════════
@@ -281,6 +307,10 @@ def main():
     results_semi = evaluate_model(model_semi, X_test_normal, X_test_attack, 
                                  threshold, device, args.output)
     results_semi['dataset'] = args.dataset
+    results_semi['threshold_method'] = args.threshold_method
+    results_semi['threshold_info'] = getattr(semi_trainer, 'threshold_info', {})
+    results_semi['youden_j'] = results_semi['recall'] - (
+        results_semi['fp'] / (results_semi['fp'] + results_semi['tn'] + 1e-9))
     results_semi['split'] = {
         'train_ratio': 0.8,
         'labelled_attack_ratio': args.attack_ratio,

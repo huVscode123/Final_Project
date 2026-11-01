@@ -1,0 +1,24 @@
+{
+  "overall": {
+    "n": 200,
+    "n_anomaly": 200,
+    "anomaly_rate": 1.0,
+    "score_quantiles": {
+      "p50": 0.002511515049263835,
+      "p90": 6.081063079833983,
+      "p95": 9.06080570220946,
+      "p99": 15.257962951659943,
+      "p99.9": 40.852614044189416
+    }
+  },
+  "threshold_used": 0.00021121618920005858,
+  "label_distribution": {
+    "UNKNOWN": 200
+  },
+  "n_relabeled_benign_from_schedule": 0,
+  "independent_calibration": {
+    "path": null,
+    "n_benign": 0,
+    "provenance_verified": false
+  }
+}

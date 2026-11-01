@@ -1,0 +1,16 @@
+{
+  "model": "output/threshold_study/unsup_cicids2017/best_vae_cicids2017.pt",
+  "model_type": "cnn_vae",
+  "mode": "flow",
+  "model_threshold": 0.0008199410804081708,
+  "representation": "csv_features_cicids2017",
+  "labels": "core/cicids2017_labels.json",
+  "scaler": "output/threshold_study/unsup_cicids2017/cicids2017_preprocessor.pkl",
+  "tcp_termination": "cicflowmeter_original",
+  "bulk_mode": "cicids2017_zero",
+  "flag_mode": "cicids2017_legacy_first_packet",
+  "missing_window_value": -1.0,
+  "converter_version": "5.0.0-cicids2017-legacy-compat",
+  "calibration_csv": null,
+  "started": "2026-10-20T00:09:50"
+}

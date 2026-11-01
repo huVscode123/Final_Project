@@ -1,4 +1,3 @@
-# ============================================================
 # pcap_analyzer.py - PCAP 離線分析模組（v2.0.1 修正版）
 #
 # 修正清單：
@@ -38,6 +37,12 @@ from parser import PacketParser
 from storage import PacketStorage
 from anomaly_detector import AnomalyDetector
 
+# 優先使用擴充版偵測器（修正受害者誤報 + 新增 SSH/Web/HTTP Flood 規則）
+try:
+    from anomaly_detector_extra import ExtendedAnomalyDetector as _DetectorClass
+except ImportError:
+    _DetectorClass = AnomalyDetector
+
 
 class PcapAnalyzer:
     """
@@ -52,33 +57,46 @@ class PcapAnalyzer:
         self.session_dir = session_dir
         self.parser      = PacketParser()
         self.storage     = PacketStorage(session_dir=session_dir)
-        self.detector    = AnomalyDetector()
+        self.detector    = _DetectorClass()
         self.records     = []
         self.packets     = []
         self.total_bytes = 0   # [新增] 快取總流量，避免重複計算
 
     # ── 讀取 PCAP ────────────────────────────────────────
-    def load(self, use_streaming=None):
-        """載入 PCAP 檔案
+    def load(self, use_streaming=None, progress_callback=None):
+        """載入 PCAP 檔案。
 
-        Args:
-            use_streaming: 是否使用串流模式逐封包讀取（適用於大型 PCAP）
-
-        Returns:
-            self（支援鏈式呼叫）
+        progress_callback(stage, percent, processed, total, detail) 為可選回呼；
+        有回呼時強制串流讀取，令大型檔案能定期回報真實讀取進度。
         """
         print(f"\n{Fore.CYAN}載入 PCAP: {self.pcap_path}{Style.RESET_ALL}")
 
         # ── [P1-5 修正] 超過 50MB 自動串流 ──
+        file_size = max(os.path.getsize(self.pcap_path), 1)
         if use_streaming is None:
-            file_size = os.path.getsize(self.pcap_path)
-            use_streaming = file_size > 50 * 1024 * 1024
+            use_streaming = file_size > 50 * 1024 * 1024 or progress_callback is not None
+        if progress_callback is not None:
+            use_streaming = True
 
         if use_streaming:
             with PcapReader(self.pcap_path) as reader:
                 for pkt in reader:
                     self.packets.append(pkt)
                     self.records.append(self.parser.parse(pkt))
+                    count = len(self.packets)
+                    if progress_callback and (count % 128 == 0):
+                        try:
+                            offset = int(reader.f.tell())
+                            fraction = min(max(offset / file_size, 0.0), 1.0)
+                        except Exception:
+                            fraction = min(count / max(count + 128, 1), 0.95)
+                        progress_callback(
+                            'PCAP 封包解析', 7 + int(7 * fraction), count, 0,
+                            f'已解析 {count:,} 個封包；依檔案讀取位置估算進度。'
+                        )
+                if progress_callback:
+                    progress_callback('PCAP 封包解析', 14, len(self.packets), len(self.packets),
+                                      f'封包解析完成，共 {len(self.packets):,} 個。')
         else:
             self.packets = rdpcap(self.pcap_path)
             self.records = [self.parser.parse(p) for p in self.packets]
@@ -333,7 +351,7 @@ class PcapAnalyzer:
         return dict(sorted_times)
 
     # ── 離線異常偵測 ──────────────────────────────────────
-    def detect_attacks(self) -> dict:
+    def detect_attacks(self, progress_callback=None) -> dict:
         """
         對已載入的 PCAP 進行完整攻擊特徵偵測。
 
@@ -357,7 +375,8 @@ class PcapAnalyzer:
         print(f"\n{Fore.CYAN}  開始離線攻擊偵測...{Style.RESET_ALL}")
         self.detector.reset()
 
-        for pkt, record in zip(self.packets, self.records):
+        total_records = max(len(self.records), 1)
+        for packet_idx, (pkt, record) in enumerate(zip(self.packets, self.records), 1):
             # 離線 PCAP 必須以原始擷取時間維持滑動窗口語意；若用
             # 迴圈當下的 time.time()，整段流量會被錯當成同時發生。
             try:
@@ -365,6 +384,12 @@ class PcapAnalyzer:
             except (TypeError, ValueError):
                 packet_time = 0.0
             self.detector.inspect(pkt, record, timestamp=packet_time)
+            if progress_callback and (packet_idx % 128 == 0 or packet_idx == total_records):
+                progress_callback(
+                    '規則式型樣檢查', 14 + int(6 * packet_idx / total_records),
+                    packet_idx, len(self.records),
+                    f'已檢查 {packet_idx:,} / {len(self.records):,} 個封包。'
+                )
 
         print(f"\n  偵測完成")
         self.detector.print_history()
@@ -379,9 +404,9 @@ class PcapAnalyzer:
         summary["total_bytes"]   = self.total_bytes
 
         if summary.get("total_alerts", 0) == 0:
-            print(f"{Fore.GREEN}  ✓ 未發現攻擊特徵{Style.RESET_ALL}")
+            print(f"{Fore.GREEN}  [OK] 未發現攻擊特徵{Style.RESET_ALL}")
         else:
-            print(f"\n{Fore.RED}  ⚠  發現 {summary['total_alerts']} 個告警{Style.RESET_ALL}")
+            print(f"\n{Fore.RED}  [!]  發現 {summary['total_alerts']} 個告警{Style.RESET_ALL}")
 
         # 回傳複合 dict，告警列表與摘要分開，避免 views.py 迭代 dict 鍵
         return {

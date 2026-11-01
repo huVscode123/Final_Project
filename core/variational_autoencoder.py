@@ -49,6 +49,21 @@ class CNNVariationalAutoencoder(nn.Module):
         x_hat = self.decoder(self.decoder_fc(z).view(-1, 64, 4, 4))
         return x_hat, mu
 
+    def forward_with_scores(self, x):
+        """Return reconstruction, latent mean, and the deployed per-sample anomaly score.
+
+        The score intentionally matches reconstruction_error():
+            mean_squared_reconstruction_error + kl_weight * KL
+        Call this in eval mode for deterministic scores and Grad-CAM.
+        """
+        mu, logvar = self.encode_distribution(x)
+        z = self.reparameterize(mu, logvar) if self.training else mu
+        x_hat = self.decoder(self.decoder_fc(z).view(-1, 64, 4, 4))
+        recon = ((x - x_hat) ** 2).mean(dim=(1, 2, 3))
+        kl = -0.5 * (1 + logvar - mu.square() - logvar.exp()).mean(dim=1)
+        scores = recon + self.kl_weight * kl
+        return x_hat, mu, scores
+
     def loss_per_sample(self, x):
         mu, logvar = self.encode_distribution(x)
         z = self.reparameterize(mu, logvar) if self.training else mu

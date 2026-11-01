@@ -7,12 +7,12 @@ CICIDS2017「非監督式 VAE」修正版。
 重點：
 1. 模型維持 CNN-VAE，不改成一般 CNN Autoencoder。
 2. VAE 只使用正常流量做模型訓練，攻擊資料不進入 loss。
-3. Normal 先切 Train / Validation / Test，再 fit scaler。
+3. Normal 先切 Train / Early-stop / Calibration / Test，再 fit scaler。
 4. scaler 只用 Train-Normal fit，避免資料洩漏。
-5. Validation normal 可用來決定 percentile threshold；
-   也可用 validation attack 做 threshold calibration（模型本身仍是
+5. 獨立的 calibration split 用來決定 percentile / F1 最大化 / Youden 閾值；
+   calibration attack 只用於閾值校準（模型本身仍是
    unsupervised VAE，attack 不參與模型參數學習）。
-6. Final Test 完全不參與 threshold tuning。
+6. Early-stop split 與 calibration split 分離；Final Test 完全不參與 threshold tuning。
 7. 匯出 scaler + feature_columns，讓 PCAP->CSV serving 可以沿用相同前處理。
 8. Checkpoint 使用 model_type='cnn_vae'，可直接對應現有 model_registry。
 
@@ -31,8 +31,14 @@ python core/run_training_cicids2017_vae_fixed.py ^
   --max-normal 60000 ^
   --max-attack 30000
 
-若希望只用 validation attack 做 threshold 校準：
-  --threshold-method optimal
+每次執行都會比較三種方法：
+  percentile：正常校準分數的第 95 百分位數
+  f1_max：以正常與攻擊校準資料最大化 F1
+  youden：最大化 Youden's J = TPR - FPR
+
+--threshold-method 只決定 checkpoint 使用哪一種方法；不影響三種方法的比較輸出。
+例如選擇 F1 最大化作為 checkpoint 閾值：
+  --threshold-method f1_max
 """
 
 from __future__ import annotations
@@ -412,6 +418,12 @@ if str(BASE_DIR) not in sys.path:
     sys.path.insert(0, str(BASE_DIR))
 
 from variational_autoencoder import CNNVariationalAutoencoder
+from threshold_analysis_common import (
+    METHOD_LABELS,
+    analyze_scalar_thresholds,
+    write_analysis,
+    split_four_way,
+)
 
 
 IMAGE_SIZE = 32
@@ -521,12 +533,20 @@ def parse_args():
 
     parser.add_argument(
         "--threshold-method",
-        choices=["percentile", "optimal"],
+        choices=["percentile", "f1_max", "youden"],
         default="percentile",
         help=(
-            "percentile：只使用 validation normal；"
-            "optimal：使用 validation normal + attack 搜尋 F1 threshold"
+            "percentile：正常校準分數的指定百分位數（預設 95）；"
+            "f1_max：以正常與攻擊校準資料最大化 VAE F1；"
+            "youden：以正常與攻擊校準資料最大化 Youden's J = TPR - FPR。"
+            "每次執行都會比較三種方法。"
         ),
+    )
+    parser.add_argument(
+        "--youden-max-fpr",
+        type=float,
+        default=None,
+        help="Youden 模式的可選 FPR 上限（例如 0.05），不設定則不限制",
     )
     parser.add_argument("--pct", type=float, default=95.0)
 
@@ -684,22 +704,9 @@ def load_dataset(data_dir, max_normal, max_attack, seed):
     return X_normal, X_attack, feature_cols
 
 
-def split_three_way(X, train_ratio, val_ratio, seed):
-    rng = np.random.default_rng(seed)
-    indices = rng.permutation(len(X))
-
-    n_train = max(1, int(len(X) * train_ratio))
-    n_val = max(1, int(len(X) * val_ratio))
-
-    if n_train + n_val >= len(X):
-        raise ValueError("資料量不足以切出 train / validation / test。")
-
-    return (
-        X[indices[:n_train]],
-        X[indices[n_train:n_train + n_val]],
-        X[indices[n_train + n_val:]],
-    )
-
+# 本訓練流程統一使用 threshold_analysis_common.split_four_way，
+# 將正常資料切成 train / early-stop / calibration / test，避免 early-stop
+# 和閾值校準使用同一批正常樣本。
 
 def fit_scaler_and_transform(
     train_normal,
@@ -733,6 +740,31 @@ def fit_scaler_and_transform(
         scaler,
     )
 
+
+
+def fit_scaler_and_transform_fourway(
+    train_normal,
+    early_normal,
+    cal_normal,
+    test_normal,
+    train_attack,
+    cal_attack,
+    test_attack,
+):
+    """共用前處理器：只在正常 train fit，並轉換所有固定切分。"""
+    scaler = RobustScaler()
+    scaler.fit(train_normal)
+
+    def transform(X):
+        X_scaled = scaler.transform(X)
+        return np.clip(X_scaled, 0.0, 1.0).astype(np.float32)
+
+    return (
+        transform(train_normal), transform(early_normal),
+        transform(cal_normal), transform(test_normal),
+        transform(train_attack), transform(cal_attack), transform(test_attack),
+        scaler,
+    )
 
 def to_images(X):
     n = X.shape[0]
@@ -778,54 +810,8 @@ def compute_vae_scores(model, X, device, batch_size=256):
     return np.concatenate(scores)
 
 
-def optimal_threshold(normal_scores, attack_scores):
-    """
-    Validation threshold optimization。
-
-    注意：
-    VAE 本身仍然完全用 normal train 訓練；
-    validation attack 只用來選「部署 threshold」。
-    """
-    from sklearn.metrics import f1_score
-
-    all_scores = np.concatenate([
-        normal_scores,
-        attack_scores,
-    ])
-
-    candidates = np.unique(
-        np.quantile(
-            all_scores,
-            np.linspace(0.80, 0.999, 500),
-        )
-    )
-
-    y_true = np.concatenate([
-        np.zeros(len(normal_scores), dtype=np.int32),
-        np.ones(len(attack_scores), dtype=np.int32),
-    ])
-
-    best = None
-
-    for threshold in candidates:
-        y_pred = (
-            all_scores > threshold
-        ).astype(np.int32)
-
-        f1 = f1_score(
-            y_true,
-            y_pred,
-            zero_division=0,
-        )
-
-        if best is None or f1 > best["f1"]:
-            best = {
-                "threshold": float(threshold),
-                "f1": float(f1),
-            }
-
-    return best["threshold"], best["f1"]
-
+# 閾值校準統一交由 threshold_analysis_common.analyze_scalar_thresholds，
+# 以相同候選閾值產生方式比較 percentile、f1_max 與 youden。
 
 def evaluate(normal_scores, attack_scores, threshold):
     tp = int(np.sum(attack_scores > threshold))
@@ -866,6 +852,7 @@ def evaluate(normal_scores, attack_scores, threshold):
         "f1": float(f1),
         "fpr": float(fpr),
         "accuracy": float(accuracy),
+        "youden_j": float(recall - fpr),
         "roc_auc": float(
             roc_auc_score(y_true, y_score)
         ),
@@ -1043,10 +1030,16 @@ class VAETrainerFixed:
 def main():
     args = parse_args()
 
+    if args.train_ratio <= 0.0 or args.val_ratio <= 0.0:
+        raise ValueError("train_ratio 與 val_ratio 必須大於 0。")
     if args.train_ratio + args.val_ratio >= 1.0:
         raise ValueError(
             "train_ratio + val_ratio 必須小於 1。"
         )
+    if not 0.0 < args.pct < 100.0:
+        raise ValueError("pct 必須介於 0 與 100。")
+    if args.youden_max_fpr is not None and not 0.0 < args.youden_max_fpr < 1.0:
+        raise ValueError("youden_max_fpr 必須介於 0 與 1。")
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -1084,72 +1077,47 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 2. Split before scaling
+    # 2. Shared four-way split before scaling
+    #    train / early-stop validation / threshold calibration / final test
     # --------------------------------------------------------
-    (
-        normal_train,
-        normal_val,
-        normal_test,
-    ) = split_three_way(
-        X_normal_raw,
-        args.train_ratio,
-        args.val_ratio,
-        args.seed,
+    normal_train_raw, normal_early_raw, normal_cal_raw, normal_test_raw = split_four_way(
+        X_normal_raw, args.train_ratio, args.val_ratio, args.seed,
     )
-
-    (
-        attack_train_unused,
-        attack_val,
-        attack_test,
-    ) = split_three_way(
-        X_attack_raw,
-        args.train_ratio,
-        args.val_ratio,
-        args.seed + 1,
+    attack_train_raw, attack_early_raw, attack_cal_raw, attack_test_raw = split_four_way(
+        X_attack_raw, args.train_ratio, args.val_ratio, args.seed + 1,
     )
-
-    # 關鍵：
-    # attack_train_unused 不參與任何 VAE loss。
-    # 它只是留在 training partition 中，不使用即可。
-    del attack_train_unused
+    # VAE 不使用攻擊資料訓練；攻擊分割保留相同索引，讓 Hybrid 程式重用。
 
     print()
     print(
-        f"[Split] Normal: "
-        f"train={len(normal_train):,}, "
-        f"val={len(normal_val):,}, "
-        f"test={len(normal_test):,}"
+        f"[Split] Normal: train={len(normal_train_raw):,}, "
+        f"early_stop={len(normal_early_raw):,}, cal={len(normal_cal_raw):,}, "
+        f"test={len(normal_test_raw):,}"
     )
     print(
-        f"[Split] Attack: "
-        f"val={len(attack_val):,}, "
-        f"test={len(attack_test):,}"
+        f"[Split] Attack: train_unused={len(attack_train_raw):,}, "
+        f"unused={len(attack_early_raw):,}, cal={len(attack_cal_raw):,}, "
+        f"test={len(attack_test_raw):,}"
     )
 
     # --------------------------------------------------------
-    # 3. Fit scaler ONLY on train-normal
+    # 3. Shared scaler ONLY fit on normal-train
     # --------------------------------------------------------
     (
-        normal_train,
-        normal_val,
-        normal_test,
-        attack_val,
-        attack_test,
-        scaler,
-    ) = fit_scaler_and_transform(
-        normal_train,
-        normal_val,
-        normal_test,
-        attack_val,
-        attack_test,
+        normal_train, normal_early, normal_cal, normal_test,
+        attack_train_unused, attack_cal, attack_test, scaler,
+    ) = fit_scaler_and_transform_fourway(
+        normal_train_raw, normal_early_raw, normal_cal_raw, normal_test_raw,
+        attack_train_raw, attack_cal_raw, attack_test_raw,
     )
 
     # --------------------------------------------------------
-    # 4. Feature -> image
+    # 4. Feature -> image; semi-supervised script imports same loader/scaler
     # --------------------------------------------------------
     X_train = to_images(normal_train)
-    X_val = to_images(normal_val)
-    X_val_attack = to_images(attack_val)
+    X_val = to_images(normal_early)       # only for early stopping
+    X_cal = to_images(normal_cal)         # only for threshold calibration
+    X_cal_attack = to_images(attack_cal)
     X_test = to_images(normal_test)
     X_test_attack = to_images(attack_test)
 
@@ -1173,67 +1141,77 @@ def main():
     )
 
     # --------------------------------------------------------
-    # 6. Validation threshold
+    # 6-7. Score calibration / final test, and compare all methods
     # --------------------------------------------------------
     print()
-    print("[Threshold] Validation calibration")
+    print("[Threshold] Calibrate Percentile 95 / F1 最大化 / Youden")
 
-    val_normal_scores = compute_vae_scores(
-        trainer.model,
-        X_val,
-        device,
+    cal_normal_scores = compute_vae_scores(
+        trainer.model, X_cal, device,
+    )
+    cal_attack_scores = compute_vae_scores(
+        trainer.model, X_cal_attack, device,
+    )
+    test_normal_scores = compute_vae_scores(
+        trainer.model, X_test, device,
+    )
+    test_attack_scores = compute_vae_scores(
+        trainer.model, X_test_attack, device,
     )
 
-    if args.threshold_method == "percentile":
-        threshold = float(
-            np.percentile(
-                val_normal_scores,
-                args.pct,
-            )
+    threshold_analysis, score_cache = analyze_scalar_thresholds(
+        model_key="unsup_cicids2017",
+        cal_normal=cal_normal_scores,
+        cal_attack=cal_attack_scores,
+        test_normal=test_normal_scores,
+        test_attack=test_attack_scores,
+        percentile=args.pct,
+        youden_max_fpr=args.youden_max_fpr,
+    )
+    threshold_analysis_path, score_cache_path = write_analysis(
+        threshold_analysis, score_cache, str(output_dir),
+        stem="threshold_analysis",
+    )
+    if args.threshold_method not in threshold_analysis["methods"]:
+        raise ValueError(f"未知閾值方法：{args.threshold_method}")
+
+    selected_row = threshold_analysis["methods"][args.threshold_method]
+    if not selected_row.get("available", False):
+        raise ValueError(
+            f"閾值方法 {args.threshold_method!r} 無法使用："
+            f"{selected_row.get('reason', '校準資料不足')}"
         )
 
-        threshold_info = {
-            "method": "percentile",
-            "percentile": args.pct,
-        }
+    threshold = float(selected_row["threshold"])
+    threshold_info = {
+        "selected_method": args.threshold_method,
+        "threshold": threshold,
+        **selected_row["info"],
+    }
 
-    else:
-        val_attack_scores = compute_vae_scores(
-            trainer.model,
-            X_val_attack,
-            device,
-        )
-
-        threshold, best_val_f1 = optimal_threshold(
-            val_normal_scores,
-            val_attack_scores,
-        )
-
-        threshold_info = {
-            "method": "optimal",
-            "validation_f1": best_val_f1,
-        }
+    print("\n[Threshold comparison — same final test set]")
+    print(f"{'method':<18}{'threshold':>14}{'precision':>12}{'recall':>10}{'F1':>9}{'FPR':>9}{'J':>9}")
+    for method in ("percentile", "f1_max", "youden"):
+        row = threshold_analysis["methods"].get(method)
+        if not row or not row.get("available", True):
+            continue
+        m = row["test"]
+        if method == "percentile":
+            method_label = "Percentile {:g}".format(args.pct)
+        else:
+            method_label = METHOD_LABELS.get(method, method)
+        print(f"{method_label:<18}{row['threshold']:>14.7g}{m['precision']:>12.4f}{m['recall']:>10.4f}{m['f1']:>9.4f}{m['fpr']:>9.4f}{m['youden_j']:>9.4f}")
+    print(f"[Saved] {threshold_analysis_path}")
+    print(f"[Saved] {score_cache_path}")
 
     print(
-        f"Threshold={threshold:.8f} "
-        f"method={args.threshold_method}"
+        f"Selected threshold={threshold:.8f} "
+        f"method={args.threshold_method} (three methods are compared in threshold_analysis.json)"
     )
 
     # --------------------------------------------------------
-    # 7. Final test
+    # 8. Report the selected method on the held-out test split
     # --------------------------------------------------------
-    test_normal_scores = compute_vae_scores(
-        trainer.model,
-        X_test,
-        device,
-    )
-
-    test_attack_scores = compute_vae_scores(
-        trainer.model,
-        X_test_attack,
-        device,
-    )
-
     result = evaluate(
         test_normal_scores,
         test_attack_scores,
@@ -1246,7 +1224,13 @@ def main():
         "csv_features_cicids2017"
     )
     result["best_val_loss"] = float(best_val_loss)
+    result["threshold_method"] = args.threshold_method
     result["threshold_info"] = threshold_info
+    result["threshold_analysis_path"] = str(threshold_analysis_path)
+    result["threshold_score_cache_path"] = str(score_cache_path)
+    result["threshold_methods_test"] = {
+        k: v.get("test") for k, v in threshold_analysis["methods"].items()
+    }
     result["config"] = {
         "latent_dim": args.latent,
         "batch_size": args.batch,
@@ -1255,13 +1239,21 @@ def main():
         "epochs": args.epochs,
         "patience": args.patience,
         "image_size": IMAGE_SIZE,
+        "threshold_method": args.threshold_method,
+        "percentile": args.pct,
+        "youden_max_fpr": args.youden_max_fpr,
     }
     result["split"] = {
         "train_normal": len(X_train),
-        "val_normal": len(X_val),
+        "early_stop_normal": len(X_val),
+        "cal_normal": len(X_cal),
         "test_normal": len(X_test),
-        "val_attack": len(X_val_attack),
+        "cal_attack": len(X_cal_attack),
         "test_attack": len(X_test_attack),
+        "train_ratio": float(args.train_ratio),
+        "validation_pool_ratio": float(args.val_ratio),
+        "calibration_and_early_stop_are_separate": True,
+        "seed": int(args.seed),
     }
 
     # --------------------------------------------------------
@@ -1308,6 +1300,9 @@ def main():
             "model_type": "cnn_vae",
             "model_state": trainer.model.state_dict(),
             "threshold": threshold,
+            "threshold_method": args.threshold_method,
+            "threshold_info": threshold_info,
+            "threshold_analysis_path": str(threshold_analysis_path),
             "config": {
                 "latent_dim": args.latent,
                 "batch_size": args.batch,
@@ -1316,6 +1311,9 @@ def main():
                 "epochs": args.epochs,
                 "patience": args.patience,
                 "image_size": IMAGE_SIZE,
+                "threshold_method": args.threshold_method,
+                "percentile": args.pct,
+                "youden_max_fpr": args.youden_max_fpr,
                 "representation": (
                     "csv_features_cicids2017"
                 ),
@@ -1372,6 +1370,9 @@ def main():
     )
     print(
         f"FPR       : {result['fpr']:.4f}"
+    )
+    print(
+        f"Youden J  : {result['youden_j']:.4f}"
     )
     print(
         f"ROC-AUC   : {result['roc_auc']:.4f}"

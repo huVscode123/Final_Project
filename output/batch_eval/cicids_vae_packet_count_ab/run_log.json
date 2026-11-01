@@ -1,0 +1,72 @@
+[
+  {
+    "tag": "cicids2017-PCAPs__Friday-WorkingHours.pcap",
+    "stage": "convert",
+    "ok": true,
+    "seconds": 1943.1,
+    "csv": "output/batch_eval/cicids_vae_packet_count_ab\\flows\\cicids2017-PCAPs__Friday-WorkingHours.pcap.csv"
+  },
+  {
+    "tag": "cicids2017-PCAPs__Monday-WorkingHours.pcap",
+    "stage": "convert",
+    "ok": true,
+    "seconds": 3811.9,
+    "csv": "output/batch_eval/cicids_vae_packet_count_ab\\flows\\cicids2017-PCAPs__Monday-WorkingHours.pcap.csv"
+  },
+  {
+    "tag": "cicids2017-PCAPs__Thursday-WorkingHours.pcap",
+    "stage": "convert",
+    "ok": true,
+    "seconds": 1750.3,
+    "csv": "output/batch_eval/cicids_vae_packet_count_ab\\flows\\cicids2017-PCAPs__Thursday-WorkingHours.pcap.csv"
+  },
+  {
+    "tag": "cicids2017-PCAPs__Tuesday-WorkingHours.pcap",
+    "stage": "convert",
+    "ok": true,
+    "seconds": 1881.6,
+    "csv": "output/batch_eval/cicids_vae_packet_count_ab\\flows\\cicids2017-PCAPs__Tuesday-WorkingHours.pcap.csv"
+  },
+  {
+    "tag": "cicids2017-PCAPs__Wednesday-workingHours.pcap",
+    "stage": "convert",
+    "ok": true,
+    "seconds": 3653.5,
+    "csv": "output/batch_eval/cicids_vae_packet_count_ab\\flows\\cicids2017-PCAPs__Wednesday-workingHours.pcap.csv"
+  },
+  {
+    "tag": "cicids2017-PCAPs__Friday-WorkingHours.pcap",
+    "stage": "score",
+    "ok": true,
+    "seconds": 26.2,
+    "n_scored": 753189
+  },
+  {
+    "tag": "cicids2017-PCAPs__Monday-WorkingHours.pcap",
+    "stage": "score",
+    "ok": true,
+    "seconds": 18.5,
+    "n_scored": 546900
+  },
+  {
+    "tag": "cicids2017-PCAPs__Thursday-WorkingHours.pcap",
+    "stage": "score",
+    "ok": true,
+    "seconds": 16.0,
+    "n_scored": 473751
+  },
+  {
+    "tag": "cicids2017-PCAPs__Tuesday-WorkingHours.pcap",
+    "stage": "score",
+    "ok": true,
+    "seconds": 15.4,
+    "n_scored": 458429
+  },
+  {
+    "tag": "cicids2017-PCAPs__Wednesday-workingHours.pcap",
+    "stage": "score",
+    "ok": true,
+    "seconds": 28.2,
+    "n_scored": 868483
+  }
+]

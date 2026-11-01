@@ -1,0 +1,175 @@
+{
+  "generated_at": "2026-10-19T15:49:51",
+  "purpose": "counterfactual diagnosis only; never use this modified input as production output",
+  "model_path": "output\\threshold_study\\unsup_cicids2017\\best_vae_cicids2017.pt",
+  "scaler_path": "output\\threshold_study\\unsup_cicids2017\\cicids2017_preprocessor.pkl",
+  "model_type": "cnn_vae",
+  "representation": "csv_features_cicids2017",
+  "threshold": 0.0008199410804081708,
+  "normalization": "clip_0_1",
+  "feature_count": 78,
+  "train_sample": {
+    "path": "data\\cicids2017\\Monday-WorkingHours.pcap_ISCX.csv",
+    "file_rows_after_filter": 529918,
+    "sample_rows": 50000,
+    "label_counts_seen": {
+      "BENIGN": 529918
+    },
+    "feature_values_coerced_to_zero_count": 64,
+    "has_label_column": true,
+    "label_filter": [
+      "BENIGN",
+      "NORMAL"
+    ],
+    "exclude_single_packet_flows": true,
+    "single_packet_rows_filtered": 0
+  },
+  "pcap_sample": {
+    "path": "output\\batch_eval\\cicids_vae_monday_v4\\flows\\cicids2017-PCAPs__Monday-WorkingHours.pcap.csv",
+    "file_rows_after_filter": 400365,
+    "sample_rows": 50000,
+    "label_counts_seen": {
+      "BENIGN": 400365
+    },
+    "feature_values_coerced_to_zero_count": 0,
+    "has_label_column": true,
+    "label_filter": [
+      "BENIGN",
+      "NORMAL"
+    ],
+    "exclude_single_packet_flows": true,
+    "single_packet_rows_filtered": 0
+  },
+  "pcap_label_counts_full": {
+    "BENIGN": 400365
+  },
+  "pcap_label_filter_note": "auto：找到 BENIGN/NORMAL 標籤，只取正常標籤列。",
+  "baseline_train": {
+    "dataset": "TRAIN_CSV_BENIGN",
+    "n_scored": 50000,
+    "threshold": 0.0008199410804081708,
+    "anomalies": 1442,
+    "anomaly_rate": 0.02884,
+    "score_quantiles": {
+      "p50": 0.00034530070843175054,
+      "p90": 0.0005834490002598614,
+      "p95": 0.0007053249835735183,
+      "p99": 0.0014312150143086942,
+      "p99_9": 0.0025941688905003622
+    },
+    "normalization": "clip_0_1",
+    "image_size": 32,
+    "scaled_fraction_lt_0_before_clip": 0.2682282051282051,
+    "scaled_fraction_gt_1_before_clip": 0.1590053846153846,
+    "clip_applied": true
+  },
+  "baseline_pcap": {
+    "dataset": "PCAP_BASELINE",
+    "n_scored": 50000,
+    "threshold": 0.0008199410804081708,
+    "anomalies": 22327,
+    "anomaly_rate": 0.44654,
+    "score_quantiles": {
+      "p50": 0.000470149505417794,
+      "p90": 0.006782766478136182,
+      "p95": 0.007967435102909802,
+      "p99": 0.00959933664649725,
+      "p99_9": 0.011052519545890345
+    },
+    "normalization": "clip_0_1",
+    "image_size": 32,
+    "scaled_fraction_lt_0_before_clip": 0.2416623076923077,
+    "scaled_fraction_gt_1_before_clip": 0.21352333333333334,
+    "clip_applied": true
+  },
+  "feature_groups": {
+    "flags": [
+      "Fwd PSH Flags",
+      "Bwd PSH Flags",
+      "Fwd URG Flags",
+      "Bwd URG Flags",
+      "FIN Flag Count",
+      "SYN Flag Count",
+      "RST Flag Count",
+      "PSH Flag Count",
+      "ACK Flag Count",
+      "URG Flag Count",
+      "CWE Flag Count",
+      "ECE Flag Count"
+    ],
+    "act_data_pkt_fwd": [
+      "act_data_pkt_fwd"
+    ],
+    "min_seg_size_forward": [
+      "min_seg_size_forward"
+    ],
+    "packet_length_and_segment_size": [
+      "Total Length of Fwd Packets",
+      "Total Length of Bwd Packets",
+      "Fwd Packet Length Max",
+      "Fwd Packet Length Min",
+      "Fwd Packet Length Mean",
+      "Fwd Packet Length Std",
+      "Bwd Packet Length Max",
+      "Bwd Packet Length Min",
+      "Bwd Packet Length Mean",
+      "Bwd Packet Length Std",
+      "Min Packet Length",
+      "Max Packet Length",
+      "Packet Length Mean",
+      "Packet Length Std",
+      "Packet Length Variance",
+      "Average Packet Size",
+      "Avg Fwd Segment Size",
+      "Avg Bwd Segment Size"
+    ],
+    "IAT": [
+      "Flow IAT Mean",
+      "Flow IAT Std",
+      "Flow IAT Max",
+      "Flow IAT Min",
+      "Fwd IAT Total",
+      "Fwd IAT Mean",
+      "Fwd IAT Std",
+      "Fwd IAT Max",
+      "Fwd IAT Min",
+      "Bwd IAT Total",
+      "Bwd IAT Mean",
+      "Bwd IAT Std",
+      "Bwd IAT Max",
+      "Bwd IAT Min"
+    ],
+    "initial_TCP_window": [
+      "Init_Win_bytes_forward",
+      "Init_Win_bytes_backward"
+    ],
+    "subflow": [
+      "Subflow Fwd Packets",
+      "Subflow Fwd Bytes",
+      "Subflow Bwd Packets",
+      "Subflow Bwd Bytes"
+    ],
+    "rates_duration_active_idle": [
+      "Flow Duration",
+      "Flow Bytes/s",
+      "Flow Packets/s",
+      "Fwd Packets/s",
+      "Bwd Packets/s",
+      "Active Mean",
+      "Active Std",
+      "Active Max",
+      "Active Min",
+      "Idle Mean",
+      "Idle Std",
+      "Idle Max",
+      "Idle Min"
+    ],
+    "packet_counts_and_total_bytes": [
+      "Total Fwd Packets",
+      "Total Backward Packets",
+      "Total Length of Fwd Packets",
+      "Total Length of Bwd Packets"
+    ]
+  },
+  "ablation_csv": "output\\diagnostics\\cicids_feature_group_ablation_v4\\feature_group_ablation.csv"
+}

@@ -12,13 +12,18 @@ python core/run_semi_supervised.py --dataset cicddos2019 --data-dir data/cic-ddo
 python core/run_semi_supervised.py --dataset cicids2017  --data-dir data/cicids2017   --pretrain-epochs 100 --finetune-epochs 20 --attack-ratio 0.2
 python core/run_semi_supervised.py --dataset nslkdd      --data-dir data/nsl-kdd      --pretrain-epochs 50 --finetune-epochs 50 --attack-ratio 0.2
 
+-----------------------old---------------------------
 
+
+
+-------------------------new-------------------------
 
 非監督模型（VAE）(新的用這個，更好)
-python core/run_training_cicids2017_vae_fixed.py --data-dir data/cicids2017 --output output/model_cicids2017_vae_fixed --epochs 120 --patience 20 --latent 32 --batch 64 --lr 5e-4 --kl-weight 1e-3 --threshold-method percentile --pct 95 --max-normal 60000 --max-attack 30000
+python core/run_training_cicids2017_vae_fixed.py --data-dir data/cicids2017 --output output/model_cicids2017_vae_fixed_youden05 --epochs 120 --patience 20 --latent 32 --batch 64 --lr 5e-4 --kl-weight 1e-3 --threshold-method youden --youden-max-fpr 0.05 --pct 95 --max-normal 60000 --max-attack 30000 --train-ratio 0.60 --val-ratio 0.20 --seed 42
+
 
 半監督模型（Hybrid VAE + CNN-LSTM）(新的用這個，更好)
-python core/run_semi_supervised_cicids2017_hybrid_v2.py --data-dir data/cicids2017 --output output/model_semi_cicids2017_hybrid_v2 --pretrain-epochs 120 --finetune-epochs 60 --batch 64 --latent 32 --lr 5e-4 --kl-weight 1e-3 --attack-ratio 0.2 --threshold-method optimal --max-hybrid-fpr 0.05 --max-normal 60000 --max-attack 30000 --compare-unsupervised
+python core/run_semi_supervised_cicids2017_hybrid_v2.py --data-dir data/cicids2017 --output output/model_semi_cicids2017_hybrid_v2_youden05 --pretrain-epochs 120 --finetune-epochs 60 --batch 64 --latent 32 --lr 5e-4 --kl-weight 1e-3 --attack-ratio 0.2 --threshold-method optimal --cascade-objective youden --max-hybrid-fpr 0.05 --max-normal 60000 --max-attack 30000 --seed 42
 
 
 
@@ -28,4 +33,25 @@ train_mta_malware
 python core/train_mta_malware.py --malware-dir data/mta_pcaps --only vae --vae-epochs 150 --vae-patience 20 --batch-size 32 --latent-dim 32 --vae-pct 95.0
 
 「半監督式 Hybrid」 部分： Pretrain 100 + Finetune 50 = 150 Epochs
-python core/train_mta_malware.py --malware-dir data/mta_pcaps --only semi --semi-pretrain-epochs 100 --semi-finetune-epochs 50 --semi-attack-ratio 0.3 --batch-size 32 --latent-dim 32
+python core/train_mta_malware.py --malware-dir data/mta_pcaps --only semi --semi-pretrain-epochs 100 --semi-finetune-epochs 50 --semi-attack-ratio 0.3 --batch-size 32 --latent-dim 32 --semi-threshold-method youden --youden-max-fpr 0.05
+
+
+
+產生非監督式 CICIDS2017 的 .pkl
+python core/export_cicids2017_vae_preprocessor.py `
+  --data-dir data/cicids2017 `
+  --max-normal 60000 `
+  --max-attack 30000 `
+  --train-ratio 0.60 `
+  --val-ratio 0.20 `
+  --seed 42 `
+  --output output/model_cicids2017_vae_fixed/cicids2017_preprocessor.pkl
+
+
+  產生半監督式 CICIDS2017 的 .pkl
+  python core/export_cicids2017_preprocessor.py `
+  --data-dir data/cicids2017 `
+  --max-normal 60000 `
+  --max-attack 30000 `
+  --output output/model_semi_cicids2017/cicids2017_preprocessor.pkl
+  

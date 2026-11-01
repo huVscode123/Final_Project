@@ -1,0 +1,158 @@
+{
+  "model_key": "unsup_cicids2017",
+  "threshold_policy": "higher anomaly score means more anomalous; score > threshold is attack",
+  "percentile": 95.0,
+  "youden_max_fpr": 0.05,
+  "split": {
+    "cal_normal": 6000,
+    "cal_attack": 3000,
+    "test_normal": 12000,
+    "test_attack": 6000
+  },
+  "methods": {
+    "percentile": {
+      "available": true,
+      "threshold": 0.000680954329436645,
+      "info": {
+        "objective": "normal_calibration_percentile",
+        "percentile": 95.0,
+        "n_normal": 6000,
+        "n_attack": 3000
+      },
+      "calibration": {
+        "TN": 5700,
+        "FP": 300,
+        "FN": 868,
+        "TP": 2132,
+        "precision": 0.8766447368421053,
+        "recall": 0.7106666666666667,
+        "f1": 0.784977908689249,
+        "fpr": 0.05,
+        "youden_j": 0.6606666666666666,
+        "accuracy": 0.8702222222222222,
+        "n_normal": 6000,
+        "n_attack": 3000
+      },
+      "test": {
+        "TN": 11413,
+        "FP": 587,
+        "FN": 1679,
+        "TP": 4321,
+        "precision": 0.88039934800326,
+        "recall": 0.7201666666666666,
+        "f1": 0.7922625595892923,
+        "fpr": 0.048916666666666664,
+        "youden_j": 0.6712499999999999,
+        "accuracy": 0.8741111111111111,
+        "n_normal": 12000,
+        "n_attack": 6000
+      }
+    },
+    "optimal": {
+      "available": true,
+      "threshold": 0.0008199410804081708,
+      "info": {
+        "objective": "maximize_f1",
+        "TN": 5843,
+        "FP": 157,
+        "FN": 887,
+        "TP": 2113,
+        "precision": 0.9308370044052864,
+        "recall": 0.7043333333333334,
+        "f1": 0.8018975332068311,
+        "fpr": 0.026166666666666668,
+        "youden_j": 0.6781666666666667,
+        "accuracy": 0.884,
+        "n_normal": 6000,
+        "n_attack": 3000,
+        "n_candidates": 7298
+      },
+      "calibration": {
+        "TN": 5843,
+        "FP": 157,
+        "FN": 887,
+        "TP": 2113,
+        "precision": 0.9308370044052864,
+        "recall": 0.7043333333333334,
+        "f1": 0.8018975332068311,
+        "fpr": 0.026166666666666668,
+        "youden_j": 0.6781666666666667,
+        "accuracy": 0.884,
+        "n_normal": 6000,
+        "n_attack": 3000
+      },
+      "test": {
+        "TN": 11710,
+        "FP": 290,
+        "FN": 1733,
+        "TP": 4267,
+        "precision": 0.9363616414307658,
+        "recall": 0.7111666666666666,
+        "f1": 0.8083735909822867,
+        "fpr": 0.024166666666666666,
+        "youden_j": 0.6869999999999999,
+        "accuracy": 0.8876111111111111,
+        "n_normal": 12000,
+        "n_attack": 6000
+      }
+    },
+    "youden": {
+      "available": true,
+      "threshold": 0.0007684077136218548,
+      "info": {
+        "objective": "maximize_youden_j",
+        "max_fpr": 0.05,
+        "TN": 5814,
+        "FP": 186,
+        "FN": 872,
+        "TP": 2128,
+        "precision": 0.9196197061365601,
+        "recall": 0.7093333333333334,
+        "f1": 0.8009032743695897,
+        "fpr": 0.031,
+        "youden_j": 0.6783333333333333,
+        "accuracy": 0.8824444444444445,
+        "n_normal": 6000,
+        "n_attack": 3000,
+        "n_candidates": 7298,
+        "fallback": false
+      },
+      "calibration": {
+        "TN": 5814,
+        "FP": 186,
+        "FN": 872,
+        "TP": 2128,
+        "precision": 0.9196197061365601,
+        "recall": 0.7093333333333334,
+        "f1": 0.8009032743695897,
+        "fpr": 0.031,
+        "youden_j": 0.6783333333333333,
+        "accuracy": 0.8824444444444445,
+        "n_normal": 6000,
+        "n_attack": 3000
+      },
+      "test": {
+        "TN": 11630,
+        "FP": 370,
+        "FN": 1690,
+        "TP": 4310,
+        "precision": 0.9209401709401709,
+        "recall": 0.7183333333333334,
+        "f1": 0.8071161048689138,
+        "fpr": 0.030833333333333334,
+        "youden_j": 0.6875,
+        "accuracy": 0.8855555555555555,
+        "n_normal": 12000,
+        "n_attack": 6000
+      }
+    }
+  },
+  "calibration_auc": {
+    "roc_auc": 0.8832039722222222,
+    "pr_auc": 0.857319801781293
+  },
+  "test_auc": {
+    "roc_auc": 0.8905176180555555,
+    "pr_auc": 0.863315844332651
+  }
+}

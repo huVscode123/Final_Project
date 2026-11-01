@@ -1,0 +1,16 @@
+[
+  {
+    "tag": "cicids2017-PCAPs__Monday-WorkingHours.pcap",
+    "stage": "convert",
+    "ok": true,
+    "seconds": 2126.6,
+    "csv": "output/batch_eval/cicids_vae_monday_legacy_v5\\flows\\cicids2017-PCAPs__Monday-WorkingHours.pcap.csv"
+  },
+  {
+    "tag": "cicids2017-PCAPs__Monday-WorkingHours.pcap",
+    "stage": "score",
+    "ok": true,
+    "seconds": 22.5,
+    "n_scored": 546900
+  }
+]

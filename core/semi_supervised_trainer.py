@@ -567,7 +567,7 @@ class SemiSupervisedTrainer:
             X_normal   : 正常流量影像矩陣
             X_attack   : 攻擊流量影像矩陣（method="percentile" 時不使用；
                          method="optimal" 且無可用 holdout 時的備援來源）
-            method     : "percentile" 或 "optimal"
+            method     : "percentile"、"optimal"（F1 最佳化）或 "youden"（Youden's Index）
             percentile : method="percentile" 時使用
 
         Returns:
@@ -613,8 +613,40 @@ class SemiSupervisedTrainer:
             print(f"  最佳閾值（F1={best_f1:.4f}，{best_pct}th 百分位）: "
                   f"{self.threshold:.6f}")
 
+        elif method == "youden":
+            # Youden's Index：J = TPR - FPR（ROC 曲線上離對角線最遠的點）。
+            # 與 "optimal" 相同，優先使用微調時未參與訓練的 holdout 攻擊樣本，避免洩漏。
+            from training_common import compute_youden_threshold
+            holdout = getattr(self, "X_attack_holdout", None)
+            if holdout is not None and len(holdout) >= 10:
+                print(f"  [防洩漏] 使用微調時未參與訓練的 {len(holdout):,} "
+                      f"筆保留攻擊樣本計算 Youden's Index")
+                attack_for_search = holdout
+            else:
+                print("  [警告] 無足夠的保留攻擊樣本，退回使用傳入的 X_attack "
+                      "（若與微調樣本重疊，結果可能過擬合）")
+                attack_for_search = X_attack
+
+            errors_attack = self._compute_errors(attack_for_search)
+            print(f"  正常流量誤差: mean={errors_normal.mean():.6f}, "
+                  f"std={errors_normal.std():.6f}")
+            print(f"  攻擊流量誤差: mean={errors_attack.mean():.6f}, "
+                  f"std={errors_attack.std():.6f}")
+            self.threshold, best_j, j_info = compute_youden_threshold(
+                errors_normal, errors_attack,
+                max_fpr=self.config.get("youden_max_fpr"),
+                fallback_pct=percentile,
+            )
+            if j_info.get("fallback"):
+                print(f"  Youden 無有效切點（{j_info['reason']}），"
+                      f"退回 {percentile}th 百分位: {self.threshold:.6f}")
+            else:
+                print(f"  Youden 閾值（J={best_j:.4f}，TPR={j_info['tpr']:.3f}，"
+                      f"FPR={j_info['fpr']:.3f}）: {self.threshold:.6f}")
+
         else:
-            raise ValueError(f"未知的 method: {method}，請使用 'percentile' 或 'optimal'")
+            raise ValueError(
+                f"未知的 method: {method}，請使用 'percentile'、'optimal' 或 'youden'")
 
         # 儲存閾值到設定
         self._save_config()
@@ -646,7 +678,7 @@ class SemiSupervisedTrainer:
         Args:
             X_normal          : 正常流量影像矩陣
             X_attack          : 攻擊流量影像矩陣
-            threshold_method  : "optimal" 或 "percentile"
+            threshold_method  : "optimal"、"percentile" 或 "youden"
 
         Returns:
             float: 訓練後的最佳閾值
@@ -821,4 +853,3 @@ class SemiSupervisedTrainer:
             print(f"  [SemiSupervisedTrainer] 閾值: {threshold:.6f}")
 
         return model, threshold
-

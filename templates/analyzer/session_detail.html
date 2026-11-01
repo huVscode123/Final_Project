@@ -20,8 +20,7 @@
 .gradcam-toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .progress-bar{height:4px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:6px}
 .progress-fill{height:100%;background:var(--green);border-radius:4px;transition:width .3s}
-.status-running-bar .progress-fill{animation:progressAnim 1.5s ease-in-out infinite}
-@keyframes progressAnim{0%{width:20%}50%{width:75%}100%{width:20%}}
+.progress-stage{font-size:.76rem;font-weight:600;color:var(--text-primary)}.progress-detail{font-size:.7rem;color:var(--text-muted);margin-top:5px}
 .report-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)}
 .report-item:last-child{border-bottom:none}
 .fmt-badge{font-size:.68rem;padding:2px 8px;border-radius:4px;font-family:var(--mono);font-weight:700}
@@ -70,11 +69,14 @@
 <!-- Progress bar when running -->
 {% if session.task_status == 'running' or session.task_status == 'pending' %}
 <div class="card" style="padding:12px 16px" id="progressCard">
-  <div style="display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:6px">
-    <span style="color:var(--text-muted)">分析進度</span>
-    <span class="status-pill status-{{ session.task_status }}"><span class="dot"></span>{{ session.get_task_status_display }}</span>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:.78rem;margin-bottom:6px">
+    <div>
+      <div class="progress-stage" id="progressStage">{{ session.progress_stage|default:'等待分析' }}</div>
+      <div class="progress-detail" id="progressDetail">{{ session.progress_detail|default:'任務開始後將更新實際階段進度。' }}</div>
+    </div>
+    <strong class="mono" id="progressPercent">{{ session.progress_percent }}%</strong>
   </div>
-  <div class="progress-bar status-running-bar"><div class="progress-fill" style="width:50%"></div></div>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:{{ session.progress_percent }}%"></div></div>
 </div>
 {% endif %}
 
@@ -141,20 +143,30 @@
   {% if cnn_result %}
   <div class="cnn-grid">
     <div class="cnn-stat" style="border-color:rgba(34,197,94,.3)">
-      <div class="label">Detection Rate</div>
+      <div class="label">CNN 異常比例</div>
       <div class="val" style="color:var(--green)">{{ cnn_result.detection_rate|floatformat:2 }}%</div>
     </div>
     <div class="cnn-stat" style="border-color:rgba(59,130,246,.3)">
-      <div class="label">Normal Packets</div>
+      <div class="label">正常樣本</div>
       <div class="val" style="color:var(--blue)">{{ cnn_result.normal_count }}</div>
     </div>
     <div class="cnn-stat" style="border-color:rgba(239,68,68,.3)">
-      <div class="label">Anomaly Packets</div>
+      <div class="label">異常樣本</div>
       <div class="val" style="color:var(--red)">{{ cnn_result.anomaly_count }}</div>
     </div>
     <div class="cnn-stat" style="border-color:rgba(234,179,8,.3)">
-      <div class="label">Threshold</div>
+      <div class="label">模型閾值</div>
       <div class="val" style="color:var(--yellow);font-size:1rem">{{ cnn_result.threshold }}</div>
+    </div>
+  </div>
+  <div class="card" style="margin-bottom:14px;background:var(--bg-elevated);border-color:var(--border)">
+    <div class="card-title" style="margin-bottom:8px">判定依據</div>
+    <div style="font-size:.8rem;line-height:1.7;color:var(--text-secondary)">
+      本次模型：<span class="mono" style="color:var(--green)">{{ session.model_key }}</span>，
+      輸入表示法：<span class="mono">{{ cnn_representation }}</span>，樣本單位：
+      <span class="mono">{{ cnn_unit }}</span>。
+      CNN 逐樣本將 anomaly/reconstruction score 與訓練時閾值比較；
+      score 超過閾值即列為異常。下方真實分布圖與 Grad-CAM 影像為此判定提供可視化證據。
     </div>
   </div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
@@ -171,10 +183,17 @@
     </div>
     <div class="cnn-chart-wrap">
       <div class="cnn-chart-title">
-        <span>重建誤差分布</span>
-        <span style="font-size:.65rem;color:var(--text-muted)">橘線 = 閾值</span>
+        <span>實際異常分數分布</span>
+        <span style="font-size:.65rem;color:var(--text-muted)">橘線 = 模型閾值</span>
       </div>
-      <div style="height:180px"><canvas id="cnnErrorChart"></canvas></div>
+      {% if cnn_result.error_histogram %}
+      <a href="{{ cnn_result.error_histogram.url }}" target="_blank">
+        <img src="{{ cnn_result.error_histogram.url }}" alt="CNN anomaly score distribution"
+             style="width:100%;display:block;border-radius:6px;background:#fff">
+      </a>
+      {% else %}
+      <div class="empty-state" style="padding:30px 10px">尚未產生實際分數分布圖</div>
+      {% endif %}
     </div>
   </div>
   {% else %}
@@ -192,17 +211,17 @@
 <div id="tab-gradcam" class="tab-panel">
   {% if can_gradcam %}
   <div class="card" style="padding:14px;margin-bottom:14px">
-    <div class="card-title" style="margin-bottom:10px">觸發 Grad-CAM 視覺化</div>
+    <div class="card-title" style="margin-bottom:10px;display:flex;justify-content:space-between;gap:12px"><span>觸發 Grad-CAM 視覺化</span><span id="gcAutoHint" style="font-size:.68rem;color:var(--text-muted)">{{ gradcam_imgs|length }} 張證據圖</span></div>
     <div class="gradcam-toolbar">
       <select id="gcVariant" class="form-input" style="max-width:150px">
         <option value="gradcam">Grad-CAM</option>
         <option value="gradcam++">Grad-CAM++</option>
         <option value="scorecam">Score-CAM</option>
       </select>
-      <input type="number" id="gcMaxImgs" value="20" min="1" max="100"
+      <input type="number" id="gcMaxImgs" value="6" min="1" max="100"
              class="form-input" style="max-width:90px" placeholder="張數">
       <label class="flex items-center gap-2" style="font-size:.8rem;color:var(--text-secondary);cursor:pointer">
-        <input type="checkbox" id="gcAnomalyOnly" checked> 僅顯示異常封包
+        <input type="checkbox" id="gcAnomalyOnly"> 僅顯示異常樣本
       </label>
       <button onclick="triggerGradCAM()" id="gcBtn" class="btn-primary">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="width:13px;height:13px"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -223,7 +242,7 @@
       {% endif %}
       <div class="gcam-info">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <strong>Packet #{{ img.packet_index }}</strong>
+          <strong>{% if cnn_unit == "flow" %}Flow{% else %}Packet{% endif %} #{{ img.packet_index }}</strong>
           <span class="sev {% if img.is_anomaly %}sev-HIGH{% else %}sev-LOW{% endif %}">
             {% if img.is_anomaly %}ANOMALY{% else %}NORMAL{% endif %}
           </span>
@@ -238,7 +257,7 @@
     {% empty %}
     <div class="empty-state" style="grid-column:1/-1">
       <h3>尚無 Grad-CAM 影像</h3>
-      <p>點擊上方「Run Grad-CAM」按鈕觸發視覺化分析。</p>
+      <p>分析完成後系統會自動產生異常與正常參考樣本；也可以手動重新執行。</p>
     </div>
     {% endfor %}
   </div>
@@ -326,72 +345,7 @@ if (delForm) {
 
 const _vc = vnaapThemeColors();
 
-// CNN 誤差直方圖
-{% if cnn_result %}
-(function() {
-  const normal = {{ cnn_result.avg_normal_error|default:0 }};
-  const anomaly = {{ cnn_result.avg_attack_error|default:0 }};
-  const thresh = {{ cnn_result.threshold|default:0 }};
-  const normalCount = {{ cnn_result.normal_count|default:0 }};
-  const anomalyCount = {{ cnn_result.anomaly_count|default:0 }};
-
-  // 產生模擬分布資料
-  const bins = 20;
-  const maxErr = Math.max(anomaly * 2, thresh * 3, 0.001);
-  const step = maxErr / bins;
-  const normalData = [], anomalyData = [], labels = [];
-
-  for (let i = 0; i < bins; i++) {
-    const center = step * (i + 0.5);
-    labels.push(center.toFixed(5));
-    // 使用高斯分布模擬
-    const nVal = normalCount * Math.exp(-0.5 * Math.pow((center - normal) / (normal * 0.3 + 1e-6), 2));
-    const aVal = anomalyCount * Math.exp(-0.5 * Math.pow((center - anomaly) / (anomaly * 0.4 + 1e-6), 2));
-    normalData.push(Math.max(0, nVal));
-    anomalyData.push(Math.max(0, aVal));
-  }
-
-  const ctx = document.getElementById('cnnErrorChart');
-  if (ctx) {
-    new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: labels,
-        datasets: [
-          { label: '正常封包', data: normalData,
-            backgroundColor: 'rgba(34,197,94,0.5)', borderColor: '#22c55e', borderWidth: 1, borderRadius: 2 },
-          { label: '異常封包', data: anomalyData,
-            backgroundColor: 'rgba(239,68,68,0.5)', borderColor: '#ef4444', borderWidth: 1, borderRadius: 2 }
-        ]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: {
-          legend: { position: 'bottom', labels: { color: _vc.textMuted, font: { size: 9 }, boxWidth: 8, padding: 6 } },
-          annotation: { annotations: {
-            threshLine: { type: 'line', scaleID: 'x', value: thresh,
-              borderColor: '#f97316', borderWidth: 2, borderDash: [5,3],
-            }
-          }}
-        },
-        scales: {
-          x: { ticks: { color: _vc.textMuted, font: { size: 7 }, maxRotation: 45 }, grid: { display: false },
-               title: { display: true, text: 'Reconstruction Error', color: _vc.textMuted, font: { size: 9 } } },
-          y: { ticks: { color: _vc.textMuted, font: { size: 8 } }, grid: { color: _vc.grid }, beginAtZero: true }
-        }
-      }
-    });
-  }
-})();
-{% endif %}
-
-function switchTab(name, btn) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
-  btn.classList.add('active');
-}
-
+// CNN 分數圖由後端產生真實 histogram PNG，前端不再自行模擬分布。
 /* Severity chart */
 {% if alerts %}
 const sd = {{ sev_data|safe }};
@@ -408,6 +362,15 @@ new Chart(document.getElementById('sevChart'), {
 });
 {% endif %}
 
+/* Tabs were wired to switchTab() but the function was missing; expose it globally. */
+window.switchTab = function(name, button) {
+  document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(el => el.classList.remove('active'));
+  if (button) button.classList.add('active');
+  const panel = document.getElementById('tab-' + name);
+  if (panel) panel.classList.add('active');
+};
+
 /* Status polling */
 let pollTimer = null;
 async function pollStatus() {
@@ -420,6 +383,17 @@ async function pollStatus() {
     badge.innerHTML = '<span class="dot"></span>' + (m[d.task_status] || d.task_status);
     document.getElementById('pktSpan').textContent   = d.packet_count + ' pkts';
     document.getElementById('alertSpan').textContent = d.alert_count + ' alerts';
+    const pct = Math.max(0, Math.min(100, Number(d.progress_percent || 0)));
+    const fill = document.getElementById('progressFill');
+    const pctLabel = document.getElementById('progressPercent');
+    const stage = document.getElementById('progressStage');
+    const detail = document.getElementById('progressDetail');
+    if (fill) fill.style.width = pct + '%';
+    if (pctLabel) pctLabel.textContent = pct + '%';
+    if (stage) stage.textContent = d.progress_stage || '處理中';
+    if (detail) detail.textContent = d.progress_detail || '';
+    const gcHint = document.getElementById('gcAutoHint');
+    if (gcHint) gcHint.textContent = d.gradcam_count + ' 張證據圖（異常 ' + d.gradcam_anomaly_count + '）';
     if (d.task_status === 'done' || d.task_status === 'failed') {
       clearInterval(pollTimer);
       if (d.task_status === 'done') setTimeout(() => location.reload(), 800);

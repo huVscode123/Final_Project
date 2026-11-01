@@ -153,7 +153,7 @@
 <div class="page-bar">
     <div>
         <h1 class="page-title">消融實驗分析 (Ablation Study)</h1>
-        <p class="page-sub">探索不同模型架構與參數設定對異常檢測效能的影響。</p>
+        <p class="page-sub">使用各自已訓練的 checkpoint 與相符資料表示，執行固定模型的輸入資訊消融；本頁不會重新訓練模型架構。</p>
     </div>
 </div>
 
@@ -169,44 +169,23 @@
                 <div class="form-group">
                     <label class="form-label">資料集選擇</label>
                     <select class="form-input" id="dataset-select" name="dataset">
-                        <option value="simulate">Simulate (模擬輕量資料 - 快速)</option>
-                        <option value="nslkdd">NSL-KDD (中型資料)</option>
-                        <option value="cicids2017">CIC-IDS2017 (真實龐大資料 - 較慢)</option>
+                        <option value="unsup_cicids2017">非監督式 CICIDS2017</option>
+                        <option value="semi_cicids2017">半監督式 CICIDS2017</option>
+                        <option value="mta_malware">非監督式 真實惡意軟體偵測 (MTA)</option>
+                        <option value="semi_mta_malware">半監督式 真實惡意軟體偵測 (MTA)</option>
                     </select>
+                    <div style="font-size:.72rem;color:var(--text-muted);margin-top:7px;line-height:1.6">系統會載入該選項對應的 .pt 權重及配套資料陣列；缺少權重或資料時將明確報錯，不會以其他資料集替代。</div>
                 </div>
             </div>
 
             <div class="form-group">
                 <label class="form-label">選擇要執行的消融實驗項目</label>
                 <div class="checkbox-grid">
-                    <label class="checkbox-item">
-                        <input type="checkbox" name="experiments" value="all" checked>
-                        <span>全部執行 (All)</span>
-                    </label>
-                    <label class="checkbox-item">
-                        <input type="checkbox" name="experiments" value="latent">
-                        <span>Latent Dimension (潛在維度)</span>
-                    </label>
-                    <label class="checkbox-item">
-                        <input type="checkbox" name="experiments" value="arch">
-                        <span>Architecture Scale (架構寬度)</span>
-                    </label>
-                    <label class="checkbox-item">
-                        <input type="checkbox" name="experiments" value="size">
-                        <span>Image Size (影像尺寸)</span>
-                    </label>
-                    <label class="checkbox-item">
-                        <input type="checkbox" name="experiments" value="mask">
-                        <span>Field Masking (欄位遮罩)</span>
-                    </label>
-                    <label class="checkbox-item">
-                        <input type="checkbox" name="experiments" value="data">
-                        <span>Data Size (訓練資料量)</span>
-                    </label>
-                    <label class="checkbox-item">
-                        <input type="checkbox" name="experiments" value="act">
-                        <span>Activation (激活函數)</span>
-                    </label>
+                    <label class="checkbox-item"><input type="checkbox" name="experiments" value="all" checked><span>全部執行</span></label>
+                    <label class="checkbox-item"><input type="checkbox" name="experiments" value="mask10"><span>中央區域遮罩 10%</span></label>
+                    <label class="checkbox-item"><input type="checkbox" name="experiments" value="mask25"><span>中央區域遮罩 25%</span></label>
+                    <label class="checkbox-item"><input type="checkbox" name="experiments" value="shuffle_rows"><span>影像列順序置換</span></label>
+                    <label class="checkbox-item"><input type="checkbox" name="experiments" value="sample50"><span>評估樣本量減半</span></label>
                 </div>
             </div>
 
@@ -237,7 +216,7 @@
     <!-- 結果展示區 -->
     <div class="panel" id="results-panel" style="display: none;">
         <div class="panel-title">
-            <i class="fas fa-chart-bar"></i> 實驗結果圖表
+            <i class="fas fa-chart-bar"></i> 輸入消融結果
         </div>
         <div class="results-grid" id="results-grid">
             <!-- 圖表將由 JS 動態插入 -->

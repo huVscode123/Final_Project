@@ -1,0 +1,16 @@
+{
+  "model": "output/threshold_study/mta_malware/semi/semi_mta_malware.pt",
+  "model_type": "hybrid_semi",
+  "mode": "packet",
+  "model_threshold": 0.00021121618920005858,
+  "representation": "packet_bytes_visualizer",
+  "labels": null,
+  "scaler": null,
+  "tcp_termination": null,
+  "bulk_mode": null,
+  "flag_mode": null,
+  "missing_window_value": null,
+  "converter_version": null,
+  "calibration_csv": null,
+  "started": "2026-10-20T23:01:50"
+}

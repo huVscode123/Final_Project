@@ -1,0 +1,81 @@
+{
+  "model_key": "semi_cicids2017",
+  "checkpoint": "C:\\Users\\user\\Desktop\\final_project\\media\\model\\semi_cicids2017.pt",
+  "dataset": "CICIDS2017",
+  "learning_mode": "semi_supervised",
+  "input_representation": "csv_features_legacy",
+  "threshold": 0.002212783163646327,
+  "normal_data_source": "C:\\Users\\user\\Desktop\\final_project\\data\\cicids2017 CSV; scaler=C:\\Users\\user\\Desktop\\final_project\\output\\model_semi_cicids2017\\cicids2017_preprocessor.pkl; sample_seed=20261010",
+  "attack_data_source": "C:\\Users\\user\\Desktop\\final_project\\data\\cicids2017 CSV; scaler=C:\\Users\\user\\Desktop\\final_project\\output\\model_semi_cicids2017\\cicids2017_preprocessor.pkl; sample_seed=20261010",
+  "preprocessor_path": "C:\\Users\\user\\Desktop\\final_project\\output\\model_semi_cicids2017\\cicids2017_preprocessor.pkl",
+  "sample_count_total": 10000,
+  "evaluation_warning": "若所用 .npy 包含模型訓練時使用的樣本，這些數字屬於輸入敏感度／消融觀察，不可當成獨立測試集泛化效能。正式效能報告應使用獨立且去重的 test split。",
+  "experiment_type": "固定已訓練 checkpoint 的推論輸入消融；不重新訓練架構、latent dimension 或模型權重。",
+  "results": {
+    "baseline": {
+      "sample_count": 10000,
+      "true_positive": 4919,
+      "true_negative": 4582,
+      "false_positive": 418,
+      "false_negative": 81,
+      "accuracy": 0.9501,
+      "precision": 0.921679,
+      "recall": 0.9838,
+      "f1": 0.951727,
+      "false_positive_rate": 0.0836,
+      "description": "未修改模型輸入的基準結果"
+    },
+    "mask10": {
+      "sample_count": 10000,
+      "true_positive": 4919,
+      "true_negative": 4582,
+      "false_positive": 418,
+      "false_negative": 81,
+      "accuracy": 0.9501,
+      "precision": 0.921679,
+      "recall": 0.9838,
+      "f1": 0.951727,
+      "false_positive_rate": 0.0836,
+      "description": "將中央約 10% 面積設為 0，觀察局部資訊缺失影響"
+    },
+    "mask25": {
+      "sample_count": 10000,
+      "true_positive": 4919,
+      "true_negative": 4582,
+      "false_positive": 418,
+      "false_negative": 81,
+      "accuracy": 0.9501,
+      "precision": 0.921679,
+      "recall": 0.9838,
+      "f1": 0.951727,
+      "false_positive_rate": 0.0836,
+      "description": "將中央約 25% 面積設為 0，觀察較大局部資訊缺失影響"
+    },
+    "shuffle_rows": {
+      "sample_count": 10000,
+      "true_positive": 4562,
+      "true_negative": 2309,
+      "false_positive": 2691,
+      "false_negative": 438,
+      "accuracy": 0.6871,
+      "precision": 0.628981,
+      "recall": 0.9124,
+      "f1": 0.744634,
+      "false_positive_rate": 0.5382,
+      "description": "置換影像列順序，觀察空間排列對模型判斷的影響"
+    },
+    "sample50": {
+      "sample_count": 5000,
+      "true_positive": 2499,
+      "true_negative": 2257,
+      "false_positive": 207,
+      "false_negative": 37,
+      "accuracy": 0.9512,
+      "precision": 0.923503,
+      "recall": 0.98541,
+      "f1": 0.953453,
+      "false_positive_rate": 0.08401,
+      "description": "以每隔一筆的方式取 50% 評估樣本，觀察樣本量與結果波動；非特徵消融"
+    }
+  }
+}

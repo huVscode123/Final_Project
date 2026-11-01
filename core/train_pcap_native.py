@@ -131,7 +131,7 @@ def train_vae(X_normal, X_attack, epochs, patience, batch_size,
     idx = np.random.default_rng(42).permutation(n)
     split = max(1, int(n * 0.85))
     X_train = X_normal[idx[:split]]
-    X_holdout = X_normal[idx[split:]] if split < n else X_normal[idx[-max(1, n // 20):]:]
+    X_holdout = X_normal[idx[split:]] if split < n else X_normal[idx[-max(1, n // 20):]]
 
     train_npy = os.path.join(out_dir, "_X_train.npy")
     np.save(train_npy, X_train)
@@ -192,7 +192,8 @@ def train_vae(X_normal, X_attack, epochs, patience, batch_size,
 
 
 def train_semi(X_normal, X_attack, pretrain_epochs, finetune_epochs,
-               batch_size, latent_dim, output_dir, model_name):
+               batch_size, latent_dim, output_dir, model_name,
+               threshold_method="optimal", youden_max_fpr=None):
     """訓練半監督式 Hybrid 模型"""
     from hybrid_semi_supervised import HybridSemiSupervisedTrainer
 
@@ -217,12 +218,13 @@ def train_semi(X_normal, X_attack, pretrain_epochs, finetune_epochs,
         "learning_rate": 1e-3,
         "attack_ratio": 0.3,
         "unknown_percentile": 95,
+        "youden_max_fpr": youden_max_fpr,
     }
     trainer = HybridSemiSupervisedTrainer(
         config=config, output_dir=out_dir, model_name=model_name)
 
     t0 = time.time()
-    threshold = trainer.train_full(X_train, X_attack, threshold_method="optimal")
+    threshold = trainer.train_full(X_train, X_attack, threshold_method=threshold_method)
     train_time = time.time() - t0
 
     print(f"  訓練完成，耗時 {train_time:.1f}s，閾值：{threshold:.6f}")
@@ -270,6 +272,11 @@ def main():
                         help="異常閾值百分位數")
     parser.add_argument("--semi-pretrain-epochs", type=int, default=150)
     parser.add_argument("--semi-finetune-epochs", type=int, default=60)
+    parser.add_argument("--semi-threshold-method",
+                        choices=["percentile", "optimal", "youden"], default="optimal",
+                        help="半監督模型的閾值決定方式（youden = Youden's Index）")
+    parser.add_argument("--youden-max-fpr", type=float, default=None,
+                        help="youden 模式的 FPR 上限（例如 0.05）")
 
     # 輸出
     parser.add_argument("--output", default=None,
@@ -339,6 +346,8 @@ def main():
             finetune_epochs=args.semi_finetune_epochs,
             batch_size=args.batch_size, latent_dim=args.latent_dim,
             output_dir=args.output, model_name=args.dataset,
+            threshold_method=args.semi_threshold_method,
+            youden_max_fpr=args.youden_max_fpr,
         )
         summary["results"]["semi"] = res
         if not args.no_deploy:

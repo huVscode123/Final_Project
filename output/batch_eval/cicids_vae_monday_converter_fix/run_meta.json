@@ -1,0 +1,9 @@
+{
+  "model": "output/threshold_study/unsup_cicids2017/best_vae_cicids2017.pt",
+  "model_type": "cnn_vae",
+  "mode": "flow",
+  "model_threshold": 0.0008199410804081708,
+  "representation": "csv_features_cicids2017",
+  "labels": "core/cicids2017_labels.json",
+  "started": "2026-10-19T10:45:00"
+}

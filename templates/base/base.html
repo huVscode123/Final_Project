@@ -47,9 +47,13 @@
           display: block;
           object-fit: contain;
         }
-        /* 淺色模式時，替換為黑字版本 */
+        /* 淺色模式時，替換為新版本 (白底) */
         html[data-theme="light"] .dynamic-logo {
-          content: url("{% static 'img/breaking bad - Visualized Network Attack Automated Analysis Platform(black).png' %}");
+          content: url("{% static 'img/breaking bad - Visualized Network Attack Automated Analysis Platform(white).jpg' %}");
+          /* 新圖比例為 1024x414 (約 2.47:1)，比原本的 666x375 寬。
+             為保持視覺比例平衡，淺色模式下稍微縮小高度。 */
+          height: 90px;
+          margin-top: 15px; /* 置中補償 */
         }
       </style>
       <a href="{% url 'analyzer:dashboard' %}">

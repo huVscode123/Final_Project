@@ -1,0 +1,34 @@
+{
+  "overall": {
+    "n": 757,
+    "n_anomaly": 262,
+    "anomaly_rate": 0.34610303830911493,
+    "score_quantiles": {
+      "p50": 0.00038045813562348485,
+      "p90": 0.004451237060129642,
+      "p95": 0.0061979633755981775,
+      "p99": 0.006855368986725807,
+      "p99.9": 0.007081071533262739
+    }
+  },
+  "threshold_used": 0.0008199410804081708,
+  "benign_only_or_benign_subset": {
+    "n_benign": 757,
+    "false_positive": 262,
+    "true_negative": 495,
+    "fpr_at_model_threshold": 0.34610303830911493,
+    "fpr_ci95": [
+      0.31306729530089594,
+      0.38069287764443194
+    ]
+  },
+  "label_distribution": {
+    "BENIGN": 757
+  },
+  "n_relabeled_benign_from_schedule": 0,
+  "independent_calibration": {
+    "path": null,
+    "n_benign": 0,
+    "provenance_verified": false
+  }
+}

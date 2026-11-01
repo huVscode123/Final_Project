@@ -1,0 +1,163 @@
+{
+  "model_key": "semi_cicids2017",
+  "model_type": "hybrid_semi",
+  "threshold_policy": "final attack = classifier_attack_probability >= fixed threshold OR VAE score > VAE threshold",
+  "classifier_threshold_fixed": 0.5,
+  "percentile": 95.0,
+  "youden_max_fpr": 0.05,
+  "split": {
+    "cal_normal": 6000,
+    "cal_attack": 3000,
+    "test_normal": 12000,
+    "test_attack": 6000
+  },
+  "metrics_note": "閾值式指標以完整 Hybrid 最終輸出計算；AUC 另以分類器機率或 VAE score 分開呈現。",
+  "methods": {
+    "percentile": {
+      "available": true,
+      "threshold": 0.0007114622043445707,
+      "classifier_threshold": 0.5,
+      "info": {
+        "objective": "normal_calibration_percentile",
+        "percentile": 95.0,
+        "classifier_threshold_fixed": 0.5
+      },
+      "calibration": {
+        "TN": 5652,
+        "FP": 348,
+        "FN": 15,
+        "TP": 2985,
+        "precision": 0.8955895589558955,
+        "recall": 0.995,
+        "f1": 0.9426811937470392,
+        "fpr": 0.058,
+        "youden_j": 0.9369999999999999,
+        "accuracy": 0.9596666666666667,
+        "n_normal": 6000,
+        "n_attack": 3000
+      },
+      "test": {
+        "TN": 11317,
+        "FP": 683,
+        "FN": 35,
+        "TP": 5965,
+        "precision": 0.8972623345367028,
+        "recall": 0.9941666666666666,
+        "f1": 0.9432321315623023,
+        "fpr": 0.056916666666666664,
+        "youden_j": 0.93725,
+        "accuracy": 0.9601111111111111,
+        "n_normal": 12000,
+        "n_attack": 6000
+      }
+    },
+    "optimal": {
+      "available": true,
+      "threshold": 0.01678665913641453,
+      "classifier_threshold": 0.5,
+      "info": {
+        "objective": "maximize_hybrid_f1_with_fixed_classifier_threshold",
+        "classifier_threshold_fixed": 0.5,
+        "TN": 5932,
+        "FP": 68,
+        "FN": 20,
+        "TP": 2980,
+        "precision": 0.9776902887139107,
+        "recall": 0.9933333333333333,
+        "f1": 0.9854497354497354,
+        "fpr": 0.011333333333333334,
+        "youden_j": 0.982,
+        "accuracy": 0.9902222222222222,
+        "n_normal": 6000,
+        "n_attack": 3000,
+        "n_candidates": 7292
+      },
+      "calibration": {
+        "TN": 5932,
+        "FP": 68,
+        "FN": 20,
+        "TP": 2980,
+        "precision": 0.9776902887139107,
+        "recall": 0.9933333333333333,
+        "f1": 0.9854497354497354,
+        "fpr": 0.011333333333333334,
+        "youden_j": 0.982,
+        "accuracy": 0.9902222222222222,
+        "n_normal": 6000,
+        "n_attack": 3000
+      },
+      "test": {
+        "TN": 11842,
+        "FP": 158,
+        "FN": 50,
+        "TP": 5950,
+        "precision": 0.9741322855271775,
+        "recall": 0.9916666666666667,
+        "f1": 0.9828212751899571,
+        "fpr": 0.013166666666666667,
+        "youden_j": 0.9785,
+        "accuracy": 0.9884444444444445,
+        "n_normal": 12000,
+        "n_attack": 6000
+      }
+    },
+    "youden": {
+      "available": true,
+      "threshold": 0.01678665913641453,
+      "classifier_threshold": 0.5,
+      "info": {
+        "objective": "maximize_hybrid_youden_j_with_fixed_classifier_threshold",
+        "classifier_threshold_fixed": 0.5,
+        "max_fpr": 0.05,
+        "TN": 5932,
+        "FP": 68,
+        "FN": 20,
+        "TP": 2980,
+        "precision": 0.9776902887139107,
+        "recall": 0.9933333333333333,
+        "f1": 0.9854497354497354,
+        "fpr": 0.011333333333333334,
+        "youden_j": 0.982,
+        "accuracy": 0.9902222222222222,
+        "n_normal": 6000,
+        "n_attack": 3000,
+        "n_candidates": 7292,
+        "fallback": false
+      },
+      "calibration": {
+        "TN": 5932,
+        "FP": 68,
+        "FN": 20,
+        "TP": 2980,
+        "precision": 0.9776902887139107,
+        "recall": 0.9933333333333333,
+        "f1": 0.9854497354497354,
+        "fpr": 0.011333333333333334,
+        "youden_j": 0.982,
+        "accuracy": 0.9902222222222222,
+        "n_normal": 6000,
+        "n_attack": 3000
+      },
+      "test": {
+        "TN": 11842,
+        "FP": 158,
+        "FN": 50,
+        "TP": 5950,
+        "precision": 0.9741322855271775,
+        "recall": 0.9916666666666667,
+        "f1": 0.9828212751899571,
+        "fpr": 0.013166666666666667,
+        "youden_j": 0.9785,
+        "accuracy": 0.9884444444444445,
+        "n_normal": 12000,
+        "n_attack": 6000
+      }
+    }
+  },
+  "test_auc": {
+    "classifier_roc_auc": 0.9989282500000001,
+    "classifier_pr_auc": 0.9980211159398347,
+    "vae_score_roc_auc": 0.8871234166666666,
+    "vae_score_pr_auc": 0.8644009878877406
+  }
+}

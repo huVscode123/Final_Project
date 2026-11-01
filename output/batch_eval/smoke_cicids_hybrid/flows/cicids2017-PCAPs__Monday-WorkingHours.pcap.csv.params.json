@@ -1,0 +1,11 @@
+{
+  "flow_timeout": 120.0,
+  "idle_threshold": 1.0,
+  "bulk_threshold": 1.0,
+  "max_packets": 10000,
+  "tcp_termination": "cicflowmeter_original",
+  "bulk_mode": "cicids2017_zero",
+  "flag_mode": "packet_count",
+  "missing_window_value": -1.0,
+  "converter_version": "5.0.0-cicids2017-legacy-compat"
+}

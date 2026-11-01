@@ -111,15 +111,47 @@ CELERY_TASK_ALWAYS_EAGER  = os.getenv('CELERY_EAGER', 'false').lower() == 'true'
 CNN_MODEL_PATH  = BASE_DIR / 'media' / 'model' / 'best_model.pt'
 CNN_LATENT_DIM  = 32
 ANOMALY_MODELS = {
-    'unsupervised_vae': {'label': '非監督式 CNN-VAE', 'path': BASE_DIR / 'media' / 'model' / 'best_vae_model.pt', 'type': 'cnn_vae'},
-    'semi_cicddos2019': {'label': '半監督式 CIC-DDoS2019', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicddos2019.pt', 'type': 'hybrid_semi'},
-    'semi_cicids2017': {'label': '半監督式 CICIDS2017', 'path': BASE_DIR / 'media' / 'model' / 'semi_cicids2017.pt', 'type': 'hybrid_semi'},
-    # NSL-KDD 無原始 PCAP 可用，存在不可消除的 train/serve skew，停用但保留程式碼
-    'semi_nslkdd': {'label': '半監督式 NSL-KDD', 'path': BASE_DIR / 'media' / 'model' / 'semi_nslkdd.pt', 'type': 'hybrid_semi', 'enabled': False},
-    # MTA — Malware Traffic Analysis 真實惡意攻擊偵測模型
-    'mta_malware': {'label': '非監督式 真實惡意軟體偵測 (MTA)', 'path': BASE_DIR / 'media' / 'model' / 'mta_malware.pt', 'type': 'cnn_vae'},
-    'semi_mta_malware': {'label': '半監督式 真實惡意軟體偵測 (MTA)', 'path': BASE_DIR / 'media' / 'model' / 'semi_mta_malware.pt', 'type': 'hybrid_semi'},
+    # 每個選項指向獨立、已訓練的 checkpoint；不存在時 UI 會停用，不會改用其他模型。
+    'unsup_cicids2017': {
+        'label': '非監督式 CICIDS2017',
+        'path': BASE_DIR / 'media' / 'model' / 'best_vae_cicids2017.pt',
+        'type': 'cnn_vae', 'dataset': 'CICIDS2017', 'learning': 'unsupervised',
+    },
+    'semi_cicids2017': {
+        'label': '半監督式 CICIDS2017',
+        'path': BASE_DIR / 'media' / 'model' / 'semi_cicids2017.pt',
+        'type': 'hybrid_semi', 'dataset': 'CICIDS2017', 'learning': 'semi_supervised',
+    },
+    'mta_malware': {
+        'label': '非監督式 真實惡意軟體偵測 (MTA)',
+        'path': BASE_DIR / 'media' / 'model' / 'best_vae_mta_malware.pt',
+        'type': 'cnn_vae', 'dataset': 'MTA', 'learning': 'unsupervised',
+    },
+    'semi_mta_malware': {
+        'label': '半監督式 真實惡意軟體偵測 (MTA)',
+        'path': BASE_DIR / 'media' / 'model' / 'semi_mta_malware.pt',
+        'type': 'hybrid_semi', 'dataset': 'MTA', 'learning': 'semi_supervised',
+    },
+    # NSL-KDD 保留舊紀錄相容性，但不提供給 PCAP 分析選擇。
+    'semi_nslkdd': {
+        'label': '半監督式 NSL-KDD（停用）',
+        'path': BASE_DIR / 'media' / 'model' / 'semi_nslkdd.pt',
+        'type': 'hybrid_semi', 'enabled': False, 'dataset': 'NSL-KDD',
+    },
 }
+
+# Flow/CSV 模型必須沿用訓練期前處理器；packet-native checkpoint 不使用 scaler。
+ANOMALY_PREPROCESSORS = {
+    'unsup_cicids2017': (
+        BASE_DIR / 'output' / 'model_cicids2017_vae_fixed'
+        / 'cicids2017_preprocessor.pkl'
+    ),
+    'semi_cicids2017': (
+        BASE_DIR / 'output' / 'model_semi_cicids2017'
+        / 'cicids2017_preprocessor.pkl'
+    ),
+}
+
 # ── [P1-2 修正] 支援環境變數覆蓋 ──
 CNN_THRESHOLD = float(os.getenv('CNN_THRESHOLD', '0.000069'))
 

@@ -104,6 +104,16 @@ class AnomalyModelBundle:
         return self.model_type == "hybrid_semi"
 
     @property
+    def is_packet_native(self) -> bool:
+        """此 checkpoint 是否以 PacketVisualizer 的原始封包影像訓練。"""
+        return self.input_representation == "packet_bytes_visualizer"
+
+    @property
+    def is_flow_model(self) -> bool:
+        """只要不是 packet-native，就視為需要 flow/feature 前處理。"""
+        return not self.is_packet_native
+
+    @property
     def input_representation(self) -> str:
         """本模型訓練時使用的輸入資料表示法。
 
@@ -148,7 +158,17 @@ def load_anomaly_model(checkpoint_path, device: Optional[torch.device] = None,
 
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=True)
     model_type = ckpt.get("model_type") if isinstance(ckpt, dict) else None
-    cfg = ckpt.get("config", {}) if isinstance(ckpt, dict) else {}
+    raw_cfg = ckpt.get("config", {}) if isinstance(ckpt, dict) else {}
+    cfg = dict(raw_cfg) if isinstance(raw_cfg, dict) else {}
+    # checkpoint 新版可能把 scaler_path / representation 等資訊存於頂層；
+    # 統一合併進 bundle.config，讓 Django 與 CLI 使用同一份模型 metadata。
+    if isinstance(ckpt, dict):
+        for _key in (
+            "representation", "scaler_path", "scaler_type",
+            "feature_columns", "image_size", "normalization",
+        ):
+            if _key in ckpt and _key not in cfg:
+                cfg[_key] = ckpt[_key]
 
     if model_type == "hybrid_semi":
         from hybrid_semi_supervised import HybridSemiSupervisedDetector

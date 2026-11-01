@@ -1,310 +1,547 @@
-# ============================================================
-# core/cnn_gradcam/gradcam_core.py  - Grad-CAM 核心演算法（修正版 v2）
-#
-# 修正清單：
-#   [Bug 6] _gradcam_pp：缺少 model.zero_grad() 呼叫。
-#           若前一次 backward 留有殘餘梯度，Hook 捕捉的
-#           gradient 為污染值，alpha 係數計算偏差。
-#           修正：在 backward 前加入 self.model.zero_grad()，
-#           並移除不必要的 create_graph=True（_gradcam_pp
-#           只需一階梯度，create_graph 會增加不必要的計算量）。
-#
-#   [Bug 1/2 修正 — 2026] 舊版 _DEFAULT_TARGET_LAYER = "encoder_conv"
-#           只符合 ablation_study.CNNAutoencoderFlex（扁平命名 "encoder_conv.N"）
-#           與測試用 fixture 模型，對正式訓練管線使用的
-#           core/cnn_autoencoder.py::CNNAutoencoder（巢狀命名
-#           "encoder.conv_layers.N"）完全找不到層，
-#           GradCAM(model) 在未手動指定 layer 時會直接拋 ValueError。
-#           修正：target_layer 預設改為 None = 自動偵測，
-#           _auto_detect_target_layer() 會在模型的 encoder 部分
-#           （名稱含 "encoder" 的子模組）尋找最後一個 Conv2d，
-#           同時相容扁平與巢狀兩種命名風格；找不到則退回全模型
-#           最後一個 Conv2d。使用者仍可透過 target_layer 手動覆寫。
-# ============================================================
+# -*- coding: utf-8 -*-
+"""Grad-CAM methods for CNN autoencoders and variational autoencoders.
 
+Supported variants
+------------------
+- gradcam: original Grad-CAM, using spatially averaged first-order gradients.
+- gradcam++: Grad-CAM++ channel weights from the first-order gradient map.
+- scorecam: activation-map masking with anomaly-score-based channel weights.
+
+For the CICIDS2017 CNN-VAE in this project, set score_mode="vae".  The target
+score is the same per-sample quantity used by the detector:
+
+    reconstruction MSE + model.kl_weight * KL divergence
+
+The class deliberately computes this score through loss_per_sample(), rather
+than reconstruction_error(), because reconstruction_error() is decorated with
+no_grad() in the project's VAE implementation.
+"""
 from __future__ import annotations
+
+import warnings
+from typing import Literal, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional, Tuple, Literal
 
-from .gradcam_hooks import HookManager
 
-# None = 自動偵測（建議）。仍可傳入字串手動指定特定層名稱。
-_DEFAULT_TARGET_LAYER = None
+CAMVariant = Literal["gradcam", "gradcam++", "scorecam"]
+ScoreMode = Literal["auto", "vae", "mse"]
 
 
 class GradCAM:
-    """
-    CNN Autoencoder 的 Grad-CAM 視覺化工具。（修正版）
+    """Generate CAM heatmaps for a convolutional autoencoder.
+
+    Args:
+        model: Trained PyTorch model. For score_mode="vae", the model must
+            expose loss_per_sample(x) -> (reconstruction_error, kl_divergence)
+            and kl_weight, as CNNVariationalAutoencoder does.
+        target_layer: Exact module name. None auto-selects the last Conv2d
+            layer whose name contains "encoder".
+        variant: gradcam, gradcam++, or scorecam.
+        target_type: Kept for backwards compatibility with the former API.
+            In score_mode="vae", the complete VAE anomaly score is always
+            used; pixel/channel targets are intentionally not applied.
+        device: torch.device or None (auto CUDA/CPU).
+        score_mode: "vae" uses MSE + weighted KL; "mse" uses reconstruction
+            MSE only; "auto" selects VAE score when loss_per_sample exists.
+        scorecam_batch_size: Maximum number of masked examples forwarded at
+            once by Score-CAM.
+        scorecam_temperature: Temperature for normalized anomaly-score
+            differences in Score-CAM. Larger values make channel weights more
+            uniform; smaller values make them more selective.
+        smooth_sigma: Gaussian smoothing sigma. 0 disables smoothing.
     """
 
     def __init__(
         self,
         model: nn.Module,
-        target_layer: Optional[str] = _DEFAULT_TARGET_LAYER,
-        variant: Literal["gradcam", "gradcam++", "scorecam"] = "gradcam",
+        target_layer: Optional[str] = None,
+        variant: CAMVariant = "gradcam",
         target_type: Literal["mse", "pixel", "channel"] = "mse",
         device: Optional[torch.device] = None,
-    ):
-        self.model        = model
-        self.target_layer = target_layer
-        self.variant      = variant
-        self.target_type  = target_type
-        self.device       = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.model        = self.model.to(self.device)
+        score_mode: ScoreMode = "auto",
+        scorecam_batch_size: int = 32,
+        scorecam_temperature: float = 1.0,
+        smooth_sigma: float = 1.0,
+    ) -> None:
+        if variant not in ("gradcam", "gradcam++", "scorecam"):
+            raise ValueError(f"不支援的 CAM variant：{variant}")
+        if score_mode not in ("auto", "vae", "mse"):
+            raise ValueError(f"不支援的 score_mode：{score_mode}")
+        if scorecam_batch_size < 1:
+            raise ValueError("scorecam_batch_size 必須 >= 1")
+        if scorecam_temperature <= 0:
+            raise ValueError("scorecam_temperature 必須 > 0")
+        if smooth_sigma < 0:
+            raise ValueError("smooth_sigma 不可小於 0")
 
-        if target_layer is None:
-            self._resolved_layer = self._auto_detect_target_layer()
-        else:
-            self._resolved_layer = self._resolve_target_layer(target_layer)
-        self._hook_manager   = HookManager(self.model)
-        self._hook_manager.attach([self._resolved_layer])
+        self.model = model
+        self.model.eval()
+        self.device = device or torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
+        self.model.to(self.device)
 
-    # ── 目標層解析 ────────────────────────────────────────
+        self.variant = variant
+        self.target_type = target_type
+        self.score_mode = score_mode
+        self.scorecam_batch_size = int(scorecam_batch_size)
+        self.scorecam_temperature = float(scorecam_temperature)
+        self.smooth_sigma = float(smooth_sigma)
+
+        self._resolved_score_mode = self._resolve_score_mode(score_mode)
+        self._resolved_layer = (
+            self._auto_detect_target_layer()
+            if target_layer is None
+            else self._resolve_target_layer(target_layer)
+        )
+        self._target_module = dict(self.model.named_modules())[self._resolved_layer]
+
+        self._activation: Optional[torch.Tensor] = None
+        self._gradient: Optional[torch.Tensor] = None
+        # Per-sample diagnostics distinguish an empty positive-evidence CAM
+        # from a missing/zero gradient hook.
+        self.last_diagnostics: list[dict[str, float]] = []
+        self._forward_handle = self._target_module.register_forward_hook(
+            self._forward_hook
+        )
+
+    # ------------------------------------------------------------------
+    # Target layer and score resolution
+    # ------------------------------------------------------------------
+    def _resolve_score_mode(self, score_mode: ScoreMode) -> str:
+        has_vae_api = (
+            callable(getattr(self.model, "loss_per_sample", None))
+            and hasattr(self.model, "kl_weight")
+        )
+        if score_mode == "vae" and not has_vae_api:
+            raise TypeError(
+                "score_mode='vae' 需要模型同時提供 loss_per_sample() 與 kl_weight。"
+            )
+        if score_mode == "auto":
+            return "vae" if has_vae_api else "mse"
+        return score_mode
+
     def _resolve_target_layer(self, layer_name: str) -> str:
-        for name, module in self.model.named_modules():
-            if name == layer_name:
-                if isinstance(module, nn.Sequential):
-                    last_conv = None
-                    for sub_name, sub_mod in self.model.named_modules():
-                        if sub_name.startswith(layer_name + ".") and isinstance(sub_mod, nn.Conv2d):
-                            last_conv = sub_name
-                    if last_conv:
-                        return last_conv
-                return name
+        modules = dict(self.model.named_modules())
+        if layer_name in modules:
+            module = modules[layer_name]
+            if isinstance(module, nn.Sequential):
+                candidates = [
+                    name for name, child in self.model.named_modules()
+                    if name.startswith(layer_name + ".")
+                    and isinstance(child, nn.Conv2d)
+                ]
+                if candidates:
+                    return candidates[-1]
+                raise TypeError(f"Sequential 目標層 {layer_name!r} 內找不到 Conv2d。")
+            # Exact spatial modules including the post-BN/ReLU feature layer
+            # are accepted. The forward hook validates the 4-D output shape.
+            return layer_name
 
+        supported = (nn.Conv2d, nn.BatchNorm2d, nn.ReLU,
+                     nn.MaxPool2d, nn.AdaptiveAvgPool2d)
         candidates = [
-            n for n, m in self.model.named_modules()
-            if layer_name in n and isinstance(m, nn.Conv2d)
+            name for name, module in self.model.named_modules()
+            if layer_name in name and isinstance(module, supported)
         ]
         if candidates:
             return candidates[-1]
-
         raise ValueError(
-            f"[GradCAM] 找不到目標層 '{layer_name}'。\n"
-            f"可用 Conv2d 層：{HookManager.list_available_layers(self.model)}\n"
-            f"提示：若不確定層名稱，可將 target_layer 設為 None 以自動偵測。"
+            f"找不到目標層 {layer_name!r}。可用空間層："
+            f"{self.list_spatial_target_layers()}"
         )
 
-    # ── [新增] 自動偵測目標層 ────────────────────────────────
     def _auto_detect_target_layer(self) -> str:
-        """
-        自動選取 Encoder 最後一個 Conv2d 層作為 Grad-CAM 目標層。
-
-        同時相容：
-          - 巢狀命名（core.cnn_autoencoder.CNNAutoencoder）："encoder.conv_layers.11"
-          - 扁平命名（ablation_study.CNNAutoencoderFlex / gradcam 測試 fixture）："encoder_conv.9"
-
-        邏輯：
-          1. 優先在名稱含 "encoder"（不分大小寫）的子模組中找最後一個 Conv2d。
-          2. 若模型完全沒有名為 encoder 的部分，退回整個模型最後一個 Conv2d
-             （對 Autoencoder 而言通常仍位於編碼路徑內，是合理預設）。
-        """
-        all_convs = [
-            n for n, m in self.model.named_modules() if isinstance(m, nn.Conv2d)
+        conv_layers = [
+            name
+            for name, module in self.model.named_modules()
+            if name and isinstance(module, nn.Conv2d)
         ]
-        if not all_convs:
-            raise ValueError(
-                f"[GradCAM] 模型中找不到任何 Conv2d 層，無法自動偵測目標層。\n"
-                f"請手動指定 target_layer。"
+        if not conv_layers:
+            raise ValueError("模型中找不到 nn.Conv2d，無法產生 CAM。")
+        encoder_layers = [name for name in conv_layers if "encoder" in name.lower()]
+        return (encoder_layers or conv_layers)[-1]
+
+    def list_target_layers(self) -> list[str]:
+        # Backward-compatible list containing Conv2d modules only.
+        return [
+            name for name, module in self.model.named_modules()
+            if name and isinstance(module, nn.Conv2d)
+        ]
+
+    def list_spatial_target_layers(self) -> list[str]:
+        supported = (nn.Conv2d, nn.BatchNorm2d, nn.ReLU,
+                     nn.MaxPool2d, nn.AdaptiveAvgPool2d)
+        return [
+            name for name, module in self.model.named_modules()
+            if name and isinstance(module, supported)
+        ]
+
+    # ------------------------------------------------------------------
+    # Hooks
+    # ------------------------------------------------------------------
+    def _forward_hook(self, _module, _inputs, output) -> None:
+        activation = output[0] if isinstance(output, (tuple, list)) else output
+        if not torch.is_tensor(activation) or activation.ndim != 4:
+            shape = tuple(activation.shape) if torch.is_tensor(activation) else type(activation)
+            raise TypeError(
+                "Grad-CAM 目標層必須輸出 (B,C,H,W) 空間特徵，"
+                f"目前輸出={shape}。請指定 Conv2d/BN/ReLU 等空間層。"
             )
+        self._activation = activation
+        self._gradient = None
+        if activation.requires_grad:
+            activation.register_hook(self._save_gradient)
 
-        encoder_convs = [n for n in all_convs if "encoder" in n.lower()]
-        chosen = (encoder_convs or all_convs)[-1]
-        return chosen
+    def _save_gradient(self, gradient: torch.Tensor) -> None:
+        self._gradient = gradient.detach()
 
-    # ── 主要介面：generate ────────────────────────────────
-    def generate(
+    def _clear_cache(self) -> None:
+        self._activation = None
+        self._gradient = None
+
+    # ------------------------------------------------------------------
+    # Model score
+    # ------------------------------------------------------------------
+    def _target_score(
         self,
         x: torch.Tensor,
         pixel_coords: Optional[Tuple[int, int]] = None,
         channel_idx: int = 0,
+    ) -> torch.Tensor:
+        """Return one differentiable target score per input sample."""
+        if self._resolved_score_mode == "vae":
+            # This is the exact differentiable counterpart of the project's
+            # CNNVariationalAutoencoder.reconstruction_error().
+            recon_error, kl_divergence = self.model.loss_per_sample(x)
+            score = recon_error + float(self.model.kl_weight) * kl_divergence
+            return score.reshape(-1)
+
+        output = self.model(x)
+        if isinstance(output, (tuple, list)):
+            reconstruction = output[0]
+        else:
+            reconstruction = output
+        if reconstruction.shape != x.shape:
+            raise ValueError(
+                "模型重建輸出形狀與輸入不同："
+                f"{tuple(reconstruction.shape)} vs {tuple(x.shape)}"
+            )
+        error_map = (reconstruction - x).pow(2)
+        if self.target_type == "pixel" and pixel_coords is not None:
+            row, col = pixel_coords
+            if not (0 <= row < x.shape[-2] and 0 <= col < x.shape[-1]):
+                raise ValueError(f"pixel_coords 超出輸入範圍：{pixel_coords}")
+            return error_map[:, :, row, col].mean(dim=1)
+        if self.target_type == "channel":
+            if not (0 <= channel_idx < error_map.shape[1]):
+                raise ValueError(f"channel_idx 超出輸入範圍：{channel_idx}")
+            return error_map[:, channel_idx, :, :].mean(dim=(1, 2))
+        return error_map.mean(dim=(1, 2, 3))
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+    def generate(
+        self,
+        x: Union[np.ndarray, torch.Tensor],
+        pixel_coords: Optional[Tuple[int, int]] = None,
+        channel_idx: int = 0,
         smooth: bool = True,
     ) -> np.ndarray:
-        x = self._preprocess_input(x)
+        """Generate normalized heatmaps with shape (B, H, W)."""
+        tensor = self._preprocess_input(x).to(self.device)
+        if tensor.ndim != 4 or tensor.shape[1] != 1:
+            raise ValueError(
+                f"輸入必須為 (B,1,H,W)，目前形狀：{tuple(tensor.shape)}"
+            )
+        if not torch.isfinite(tensor).all():
+            raise ValueError("CAM 輸入包含 NaN 或 Inf。")
+
+        self.model.eval()
+        self._clear_cache()
 
         if self.variant == "gradcam":
-            cam = self._gradcam(x, pixel_coords, channel_idx)
+            cam_tensor = self._gradcam(tensor, pixel_coords, channel_idx)
         elif self.variant == "gradcam++":
-            cam = self._gradcam_pp(x, pixel_coords, channel_idx)
-        elif self.variant == "scorecam":
-            cam = self._scorecam(x)
+            cam_tensor = self._gradcam_pp(tensor, pixel_coords, channel_idx)
         else:
-            raise ValueError(f"不支援的 variant: {self.variant}")
+            cam_tensor = self._scorecam(tensor, pixel_coords, channel_idx)
 
-        H, W = x.shape[-2], x.shape[-1]
-        cam_tensor = torch.from_numpy(cam).unsqueeze(1).float()
-        cam_up     = F.interpolate(cam_tensor, size=(H, W),
-                                   mode="bilinear", align_corners=False)
-        cam_np = cam_up.squeeze(1).numpy()
+        input_h, input_w = tensor.shape[-2:]
+        cam_tensor = F.interpolate(
+            cam_tensor.unsqueeze(1),
+            size=(input_h, input_w),
+            mode="bilinear",
+            align_corners=False,
+        ).squeeze(1)
+
+        cam_np = cam_tensor.detach().float().cpu().numpy()
         cam_np = self._normalize_batch(cam_np)
+        if smooth and self.smooth_sigma > 0:
+            cam_np = self._gaussian_smooth(cam_np, sigma=self.smooth_sigma)
+            cam_np = self._normalize_batch(cam_np)
+        return np.nan_to_num(cam_np, nan=0.0, posinf=0.0, neginf=0.0)
 
-        if smooth:
-            cam_np = self._gaussian_smooth(cam_np)
-
-        return cam_np
-
-    # ── Grad-CAM ──────────────────────────────────────────
-    def _gradcam(self, x: torch.Tensor,
-                 pixel_coords, channel_idx: int) -> np.ndarray:
-        """
-        原版 Grad-CAM：
-          weights = GAP( d(score) / d(A) )
-          CAM     = ReLU( sum_k( weights_k * A_k ) )
-        """
-        self._hook_manager.clear_all()
-        self.model.eval()
-
-        x = x.to(self.device).requires_grad_(True)
-        x_hat, z = self.model(x)
-        score = self._compute_score(x, x_hat, pixel_coords, channel_idx)
-        self.model.zero_grad()
-        score.backward(retain_graph=True)
-
-        activation = self._hook_manager.get_activation(self._resolved_layer)
-        gradient   = self._hook_manager.get_gradient(self._resolved_layer)
-
-        weights = gradient.mean(dim=[2, 3], keepdim=True)
-        cam     = (weights * activation.detach()).sum(dim=1)
-        cam     = F.relu(cam)
-        return cam.cpu().numpy()
-
-    def _gradcam_pp(self, x: torch.Tensor,
-                    pixel_coords, channel_idx: int) -> np.ndarray:
-        """
-        Grad-CAM++（修正版）：
-        使用二階梯度（alpha 係數）改善多重激活區域的定位精度。
-
-        [Bug 6 修正] 原版缺少 model.zero_grad()，若前一次
-        backward 留有殘餘梯度，Hook 的 gradient 為污染值。
-        此外原版使用 create_graph=True，但計算 alpha 只需
-        一階梯度，移除 create_graph 可節省記憶體與計算量。
-        """
-        self._hook_manager.clear_all()
-        self.model.eval()
-
-        x = x.to(self.device).requires_grad_(True)
-        x_hat, z = self.model(x)
-        score = self._compute_score(x, x_hat, pixel_coords, channel_idx)
-
-        # [Bug 6 修正] 清除殘餘梯度，再執行 backward
-        self.model.zero_grad()
-        # create_graph=True 已移除：_gradcam_pp 只需一階梯度
-        score.backward(retain_graph=True)
-
-        activation = self._hook_manager.get_activation(self._resolved_layer).detach()
-        gradient   = self._hook_manager.get_gradient(self._resolved_layer)
-
-        if gradient is None:
-            return self._gradcam(x.detach(), pixel_coords, channel_idx)
-
-        grad_sq    = gradient ** 2
-        grad_cb    = gradient ** 3
-        alpha_numer = grad_sq
-        alpha_denom = (2 * grad_sq
-                       + activation * grad_cb.sum(dim=[2, 3], keepdim=True)
-                       + 1e-9)
-        alpha   = alpha_numer / alpha_denom
-        weights = (alpha * F.relu(gradient)).mean(dim=[2, 3], keepdim=True)
-
-        cam = (weights * activation).sum(dim=1)
-        cam = F.relu(cam)
-        return cam.cpu().numpy()
-
-    def _scorecam(self, x: torch.Tensor) -> np.ndarray:
-        """
-        Score-CAM（無梯度，以遮罩擾動估算重要性）。
-        計算量 O(C) 次 forward，適合解釋單筆樣本。
-        """
-        self._hook_manager.clear_all()
-        self.model.eval()
-
-        B, C_in, H, W = x.shape
-        x = x.to(self.device)
-
-        with torch.no_grad():
-            x_hat_base, _ = self.model(x)
-            baseline_score = F.mse_loss(x_hat_base, x, reduction="none").mean(dim=[1, 2, 3])
-
-        activation = self._hook_manager.get_activation(self._resolved_layer).detach()
-
-        B, C, h, w = activation.shape
-        act_up = F.interpolate(activation, size=(H, W), mode="bilinear", align_corners=False)
-
-        act_min  = act_up.view(B, C, -1).min(dim=2)[0].view(B, C, 1, 1)
-        act_max  = act_up.view(B, C, -1).max(dim=2)[0].view(B, C, 1, 1)
-        act_norm = (act_up - act_min) / (act_max - act_min + 1e-9)
-
-        # ── [P3-5 修正] 批次推論取代串行迴圈 ──
-        # 將所有通道遮罩堆疊成單一批次
-        masked_inputs = []
-        for c in range(C):
-            mask = act_norm[:, c:c+1, :, :]
-            masked_inputs.append(x * mask)
-
-        masked_batch = torch.cat(masked_inputs, dim=0)  # (C*B, C_in, H, W)
-        with torch.no_grad():
-            x_hat_m, _ = self.model(masked_batch)
-            all_errors = F.mse_loss(x_hat_m, masked_batch, reduction="none").mean(dim=[1, 2, 3])
-
-        score_m = all_errors.view(C, B).t()  # 轉回 (B, C)
-        weights = score_m - baseline_score.unsqueeze(1)
-
-        weights = F.relu(weights).view(B, C, 1, 1)
-        cam     = (weights * activation).sum(dim=1)
-        cam     = F.relu(cam)
-        return cam.cpu().numpy()
-
-    # ── 目標函數 ──────────────────────────────────────────
-    def _compute_score(self, x, x_hat, pixel_coords, channel_idx) -> torch.Tensor:
-        error_map = (x - x_hat) ** 2
-        if self.target_type == "pixel" and pixel_coords is not None:
-            r, c = pixel_coords
-            return error_map[:, :, r, c].mean()
-        elif self.target_type == "channel":
-            return error_map[:, channel_idx, :, :].mean()
-        else:
-            return error_map.mean()
-
-    # ── 工具函式 ──────────────────────────────────────────
     @staticmethod
-    def _preprocess_input(x) -> torch.Tensor:
+    def _gradient_diagnostics(
+        activation: torch.Tensor,
+        gradient: torch.Tensor,
+        signed_cam: torch.Tensor,
+    ) -> list[dict[str, float]]:
+        rows: list[dict[str, float]] = []
+        with torch.no_grad():
+            for index in range(activation.shape[0]):
+                a, g, c = activation[index], gradient[index], signed_cam[index]
+                rows.append({
+                    "activation_min": float(a.min().item()),
+                    "activation_max": float(a.max().item()),
+                    "activation_positive_fraction": float((a > 0).float().mean().item()),
+                    "gradient_min": float(g.min().item()),
+                    "gradient_max": float(g.max().item()),
+                    "gradient_abs_mean": float(g.abs().mean().item()),
+                    "gradient_positive_fraction": float((g > 0).float().mean().item()),
+                    "gradient_negative_fraction": float((g < 0).float().mean().item()),
+                    "signed_cam_min": float(c.min().item()),
+                    "signed_cam_max": float(c.max().item()),
+                    "positive_evidence_fraction": float((c > 0).float().mean().item()),
+                    "negative_evidence_fraction": float((c < 0).float().mean().item()),
+                })
+        return rows
+
+    # ------------------------------------------------------------------
+    # Grad-CAM
+    # ------------------------------------------------------------------
+    def _gradcam(
+        self,
+        x: torch.Tensor,
+        pixel_coords: Optional[Tuple[int, int]],
+        channel_idx: int,
+    ) -> torch.Tensor:
+        self._clear_cache()
+        self.model.zero_grad(set_to_none=True)
+        scores = self._target_score(x, pixel_coords, channel_idx)
+        if scores.numel() != x.shape[0]:
+            raise RuntimeError("目標分數數量與輸入 batch 大小不一致。")
+        scores.sum().backward()
+
+        activation = self._activation
+        gradient = self._gradient
+        if activation is None or gradient is None:
+            raise RuntimeError("Grad-CAM 未取得 activation 或 gradient。")
+
+        weights = gradient.mean(dim=(2, 3), keepdim=True)
+        signed_cam = (weights * activation.detach()).sum(dim=1)
+        self.last_diagnostics = self._gradient_diagnostics(
+            activation.detach(), gradient.detach(), signed_cam.detach()
+        )
+        # Keep standard positive-evidence Grad-CAM. Do not use abs(): that
+        # would mislabel negative contribution as positive anomaly evidence.
+        return F.relu(signed_cam)
+
+    # ------------------------------------------------------------------
+    # Grad-CAM++
+    # ------------------------------------------------------------------
+    def _gradcam_pp(
+        self,
+        x: torch.Tensor,
+        pixel_coords: Optional[Tuple[int, int]],
+        channel_idx: int,
+    ) -> torch.Tensor:
+        self._clear_cache()
+        self.model.zero_grad(set_to_none=True)
+        scores = self._target_score(x, pixel_coords, channel_idx)
+        if scores.numel() != x.shape[0]:
+            raise RuntimeError("目標分數數量與輸入 batch 大小不一致。")
+        scores.sum().backward()
+
+        activation = self._activation
+        gradient = self._gradient
+        if activation is None or gradient is None:
+            raise RuntimeError("Grad-CAM++ 未取得 activation 或 gradient。")
+
+        # Grad-CAM++ alpha coefficients. Spatial sums are per sample/channel.
+        grad_squared = gradient.pow(2)
+        grad_cubed = gradient.pow(3)
+        weighted_grad_cubed = (
+            activation.detach() * grad_cubed
+        ).sum(dim=(2, 3), keepdim=True)
+        denominator = 2.0 * grad_squared + weighted_grad_cubed
+        alpha = grad_squared / (denominator + 1e-8)
+
+        channel_weights = (
+            alpha * F.relu(gradient)
+        ).sum(dim=(2, 3), keepdim=True)
+        signed_cam = (channel_weights * activation.detach()).sum(dim=1)
+        self.last_diagnostics = self._gradient_diagnostics(
+            activation.detach(), gradient.detach(), signed_cam.detach()
+        )
+        return F.relu(signed_cam)
+
+    # ------------------------------------------------------------------
+    # Score-CAM for anomaly score
+    # ------------------------------------------------------------------
+    def _scorecam(
+        self,
+        x: torch.Tensor,
+        pixel_coords: Optional[Tuple[int, int]],
+        channel_idx: int,
+    ) -> torch.Tensor:
+        """Activation masking weighted by changes in the VAE anomaly score.
+
+        For each feature-map channel, its upsampled [0,1] activation is used as
+        an input mask. Each masked input is forwarded through the same model.
+        Channel weights are a softmax over standardized score differences:
+
+            delta_k = S(x * mask_k) - S(x)
+            w_k = softmax(delta_k / std(delta))
+
+        The standardization is necessary here because VAE anomaly scores are
+        small-valued continuous quantities (often around 1e-3). Without it,
+        an unscaled softmax would be nearly uniform for numeric-scale reasons.
+        This is an anomaly-score adaptation of Score-CAM; the weighting rule
+        and temperature are recorded in run_metadata.json by the runner.
+        """
+        self._clear_cache()
+        self.model.eval()
+        with torch.no_grad():
+            # The forward hook stores activations from this same unmasked pass.
+            baseline_scores = self._target_score(x, pixel_coords, channel_idx)
+
+        activation = self._activation
+        if activation is None:
+            raise RuntimeError("Score-CAM 未取得 activation。")
+
+        batch_size, channels, _, _ = activation.shape
+        height, width = x.shape[-2:]
+        # The selected Conv2d module is immediately followed by BN/ReLU in
+        # this VAE encoder. Apply ReLU here so Score-CAM masks represent
+        # non-negative activation evidence instead of signed raw conv output.
+        activation = F.relu(activation.detach())
+        activation_up = F.interpolate(
+            activation,
+            size=(height, width),
+            mode="bilinear",
+            align_corners=False,
+        )
+
+        flat = activation_up.flatten(start_dim=2)
+        minimum = flat.min(dim=2).values.view(batch_size, channels, 1, 1)
+        maximum = flat.max(dim=2).values.view(batch_size, channels, 1, 1)
+        masks = (activation_up - minimum) / (maximum - minimum + 1e-8)
+
+        # Shape: (B, C, 1, H, W) -> (B*C, 1, H, W).
+        masked_inputs = (x.unsqueeze(1) * masks.unsqueeze(2)).reshape(
+            batch_size * channels, x.shape[1], height, width
+        )
+
+        masked_scores = []
+        with torch.no_grad():
+            for start in range(0, len(masked_inputs), self.scorecam_batch_size):
+                chunk = masked_inputs[start:start + self.scorecam_batch_size]
+                masked_scores.append(self._target_score(chunk, pixel_coords, channel_idx).detach())
+        score_matrix = torch.cat(masked_scores, dim=0).reshape(
+            batch_size, channels
+        )
+
+        score_delta = score_matrix - baseline_scores.reshape(batch_size, 1)
+        scale = score_delta.std(dim=1, keepdim=True, unbiased=False).clamp_min(1e-8)
+        normalized_delta = score_delta / (scale * self.scorecam_temperature)
+        channel_weights = torch.softmax(normalized_delta, dim=1)
+        # Softmax gives every finite channel a positive weight. Record its
+        # entropy/effective channel count to quantify Score-CAM diffuseness.
+        with torch.no_grad():
+            probability = channel_weights.clamp_min(1e-12)
+            entropy = -(probability * probability.log()).sum(dim=1)
+            effective_channels = entropy.exp()
+            self.last_diagnostics = [
+                {
+                    "score_delta_min": float(score_delta[i].min().item()),
+                    "score_delta_max": float(score_delta[i].max().item()),
+                    "score_delta_std": float(score_delta[i].std(unbiased=False).item()),
+                    "scorecam_weight_entropy": float(entropy[i].item()),
+                    "scorecam_effective_channels": float(effective_channels[i].item()),
+                    "scorecam_total_channels": float(channels),
+                }
+                for i in range(batch_size)
+            ]
+
+        cam = (
+            channel_weights.unsqueeze(-1).unsqueeze(-1) * activation
+        ).sum(dim=1)
+        return F.relu(cam)
+
+    # ------------------------------------------------------------------
+    # Utilities
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _preprocess_input(
+        x: Union[np.ndarray, torch.Tensor]
+    ) -> torch.Tensor:
         if isinstance(x, np.ndarray):
-            x = torch.from_numpy(x.astype(np.float32))
-        if x.ndim == 2:
-            x = x.unsqueeze(0).unsqueeze(0)
-        elif x.ndim == 3:
-            x = x.unsqueeze(0) if x.shape[0] == 1 else x.unsqueeze(1)
-        return x.float()
+            tensor = torch.from_numpy(x.astype(np.float32, copy=False))
+        elif torch.is_tensor(x):
+            tensor = x.detach() if not x.requires_grad else x
+            tensor = tensor.to(dtype=torch.float32)
+        else:
+            raise TypeError("輸入必須是 numpy.ndarray 或 torch.Tensor。")
+
+        if tensor.ndim == 2:
+            tensor = tensor.unsqueeze(0).unsqueeze(0)
+        elif tensor.ndim == 3:
+            # (B,H,W) is the supported 3-D interpretation.
+            tensor = tensor.unsqueeze(1)
+        elif tensor.ndim != 4:
+            raise ValueError("輸入維度必須為 2、3 或 4。")
+        return tensor
 
     @staticmethod
     def _normalize_batch(cam: np.ndarray) -> np.ndarray:
-        B      = cam.shape[0]
-        result = np.zeros_like(cam)
-        for i in range(B):
-            mi, ma = cam[i].min(), cam[i].max()
-            result[i] = ((cam[i] - mi) / (ma - mi)
-                         if ma - mi > 1e-8 else np.zeros_like(cam[i]))
+        result = np.zeros_like(cam, dtype=np.float32)
+        for index in range(cam.shape[0]):
+            current = np.nan_to_num(
+                cam[index], nan=0.0, posinf=0.0, neginf=0.0
+            ).astype(np.float32, copy=False)
+            low = float(current.min())
+            high = float(current.max())
+            if high - low > 1e-8:
+                result[index] = (current - low) / (high - low)
         return result
 
     @staticmethod
     def _gaussian_smooth(cam: np.ndarray, sigma: float = 1.0) -> np.ndarray:
-        """[P3 修正] 用 scipy 取代純 Python 迴圈"""
         if sigma <= 0:
             return cam
-        from scipy.ndimage import gaussian_filter1d
-        smoothed = gaussian_filter1d(cam, sigma=sigma, axis=-2, mode='reflect')
-        smoothed = gaussian_filter1d(smoothed, sigma=sigma, axis=-1, mode='reflect')
-        return smoothed
-
-    def __del__(self):
         try:
-            self._hook_manager.remove_all()
+            from scipy.ndimage import gaussian_filter
+            return gaussian_filter(cam, sigma=(0, sigma, sigma), mode="reflect")
+        except ImportError:
+            warnings.warn(
+                "未安裝 scipy，CAM 將不進行 Gaussian smoothing。",
+                RuntimeWarning,
+            )
+            return cam
+
+    def close(self) -> None:
+        """Remove the forward hook and release cached tensors."""
+        handle = getattr(self, "_forward_handle", None)
+        if handle is not None:
+            handle.remove()
+            self._forward_handle = None
+        self._clear_cache()
+
+    def __enter__(self) -> "GradCAM":
+        return self
+
+    def __exit__(self, _exc_type, _exc_value, _traceback) -> None:
+        self.close()
+
+    def __del__(self) -> None:
+        try:
+            self.close()
         except Exception:
             pass
-
-    def list_target_layers(self) -> list:
-        return HookManager.list_available_layers(self.model)

@@ -1,4 +1,3 @@
-# ============================================================
 # core/deploy_model.py - 訓練成果部署小工具（新增檔案）
 #
 # 背景：
@@ -9,10 +8,10 @@
 #
 #   但 Django（network_platform/settings.py::ANOMALY_MODELS）實際讀取的
 #   路徑固定是：
-#     media/model/best_vae_model.pt      (unsupervised_vae)
-#     media/model/semi_cicddos2019.pt    (semi_cicddos2019)
-#     media/model/semi_cicids2017.pt     (semi_cicids2017)
-#     media/model/semi_nslkdd.pt         (semi_nslkdd)
+#     media/model/best_vae_cicids2017.pt (unsup_cicids2017)
+#     media/model/semi_cicids2017.pt    (semi_cicids2017)
+#     media/model/mta_malware.pt        (mta_malware)
+#     media/model/semi_mta_malware.pt   (semi_mta_malware)
 #
 #   兩邊路徑與檔名並不會自動對齊，需要手動複製＋改檔名，容易複製錯
 #   檔案或忘記重新命名，導致「4 選 1」介面顯示模型已就緒，實際上
@@ -22,8 +21,10 @@
 #   一行指令即可正確部署，避免上述人為疏失。
 #
 # 使用方式（於專案根目錄執行）：
-#   python core/deploy_model.py unsupervised_vae output/model_cicids2017/best_vae_cicids2017.pt
-#   python core/deploy_model.py semi_cicddos2019 output/model_semi_cicddos2019/semi_cicddos2019.pt
+#   python core/deploy_model.py unsup_cicids2017 output/model_cicids2017/best_vae_cicids2017.pt
+#   python core/deploy_model.py semi_cicids2017 output/model_semi_cicids2017/semi_cicids2017.pt
+#   python core/deploy_model.py mta_malware media/model/mta_malware.pt
+#   python core/deploy_model.py semi_mta_malware media/model/semi_mta_malware.pt
 #   python core/deploy_model.py --list                # 列出目前 4 個模型的部署狀態
 # ============================================================
 from __future__ import annotations
@@ -38,12 +39,10 @@ import sys
 # import Django settings，但本工具刻意設計成不依賴 Django，
 # 方便在還沒建好資料庫的訓練環境中也能執行）。
 DEPLOY_TARGETS = {
-    "unsupervised_vae": "media/model/best_vae_model.pt",
-    "semi_cicddos2019":  "media/model/semi_cicddos2019.pt",
-    "semi_cicids2017":   "media/model/semi_cicids2017.pt",
-    "semi_nslkdd":        "media/model/semi_nslkdd.pt",
-    "mta_malware":        "media/model/mta_malware.pt",
-    "semi_mta_malware":   "media/model/semi_mta_malware.pt",
+    "unsup_cicids2017": "media/model/best_vae_cicids2017.pt",
+    "semi_cicids2017": "media/model/semi_cicids2017.pt",
+    "mta_malware": "media/model/mta_malware.pt",
+    "semi_mta_malware": "media/model/semi_mta_malware.pt",
 }
 
 
@@ -72,12 +71,12 @@ def list_status(project_root: str = "."):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="將訓練輸出的模型部署到 Django media/model/")
+    parser = argparse.ArgumentParser(description="將指定訓練 checkpoint 部署到 Django media/model/；路徑與 settings.ANOMALY_MODELS 一致。")
     parser.add_argument("model_key", nargs="?", choices=list(DEPLOY_TARGETS),
-                        help="unsupervised_vae / semi_cicddos2019 / semi_cicids2017 / semi_nslkdd")
+                        help="unsup_cicids2017 / semi_cicids2017 / mta_malware / semi_mta_malware")
     parser.add_argument("src_path", nargs="?", help="訓練輸出的 .pt 檔案路徑")
     parser.add_argument("--project-root", default=".", help="Django 專案根目錄（含 media/）")
-    parser.add_argument("--list", action="store_true", help="列出 4 個模型目前的部署狀態")
+    parser.add_argument("--list", action="store_true", help="列出目前四個支援模型的部署狀態")
     args = parser.parse_args()
 
     if args.list:

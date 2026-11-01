@@ -19,6 +19,12 @@
 .verdict-normal{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--green)}
 .verdict-badge{display:inline-flex;align-items:center;gap:8px;padding:8px 18px;border-radius:8px;font-size:1rem;font-weight:700;font-family:var(--mono)}
 .spinner-lg{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin:0 auto}
+.results-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+@media(max-width:620px){#resultContent [style*="repeat(4"]{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+.cam-card{border:1px solid var(--border);border-radius:8px;padding:10px;min-width:0}
+.cam-card img{width:100%;height:auto;display:block;border-radius:6px}
+.result-image{width:100%;height:auto;display:block;border-radius:6px}
+@media(max-width:900px){.sim-grid{grid-template-columns:1fr}}
 </style>
 {% endblock %}
 
@@ -58,8 +64,16 @@
     </div>
 
     <div class="form-group" style="margin-top:16px">
-      <label class="form-label">模擬封包數量</label>
-      <input type="number" id="pktCount" class="form-input" value="50" min="10" max="500">
+      <label class="form-label">分析模型（使用對應訓練權重）</label>
+      <select id="modelKey" class="form-input" required>
+        {% for m in models %}<option value="{{ m.key }}" {% if not m.ready %}disabled{% endif %}>{{ m.label }}{% if not m.ready %}（權重檔不存在）{% endif %}</option>{% endfor %}
+      </select>
+      <div style="font-size:.68rem;color:var(--text-muted);margin-top:5px">模型權重不存在時會回報錯誤，不會使用隨機分數或其他模型替代。</div>
+    </div>
+
+    <div class="form-group" style="margin-top:16px">
+      <label class="form-label">模擬強度（封包數量會依產生器而異）</label>
+      <input type="number" id="pktCount" class="form-input" value="60" min="18" max="180" step="6">
     </div>
 
     <button class="btn-primary btn-block" onclick="runSimulation()" id="runBtn">
@@ -92,6 +106,7 @@
 {% block extra_js %}
 <script>
 let selectedType = 'port_scan';
+function escapeHtml(value) { return String(value ?? '').replace(/[&<>\"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch])); }
 function selectAttack(el) {
   document.querySelectorAll('.attack-card').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
@@ -109,6 +124,7 @@ async function runSimulation() {
   const btn = document.getElementById('runBtn');
   const content = document.getElementById('resultContent');
   const pktCount = document.getElementById('pktCount').value;
+  const modelKey = document.getElementById('modelKey').value;
   btn.disabled = true;
 
   setStep(1);
@@ -123,30 +139,59 @@ async function runSimulation() {
     const r = await fetch('{% url "analyzer:simulation_api" %}', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-      body: JSON.stringify({ attack_type: selectedType, packet_count: parseInt(pktCount) }),
+      body: JSON.stringify({ attack_type: selectedType, packet_count: parseInt(pktCount), model_key: modelKey }),
     });
     const d = await r.json();
     setStep(3);
     await new Promise(res => setTimeout(res, 300));
 
-    if (d.error) {
-      content.innerHTML = `<div class="result-box verdict-anomaly"><div class="verdict-badge">⚠ ERROR</div><p style="margin-top:10px;font-size:.8rem">${d.error}</p></div>`;
+    if (!r.ok || d.ok === false || d.error) {
+      content.innerHTML = `<div class="result-box verdict-anomaly"><div class="verdict-badge">⚠ 分析未完成</div><p style="margin-top:10px;font-size:.8rem">${escapeHtml(d.error || `HTTP ${r.status}`)}</p></div>`;
     } else {
-      const isAnomaly = d.is_anomaly;
+      const verdict = d.verdict_code || (d.is_anomaly ? 'ANOMALY' : 'NORMAL');
+      const anomalous = verdict === 'ANOMALY' || verdict === 'MISSED_ATTACK';
+      const title = verdict === 'ANOMALY' ? '偵測到異常證據' : verdict === 'MISSED_ATTACK' ? '未偵測到預期模擬攻擊' : '本次未觀察到異常證據';
+      const klass = anomalous ? 'verdict-anomaly' : 'verdict-normal';
+      const cams = (d.gradcam_variants || []).map(cam => `<div class="result-card"><h4>${escapeHtml(cam.label)}</h4><img class="result-image" src="${cam.image}" alt="${escapeHtml(cam.label)}"><p style="font-size:.72rem;color:var(--text-muted)">${escapeHtml(cam.note || '')}</p></div>`).join('');
+      const ruleList = (d.rule_alerts || []).map(a => `<li>${escapeHtml(a.attack_type || '規則告警')}：${escapeHtml(a.detail || '')}</li>`).join('');
+      const rows = (d.results || []).slice(0, 15).map(x => `<tr><td>${x.index}</td><td>${x.packet_bytes ?? '—'}</td><td>${x.score}</td><td>${x.cnn_anomaly ? '模型異常' : '模型未標記'}</td><td>${x.rule_triggered === null ? '不適用（Flow 非單一封包）' : x.rule_triggered ? '規則觸發' : '未觸發'}</td></tr>`).join('');
+      const timings = Object.entries(d.timing_ms || {}).map(([k,v]) => `${escapeHtml(k)}: ${escapeHtml(v)} ms`).join(' · ');
       content.innerHTML = `
-        <div class="result-box ${isAnomaly ? 'verdict-anomaly' : 'verdict-normal'}">
-          <div class="verdict-badge">${isAnomaly ? '🚨 ANOMALY DETECTED' : '✓ NORMAL TRAFFIC'}</div>
-          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px;text-align:left">
-            <div><div style="font-size:.66rem;color:var(--text-muted)">重建誤差</div><div class="mono" style="font-size:1rem;font-weight:700">${d.reconstruction_error?.toFixed(6) ?? '—'}</div></div>
-            <div><div style="font-size:.66rem;color:var(--text-muted)">閾值</div><div class="mono" style="font-size:1rem;font-weight:700;color:var(--yellow)">${d.threshold?.toFixed(6) ?? '—'}</div></div>
-            <div><div style="font-size:.66rem;color:var(--text-muted)">攻擊類型</div><div style="font-size:.85rem;font-weight:600">${d.attack_type_label ?? selectedType}</div></div>
+        <div class="result-box ${klass}">
+          <div class="verdict-badge">${verdict === 'ANOMALY' ? '🚨' : verdict === 'MISSED_ATTACK' ? '⚠️' : 'ℹ️'} ${escapeHtml(title)}</div>
+          <p style="margin:12px auto 0;max-width:800px;font-size:.83rem;line-height:1.7">${escapeHtml(d.reason_summary || '')}</p>
+          <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:18px;text-align:left">
+            <div><div style="font-size:.66rem;color:var(--text-muted)">最高異常分數</div><div class="mono" style="font-size:1rem;font-weight:700">${d.reconstruction_error}</div></div>
+            <div><div style="font-size:.66rem;color:var(--text-muted)">模型閾值</div><div class="mono" style="font-size:1rem;font-weight:700;color:var(--yellow)">${d.threshold}</div></div>
+            <div><div style="font-size:.66rem;color:var(--text-muted)">模型判為異常</div><div style="font-size:1rem;font-weight:700">${d.cnn_anomaly_count} / ${d.sample_count}</div></div>
+            <div><div style="font-size:.66rem;color:var(--text-muted)">規則式告警</div><div style="font-size:1rem;font-weight:700">${d.rule_alert_count}</div></div>
           </div>
         </div>
         <div class="card" style="margin-top:14px;padding:14px">
-          <div style="font-size:.8rem;font-weight:600;margin-bottom:8px">模擬封包摘要</div>
+          <div style="font-size:.8rem;font-weight:600;margin-bottom:8px">本次模擬紀錄</div>
           <div style="font-size:.78rem;color:var(--text-muted);line-height:1.8">
-            產生 ${d.packet_count ?? pktCount} 個合成封包 · 平均封包大小 ${d.avg_packet_size ?? '—'} bytes
+            情境：${escapeHtml(d.attack_type_label)} · 模型：${escapeHtml(d.model_label)} · 表示法：${escapeHtml(d.model_representation)}<br>
+            產生 ${d.packet_count} 個封包 · 平均封包大小 ${d.avg_packet_size} bytes · 模型評估樣本 ${d.sample_count}（單位：${escapeHtml(d.sample_unit || 'unknown')}）<br>
+            規則引擎：${d.rule_based_anomaly_detected ? '偵測到告警' : '未觸發'}；CNN：${d.cnn_is_anomaly ? '至少一筆樣本被標記為異常' : '未標記樣本異常'}<br>
+            ${escapeHtml(d.limitations || '')}
           </div>
+          <p><a href="${d.pcap_download_url}" target="_blank" rel="noopener">下載本次模擬 PCAP</a></p>
+          <p class="mono" style="font-size:.7rem;color:var(--text-muted)">${timings}</p>
+        </div>
+        <div class="card" style="margin-top:14px;padding:14px">
+          <div style="font-size:.8rem;font-weight:600;margin-bottom:8px">模型實際輸入影像</div>
+          ${d.sample_visual ? `<img class="result-image" src="${d.sample_visual}" alt="模型輸入影像" style="max-width:260px">` : '<p>無可顯示的輸入影像</p>'}
+          <p style="font-size:.72rem;color:var(--text-muted)">影像是模型的實際輸入表示；熱區只反映模型敏感位置，不能單獨證明惡意意圖。</p>
+        </div>
+        <div class="card" style="margin-top:14px;padding:14px">
+          <div style="font-size:.8rem;font-weight:600;margin-bottom:8px">可解釋 AI：三種熱力圖</div>
+          <div class="results-grid">${cams || '<p>未能產生 Grad-CAM 影像。請查看錯誤：' + escapeHtml((d.gradcam_errors || []).join('; ')) + '</p>'}</div>
+          ${(d.gradcam_errors || []).length ? `<p style="font-size:.7rem;color:var(--yellow)">部分方法失敗：${escapeHtml(d.gradcam_errors.join('; '))}</p>` : ''}
+        </div>
+        ${ruleList ? `<div class="card" style="margin-top:14px;padding:14px"><strong>規則式判斷依據</strong><ul>${ruleList}</ul></div>` : ''}
+        <div class="card" style="margin-top:14px;padding:14px;overflow:auto">
+          <div style="font-size:.8rem;font-weight:600;margin-bottom:8px">代表樣本與分數（最多顯示 15 筆）</div>
+          <table><thead><tr><th>索引</th><th>位元組</th><th>異常分數</th><th>CNN 判定</th><th>規則判定</th></tr></thead><tbody>${rows}</tbody></table>
         </div>`;
     }
   } catch(e) {

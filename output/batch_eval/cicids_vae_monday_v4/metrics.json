@@ -1,0 +1,29 @@
+{
+  "overall": {
+    "n": 400365,
+    "n_anomaly": 180457,
+    "anomaly_rate": 0.4507312077729072,
+    "score_quantiles": {
+      "p50": 0.0004762596799992025,
+      "p90": 0.00681292172521353,
+      "p95": 0.008016492985188962,
+      "p99": 0.009593578055500972,
+      "p99.9": 0.011061952840536831
+    }
+  },
+  "threshold_used": 0.0008199410804081708,
+  "benign_only_or_benign_subset": {
+    "n_benign": 400365,
+    "false_positive": 180457,
+    "true_negative": 219908,
+    "fpr_at_model_threshold": 0.4507312077729072,
+    "fpr_ci95": [
+      0.4491904158112045,
+      0.45227294521773725
+    ]
+  },
+  "label_distribution": {
+    "BENIGN": 400365
+  },
+  "n_relabeled_benign_from_schedule": 0
+}

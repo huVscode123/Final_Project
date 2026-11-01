@@ -153,6 +153,11 @@ class LabelSchedule:
             return "全部 BENIGN"
         return "、".join(sorted({e["label"] for e in ents}))
 
+    def is_benign_file(self, pcap_name: str) -> bool:
+        """檔名（或 make_tag 產生的 tag）命中 benign_files 任一 token → 整檔視為良性。"""
+        name = pcap_name.lower()
+        return any(b in name for b in self.benign_files)
+
     def _applicable(self, pcap_name: str):
         name = pcap_name.lower()
         if any(b in name for b in self.benign_files):
@@ -214,6 +219,33 @@ def _install_packet_limit(max_packets: int):
     pfc.PcapReader = _Limited
 
 
+_CONVERSION_KEYS = ("flow_timeout", "idle_threshold", "bulk_threshold", "max_packets",
+                    "tcp_termination", "bulk_mode", "flag_mode",
+                    "missing_window_value", "converter_version")
+
+
+def _conversion_signature(params: dict) -> dict:
+    """會改變特徵 CSV 內容的轉換參數；用來判斷 flows/ 快取是否仍可沿用。"""
+    sig = {k: params.get(k) for k in _CONVERSION_KEYS}
+    sig["max_packets"] = int(sig["max_packets"] or 0)
+    return sig
+
+
+def _read_conversion_signature(csv_path: str) -> Optional[dict]:
+    try:
+        with open(csv_path + ".params.json", "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        saved["max_packets"] = int(saved.get("max_packets") or 0)
+        return saved
+    except (OSError, ValueError):
+        return None
+
+
+def _write_conversion_signature(csv_path: str, sig: dict) -> None:
+    with open(csv_path + ".params.json", "w", encoding="utf-8") as f:
+        json.dump(sig, f, indent=2, ensure_ascii=False)
+
+
 def convert_worker(pcap_path: str, csv_path: str, spec: Optional[dict], params: dict) -> dict:
     t0 = time.time()
     try:
@@ -229,6 +261,10 @@ def convert_worker(pcap_path: str, csv_path: str, spec: Optional[dict], params: 
             flow_timeout=params["flow_timeout"],
             idle_threshold=params["idle_threshold"],
             bulk_threshold=params["bulk_threshold"],
+            tcp_termination=params.get("tcp_termination", "cicflowmeter_original"),
+            bulk_mode=params.get("bulk_mode", "cicids2017_zero"),
+            flag_mode=params.get("flag_mode", "packet_count"),
+            missing_window_value=params.get("missing_window_value", -1.0),
         ).convert(pcap_path, tmp, label_fn=label_fn, default_label="UNKNOWN",
                   progress_every=1_000_000)
         os.replace(tmp, csv_path)
@@ -257,11 +293,29 @@ def score_flow_csv(csv_path: str, out_gz: str, payload: dict, bundle, chunk: int
     with gzip.open(tmp, "wt", encoding="utf-8", newline="") as fh:
         for df in pd.read_csv(csv_path, chunksize=chunk, low_memory=False):
             missing = [c for c in feature_cols if c not in df.columns]
-            if missing and not warned:
-                print(f"    [警告] 缺少 {len(missing)} 個訓練期欄位，以 0 補齊：{missing[:5]}")
-                warned = True
-            for c in missing:
-                df[c] = 0.0
+            if missing:
+                dataset_profile = str(payload.get("dataset", "")).strip().lower()
+                representation_profile = str(payload.get("representation", "")).strip().lower()
+                is_cicids2017 = (
+                    dataset_profile == "cicids2017"
+                    or "cicids2017" in representation_profile
+                    or (
+                        not dataset_profile
+                        and not representation_profile
+                        and "Fwd Header Length.1" in feature_cols
+                        and "min_seg_size_forward" in feature_cols
+                    )
+                )
+                message = (f"{csv_path} 缺少 {len(missing)} 個訓練期特徵欄位：{missing[:20]}")
+                # 對 CICIDS2017 禁止靜默補 0：缺欄可能是 converter/schema 不一致，
+                # 直接推論會產生不可比較的分數與異常率。
+                if is_cicids2017:
+                    raise ValueError(message + "。已停止計分；請修正 Flow CSV schema 後重新轉換。")
+                if not warned:
+                    print(f"    [警告] {message}；將以 0 補齊（非 CICIDS2017 相容模式）")
+                    warned = True
+                for c in missing:
+                    df[c] = 0.0
             X = df[feature_cols].apply(pd.to_numeric, errors="coerce").fillna(0.0).to_numpy(np.float64)
             X = np.nan_to_num(X, nan=0.0, posinf=0.0, neginf=0.0)
             Xs = scaler.transform(X).astype(np.float32)
@@ -399,6 +453,79 @@ def analyze(args, out_dir: str, scored: List[tuple], run_meta: dict) -> dict:
     plots_dir = os.path.join(out_dir, "plots")
     os.makedirs(plots_dir, exist_ok=True)
 
+    # 標籤在「轉換 / 計分當下」就寫進 scored CSV；之後才修改 labels JSON（例如新增
+    # benign_files token）時，不必重跑數小時的 PCAP 轉換：此處依 JSON 把「整檔良性」
+    # 的檔案中 UNKNOWN 補標為 BENIGN。只動 UNKNOWN，不覆蓋任何已有的標籤。
+    schedule = load_schedule(args.labels) if getattr(args, "labels", None) else None
+    n_relabeled_benign = 0
+
+    # 固定 FPR 的門檻只能由獨立良性校準集估計；不再拿正在評估的資料集
+    # 自己估門檻再報 Recall，避免 test-set threshold leakage。
+    calibration_scores = None
+    calibration_info = {"path": getattr(args, "calibration_csv", None), "n_benign": 0,
+                        "provenance_verified": False}
+    calibration_path = getattr(args, "calibration_csv", None)
+    if calibration_path:
+        if not os.path.isfile(calibration_path):
+            raise FileNotFoundError(f"找不到獨立校準 scored CSV：{calibration_path}")
+
+        # Reject a calibration file stored inside the evaluation output directory;
+        # this is a common way to accidentally calibrate on the test set itself.
+        calibration_abs = os.path.abspath(calibration_path)
+        out_abs = os.path.abspath(out_dir)
+        try:
+            inside_eval_output = os.path.commonpath([calibration_abs, out_abs]) == out_abs
+        except ValueError:  # different Windows drive letters
+            inside_eval_output = False
+        if inside_eval_output:
+            raise ValueError("--calibration-csv 不可放在本次正式評估的 --output 目錄中；請使用獨立校準資料及獨立輸出目錄。")
+
+        # Strictly require the calibration run manifest and matching model/scaler/profile.
+        # This verifies pipeline compatibility, not statistical independence; data separation
+        # must still be guaranteed by the experiment design.
+        cal_run_meta_path = os.path.join(os.path.dirname(os.path.dirname(calibration_abs)), "run_meta.json")
+        if not os.path.isfile(cal_run_meta_path):
+            raise FileNotFoundError(
+                "校準 scored CSV 缺少對應 run_meta.json，無法驗證模型／scaler／轉換 profile："
+                f"{cal_run_meta_path}。請由 batch_pcap_evaluate.py 產生完整校準輸出。"
+            )
+        try:
+            with open(cal_run_meta_path, "r", encoding="utf-8") as f:
+                cal_run_meta = json.load(f)
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"無法讀取校準 run_meta.json：{exc}") from exc
+        target_meta = run_meta or {}
+        provenance_keys = ("model", "scaler", "representation", "mode", "tcp_termination",
+                           "bulk_mode", "flag_mode", "missing_window_value", "converter_version")
+        mismatches = {}
+        for key in provenance_keys:
+            left, right = cal_run_meta.get(key), target_meta.get(key)
+            if key in ("model", "scaler") and left and right:
+                left = os.path.normcase(os.path.abspath(str(left)))
+                right = os.path.normcase(os.path.abspath(str(right)))
+            if left != right:
+                mismatches[key] = {"calibration": cal_run_meta.get(key), "evaluation": target_meta.get(key)}
+        if mismatches:
+            raise ValueError("校準集與正式評估使用的模型／scaler／轉換 profile 不一致：" + json.dumps(mismatches, ensure_ascii=False))
+        calibration_info["provenance_verified"] = True
+        calibration_info["run_meta_path"] = cal_run_meta_path
+
+        cdf = load_scored(calibration_path)
+        if cdf is None or not {"score", "label"}.issubset(cdf.columns):
+            raise ValueError("--calibration-csv 必須是含 score、label 欄位的 scored CSV/CSV.GZ")
+        clab = cdf["label"].astype(str).str.strip().str.upper()
+        non_benign = ~clab.isin(["BENIGN", "NORMAL"])
+        if non_benign.any():
+            bad = clab[non_benign].value_counts().to_dict()
+            raise ValueError(f"--calibration-csv 必須只含 BENIGN/NORMAL；發現其他標籤：{bad}")
+        cs = pd.to_numeric(cdf["score"], errors="coerce").to_numpy(dtype=np.float64)
+        cs = cs[np.isfinite(cs)]
+        if len(cs) < 1000:
+            raise ValueError(f"獨立良性校準資料只有 {len(cs)} 筆有效 score；至少 1000 筆，建議 50000 以上")
+        calibration_scores = cs
+        calibration_info["n_benign"] = int(len(cs))
+        print(f"[獨立校準集] {calibration_path} | BENIGN score={len(cs):,}")
+
     # 參考分布（例如 Monday 良性流量），用來算各檔案的分布位移（KS）
     ref_scores = None
     if args.reference_csv and os.path.exists(args.reference_csv):
@@ -424,6 +551,12 @@ def analyze(args, out_dir: str, scored: List[tuple], run_meta: dict) -> dict:
         score = df["score"].to_numpy()
         pred = df["is_anomaly"].to_numpy() if args.threshold is None else (score > args.threshold)
         lab = df["label"].astype(str)
+        if schedule is not None and schedule.is_benign_file(tag):
+            unk = lab == "UNKNOWN"
+            if unk.any():
+                lab = lab.where(~unk, "BENIGN")
+                n_relabeled_benign += int(unk.sum())
+                print(f"  [補標] {tag}: labels JSON 判定為整檔良性，{int(unk.sum()):,} 筆 UNKNOWN → BENIGN")
         attack = ~lab.isin(["BENIGN", "UNKNOWN"]).to_numpy()
         n, n_pred = len(df), int(pred.sum())
         lo, hi = wilson(n_pred, n)
@@ -499,6 +632,39 @@ def analyze(args, out_dir: str, scored: List[tuple], run_meta: dict) -> dict:
     labeled = bool(is_b.any() and is_a.any())
     per_attack_rows, op_rows = [], []
 
+    # 即使只有 BENIGN 標籤，也能計算誤報率 FPR。
+    # 不要因此產生 Precision / Recall / F1 或 ROC-AUC，因為沒有攻擊類別。
+    metrics["threshold_used"] = (float(args.threshold) if args.threshold is not None
+                                 else run_meta.get("model_threshold"))
+    if is_b.any():
+        pred_b = P[is_b]
+        metrics["benign_only_or_benign_subset"] = {
+            "n_benign": int(is_b.sum()),
+            "false_positive": int(pred_b.sum()),
+            "true_negative": int((~pred_b).sum()),
+            "fpr_at_model_threshold": float(pred_b.mean()),
+            "fpr_ci95": wilson(int(pred_b.sum()), int(is_b.sum())),
+        }
+
+    # 若只有 ATTACK 標籤，也可以計算 Recall，但不能算 FPR／ROC-AUC。
+    if is_a.any():
+        pred_a = P[is_a]
+        metrics["attack_only_or_attack_subset"] = {
+            "n_attack": int(is_a.sum()),
+            "true_positive": int(pred_a.sum()),
+            "false_negative": int((~pred_a).sum()),
+            "recall_at_model_threshold": float(pred_a.mean()),
+            "recall_ci95": wilson(int(pred_a.sum()), int(is_a.sum())),
+        }
+
+    # 標籤分布（含 UNKNOWN），讓報告能直接看出標籤是否匹配成功。
+    label_dist: Dict[str, int] = {}
+    for r in label_by_file:
+        label_dist[r["label"]] = label_dist.get(r["label"], 0) + int(r["n"])
+    metrics["label_distribution"] = dict(sorted(label_dist.items(), key=lambda kv: -kv[1]))
+    metrics["n_relabeled_benign_from_schedule"] = n_relabeled_benign
+    metrics["independent_calibration"] = calibration_info
+
     if labeled:
         from sklearn.metrics import roc_auc_score, average_precision_score, roc_curve, precision_recall_curve
         vmask = is_a | is_b
@@ -517,15 +683,31 @@ def analyze(args, out_dir: str, scored: List[tuple], run_meta: dict) -> dict:
             "roc_auc": float(roc_auc_score(y, s)), "pr_auc": float(average_precision_score(y, s)),
             "attack_prevalence": float(y.mean()),
         }
-        # 固定 FPR 下的 Recall：門檻只由「良性」分數決定（不偷看攻擊），較誠實的比較方式
-        sb, sa = s[y == 0], s[y == 1]
-        for target in (0.001, 0.005, 0.01, 0.05):
-            thr = float(np.quantile(sb, 1 - target))
-            tpn, fpn = int((sa > thr).sum()), int((sb > thr).sum())
-            pr = tpn / max(tpn + fpn, 1)
-            rc = tpn / max(len(sa), 1)
-            op_rows.append({"target_fpr": target, "threshold": thr, "actual_fpr": fpn / max(len(sb), 1),
-                            "recall": rc, "precision": pr, "f1": 2 * pr * rc / max(pr + rc, 1e-12)})
+        # 固定 FPR 門檻由獨立良性校準集計算，再套用到本次評估資料。
+        # 未提供校準集時刻意不產生 operating points，避免用測試集本身選門檻。
+        sb_eval, sa_eval = s[y == 0], s[y == 1]
+        if calibration_scores is not None:
+            def _upper_quantile(values, q):
+                try:
+                    return float(np.quantile(values, q, method="higher"))
+                except TypeError:  # NumPy < 1.22 相容
+                    return float(np.quantile(values, q, interpolation="higher"))
+
+            for target in (0.001, 0.005, 0.01, 0.05):
+                thr = _upper_quantile(calibration_scores, 1 - target)
+                pred_b_calibrated = sb_eval > thr
+                pred_a_calibrated = sa_eval > thr
+                fpn = int(pred_b_calibrated.sum())
+                tpn = int(pred_a_calibrated.sum())
+                pr = tpn / max(tpn + fpn, 1)
+                rc = tpn / max(len(sa_eval), 1)
+                op_rows.append({"target_fpr": target, "threshold": thr,
+                                "calibration_fpr_target": target,
+                                "actual_fpr": fpn / max(len(sb_eval), 1),
+                                "recall": rc, "precision": pr,
+                                "f1": 2 * pr * rc / max(pr + rc, 1e-12),
+                                "n_calibration_benign": int(len(calibration_scores)),
+                                "n_eval_benign": int(len(sb_eval)), "n_eval_attack": int(len(sa_eval))})
         # 最佳 F1（偷看了標籤，屬樂觀值，只供參考）
         pp_, rr_, th_ = precision_recall_curve(y, s)
         f1s = 2 * pp_[:-1] * rr_[:-1] / np.maximum(pp_[:-1] + rr_[:-1], 1e-12)
@@ -533,7 +715,12 @@ def analyze(args, out_dir: str, scored: List[tuple], run_meta: dict) -> dict:
             bi = int(np.argmax(f1s))
             metrics["best_f1_oracle"] = {"threshold": float(th_[bi]), "f1": float(f1s[bi]),
                                           "precision": float(pp_[bi]), "recall": float(rr_[bi])}
-        thr_fpr1 = float(np.quantile(sb, 0.99))
+        thr_fpr1 = None
+        if calibration_scores is not None:
+            try:
+                thr_fpr1 = float(np.quantile(calibration_scores, 0.99, method="higher"))
+            except TypeError:
+                thr_fpr1 = float(np.quantile(calibration_scores, 0.99, interpolation="higher"))
         for code, name in sorted(inv.items(), key=lambda kv: kv[1]):
             if name in ("BENIGN", "UNKNOWN"):
                 continue
@@ -543,7 +730,7 @@ def analyze(args, out_dir: str, scored: List[tuple], run_meta: dict) -> dict:
             per_attack_rows.append({
                 "attack_type": name, "n": n_, "detected": d_, "recall": d_ / max(n_, 1),
                 "recall_ci_lo": lo, "recall_ci_hi": hi,
-                "recall_at_fpr1pct": float((S[m] > thr_fpr1).mean()),
+                "recall_at_fpr1pct": (float((S[m] > thr_fpr1).mean()) if thr_fpr1 is not None else None),
                 "score_mean": float(S[m].mean()), "score_median": float(np.median(S[m]))})
         pd.DataFrame(per_attack_rows).sort_values("n", ascending=False).to_csv(
             os.path.join(out_dir, "per_attack_type.csv"), index=False, encoding="utf-8-sig")
@@ -620,10 +807,21 @@ def _make_plots(plots_dir, S, is_a, is_b, labeled, P, pf, per_attack_rows, timel
             rows = sorted(per_attack_rows, key=lambda r: r["recall"])
             fig, ax = plt.subplots(figsize=(9, max(3, .45 * len(rows) + 1)))
             names = [f"{r['attack_type']} (n={r['n']:,})" for r in rows]
-            xs = [r["recall"] for r in rows]
-            err = [[r["recall"] - r["recall_ci_lo"] for r in rows], [r["recall_ci_hi"] - r["recall"] for r in rows]]
+            # 95% CI 誤差線可能因浮點數精度而出現極小負值；
+            # Matplotlib 的 xerr 不接受負數，因此先轉成有限且非負的數值。
+            xs = np.asarray([r["recall"] for r in rows], dtype=np.float64)
+            ci_low = np.asarray([r["recall_ci_lo"] for r in rows], dtype=np.float64)
+            ci_high = np.asarray([r["recall_ci_hi"] for r in rows], dtype=np.float64)
+            err_low = np.maximum(0.0, np.nan_to_num(xs - ci_low, nan=0.0, posinf=0.0, neginf=0.0))
+            err_high = np.maximum(0.0, np.nan_to_num(ci_high - xs, nan=0.0, posinf=0.0, neginf=0.0))
+            err = np.vstack((err_low, err_high))
             ax.barh(names, xs, xerr=err, color="#d62728", alpha=.8, label="at model threshold")
-            ax.scatter([r["recall_at_fpr1pct"] for r in rows], names, c="k", marker="|", s=200, label="recall @ FPR=1%")
+            calibrated_rows = [r for r in rows if r.get("recall_at_fpr1pct") is not None]
+            if calibrated_rows:
+                calibrated_names = [f"{r['attack_type']} (n={r['n']:,})" for r in calibrated_rows]
+                calibrated_recall = [float(r["recall_at_fpr1pct"]) for r in calibrated_rows]
+                ax.scatter(calibrated_recall, calibrated_names, c="k", marker="|", s=200,
+                           label="recall @ FPR=1% (independent calibration)")
             ax.set_xlim(0, 1.02)
             ax.set_xlabel("detection rate (recall)")
             ax.set_title("Detection rate per attack type")
@@ -636,8 +834,14 @@ def _make_plots(plots_dir, S, is_a, is_b, labeled, P, pf, per_attack_rows, timel
     d = pf[pf["n"] >= 30].head(40).iloc[::-1]
     if len(d):
         fig, ax = plt.subplots(figsize=(10, max(3, .3 * len(d) + 1)))
-        err = [(d["anomaly_rate"] - d["rate_ci_lo"]).to_numpy(), (d["rate_ci_hi"] - d["anomaly_rate"]).to_numpy()]
-        ax.barh([f[-60:] for f in d["file"]], d["anomaly_rate"], xerr=err, color="#1f77b4")
+        # 與攻擊類型 Recall 圖相同，防止 CI 端點的浮點誤差產生負的 xerr。
+        rates = d["anomaly_rate"].to_numpy(dtype=np.float64)
+        rate_low = d["rate_ci_lo"].to_numpy(dtype=np.float64)
+        rate_high = d["rate_ci_hi"].to_numpy(dtype=np.float64)
+        err_low = np.maximum(0.0, np.nan_to_num(rates - rate_low, nan=0.0, posinf=0.0, neginf=0.0))
+        err_high = np.maximum(0.0, np.nan_to_num(rate_high - rates, nan=0.0, posinf=0.0, neginf=0.0))
+        err = np.vstack((err_low, err_high))
+        ax.barh([f[-60:] for f in d["file"]], rates, xerr=err, color="#1f77b4")
         ax.set_xlabel("anomaly rate (95% Wilson CI)")
         ax.set_title("Anomaly rate per PCAP file (top 40, n>=30)")
         ax.tick_params(axis="y", labelsize=7)
@@ -681,6 +885,19 @@ def _write_report(out_dir, args, run_meta, metrics, pf, per_attack_rows, op_rows
     q = o["score_quantiles"]
     L += ["## 分數分位數", md_table(list(q.keys()), [list(q.values())]), ""]
 
+    dist = metrics.get("label_distribution") or {}
+    if dist:
+        total = max(sum(dist.values()), 1)
+        L += ["## 標籤分布（scored CSV 實際內容）",
+              md_table(["label", "筆數", "佔比"], [[k, v, v / total] for k, v in dist.items()]), ""]
+        n_unknown = dist.get("UNKNOWN", 0)
+        if n_unknown:
+            L += [f"> **注意：有 {n_unknown:,} 筆 UNKNOWN**（檔名未匹配 labels JSON 的 benign_files / entries，"
+                  "或未提供 --labels）。這些筆數不會進入任何標籤指標。", ""]
+        if metrics.get("n_relabeled_benign_from_schedule"):
+            L += [f"> 已依 labels JSON 將 {metrics['n_relabeled_benign_from_schedule']:,} 筆 UNKNOWN 補標為 BENIGN"
+                  "（整檔良性）。", ""]
+
     if labeled:
         m = metrics["at_model_threshold"]
         L += ["## 有標籤評估（模型內建閾值）",
@@ -691,10 +908,16 @@ def _write_report(out_dir, args, run_meta, metrics, pf, per_attack_rows, op_rows
               f"Recall 95% CI = [{m['recall_ci95'][0]:.4f}, {m['recall_ci95'][1]:.4f}]；"
               f"FPR 95% CI = [{m['fpr_ci95'][0]:.4f}, {m['fpr_ci95'][1]:.4f}]（Wilson，假設樣本獨立；"
               f"相鄰封包/Flow 高度相關，實際不確定性更大）", "",
-              "## 固定 FPR 下的 Recall（閾值只由良性分數決定）",
-              md_table(["目標 FPR", "閾值", "實際 FPR", "Recall", "Precision", "F1"],
-                       [[r["target_fpr"], r["threshold"], r["actual_fpr"], r["recall"], r["precision"], r["f1"]] for r in op_rows]),
-              ""]
+              "## 固定 FPR 下的 Recall（獨立良性校準集）"]
+        if getattr(args, "calibration_csv", None) and op_rows:
+            L += [f"- 校準檔案：`{args.calibration_csv}`；有效 BENIGN score={metrics.get('independent_calibration', {}).get('n_benign', 0):,}。",
+                  f"- 模型/scaler/profile manifest 比對：{'通過' if metrics.get('independent_calibration', {}).get('provenance_verified') else '無法驗證，請人工核對 run_meta.json'}。",
+                  "- 請確認校準 PCAP 與模型訓練資料、正式測試 PCAP 均不重疊，且使用相同模型、scaler 與 Flow 轉換 profile。",
+                  md_table(["目標 FPR（校準集）", "校準閾值", "測試集實際 FPR", "測試集 Recall", "測試集 Precision", "測試集 F1"],
+                           [[r["target_fpr"], r["threshold"], r["actual_fpr"], r["recall"], r["precision"], r["f1"]] for r in op_rows]),
+                  ""]
+        else:
+            L += ["未提供 `--calibration-csv`，因此不計算固定 FPR 下的 Recall；請勿以評估資料本身估計閾值後，再把結果當成獨立測試效能。", ""]
         if "best_f1_oracle" in metrics:
             b = metrics["best_f1_oracle"]
             L += [f"> 事後最佳 F1（偷看標籤，僅供參考，屬樂觀值）：F1={b['f1']:.4f}，閾值={b['threshold']:.6g}，"
@@ -702,11 +925,45 @@ def _write_report(out_dir, args, run_meta, metrics, pf, per_attack_rows, op_rows
         L += ["## 各攻擊類型偵測率",
               md_table(["攻擊類型", "筆數", "偵測數", "Recall", "95% CI", "Recall@FPR1%", "分數中位數"],
                        [[r["attack_type"], r["n"], r["detected"], r["recall"],
-                         f"[{r['recall_ci_lo']:.3f}, {r['recall_ci_hi']:.3f}]", r["recall_at_fpr1pct"], r["score_median"]]
+                         f"[{r['recall_ci_lo']:.3f}, {r['recall_ci_hi']:.3f}]",
+                         (r["recall_at_fpr1pct"] if r["recall_at_fpr1pct"] is not None else "—"),
+                         r["score_median"]]
                         for r in sorted(per_attack_rows, key=lambda r: -r["n"])]), ""]
     else:
-        L += ["## 標籤", "本次沒有可用的良性/攻擊標籤（未提供 --labels 或檔名未匹配），只做**未標記健康檢查**："
-              "異常率不是準確率，不可解讀為 Precision/Recall。", ""]
+        b = metrics.get("benign_only_or_benign_subset")
+        a = metrics.get("attack_only_or_attack_subset")
+
+        if b and not a:
+            L += [
+                "## 單一類別標籤（只有 BENIGN）",
+                f"- 良性樣本數：{b['n_benign']:,}",
+                f"- 被判為異常（False Positive）：{b['false_positive']:,}",
+                f"- 判為正常（True Negative）：{b['true_negative']:,}",
+                f"- FPR@threshold：{b['fpr_at_model_threshold']:.4%}"
+                f"（95% CI [{b['fpr_ci95'][0]:.4%}, {b['fpr_ci95'][1]:.4%}]，Wilson，假設樣本獨立）",
+                f"- 使用的判定閾值：{metrics.get('threshold_used')}",
+                "- 因為沒有 ATTACK 樣本，不計算 Precision、Recall、F1、ROC-AUC 或 PR-AUC。",
+                "",
+            ]
+        elif a and not b:
+            L += [
+                "## 單一類別標籤（只有 ATTACK）",
+                f"- 攻擊樣本數：{a['n_attack']:,}",
+                f"- 被判為異常（True Positive）：{a['true_positive']:,}",
+                f"- 未被偵測（False Negative）：{a['false_negative']:,}",
+                f"- Recall@threshold：{a['recall_at_model_threshold']:.4%}"
+                f"（95% CI [{a['recall_ci95'][0]:.4%}, {a['recall_ci95'][1]:.4%}]）",
+                f"- 使用的判定閾值：{metrics.get('threshold_used')}",
+                "- 因為沒有 BENIGN 樣本，不計算 FPR、Precision、F1、ROC-AUC 或 PR-AUC。",
+                "",
+            ]
+        else:
+            L += [
+                "## 標籤",
+                "未取得可用的 BENIGN／ATTACK 標籤；請檢查上方「標籤分布」及 labels JSON 匹配結果。",
+                "異常率不能解讀為準確率、Precision 或 Recall。",
+                "",
+            ]
 
     show = pf.head(25)
     has_ks = show["ks_vs_ref"].notna().any()
@@ -785,12 +1042,28 @@ def parse_args():
     p.add_argument("--flow-timeout", type=float, default=120.0)
     p.add_argument("--idle-threshold", type=float, default=1.0)
     p.add_argument("--bulk-threshold", type=float, default=1.0)
+    p.add_argument("--tcp-termination", choices=["cicflowmeter_original", "mutual_fin_rst"],
+                   default="cicflowmeter_original",
+                   help="flow 模式：TCP Flow 結束規則。cicflowmeter_original = 既有 Flow 收到第一個 FIN 或 RST 後結束"
+                        "（對應 CICIDS2017/CICDDoS2019 訓練 CSV 的原版 CICFlowMeter）；"
+                        "mutual_fin_rst = 雙向 FIN 或 RST 才結束（舊 v4 行為，供 A/B 對照）")
+    p.add_argument("--bulk-mode", choices=["cicids2017_zero", "state_machine"], default="cicids2017_zero",
+                   help="flow 模式：Bulk 六欄位。cicids2017_zero = 全 0（僅符合 CICIDS2017 訓練 CSV）；"
+                        "state_machine = 以 Bulk 狀態機近似計算（其他資料集用）")
+    p.add_argument("--flag-mode", choices=["packet_count", "cicids2017_legacy_first_packet"],
+                   default=None,
+                   help="旗標特徵語意；省略時由 scaler payload 的 dataset 自動決定：CICIDS2017 使用 cicids2017_legacy_first_packet，其他資料集使用 packet_count")
+    p.add_argument("--missing-window-value", type=float, choices=[-1.0, 0.0], default=-1.0,
+                   help="無 TCP Window 時 Init_Win_bytes_forward 的值；CICFlowMeter 慣例通常為 -1")
     # 快取
     p.add_argument("--force", action="store_true", help="忽略 scored/ 快取，全部重算")
     p.add_argument("--force-convert", action="store_true", help="flow 模式：重新轉換 PCAP→特徵 CSV")
     # 分析
     p.add_argument("--reference-substr", default="monday", help="以檔名含此字串的檔案作為分布位移(KS)的參考")
-    p.add_argument("--reference-csv", help="改用指定的 scored csv.gz 作為參考分布（例如上次 Monday 的結果）")
+    p.add_argument("--reference-csv", help="改用指定的 scored csv.gz 作為分布位移(KS)參考")
+    p.add_argument("--calibration-csv", help="獨立 BENIGN scored CSV(.gz)，用於估計固定 FPR 閾值；不得與訓練/評估資料重疊")
+    p.add_argument("--require-known-labels", action="store_true",
+                   help="評估前若任何 PCAP 檔名未匹配 labels JSON，立即停止；用於正式標籤評估")
     p.add_argument("--plot-tz", type=float, default=None, help="時間軸圖的時區偏移（預設沿用 labels 的設定，否則 0）")
     p.add_argument("--inspect", action="store_true", help="只列出檔案資訊與標記方式，不推論")
     p.add_argument("--analyze-only", action="store_true", help="跳過轉換/推論，只重新統計 <output>/scored/")
@@ -850,6 +1123,15 @@ def main():
     files = find_pcaps(args.pcap_dir, args.include, args.exclude)
     if not files:
         sys.exit(f"在 {args.pcap_dir} 找不到任何 {PCAP_EXTS} 檔案（或被 --include/--exclude 濾掉）")
+    if args.require_known_labels:
+        unknown_files = []
+        for _root, _path in files:
+            label_description = schedule.describe(os.path.basename(_path)) if schedule else "UNKNOWN（未提供 --labels）"
+            if label_description.startswith("UNKNOWN"):
+                unknown_files.append(os.path.basename(_path))
+        if unknown_files:
+            sample = ", ".join(unknown_files[:10])
+            sys.exit(f"正式評估中止：{len(unknown_files)} 個 PCAP 無法匹配 labels JSON，例如：{sample}")
     if args.inspect:
         inspect_files(files, schedule)
         return
@@ -889,11 +1171,43 @@ def main():
                      "<output>/cicids2017_preprocessor.pkl，舊流程請用 fit_reference_scaler.py 產生）")
         with open(args.scaler, "rb") as f:
             payload = pickle.load(f)   # 只載入你自己產生的檔案
-        os.makedirs(flows_dir, exist_ok=True)
-        print(f"[前處理器] 特徵欄位 {len(payload['feature_columns'])} 個，normalization={payload.get('normalization', 'none')}")
+        if not isinstance(payload, dict) or "feature_columns" not in payload or "scaler" not in payload:
+            sys.exit("Scaler PKL 格式錯誤：必須是含 scaler 與 feature_columns 的 dict。")
 
+        # CICIDS2017 發布 CSV 的多個 TCP 旗標欄位呈現 0/1 legacy 語意；
+        # converter 的 packet_count 模式會把同一 Flow 的旗標逐封包累計，
+        # 兩者不一致可能讓模型輸入發生分布偏移。其他資料集保留逐封包計數。
+        if args.flag_mode is None:
+            dataset_profile = str(payload.get("dataset", "")).strip().lower()
+            representation_profile = str(payload.get("representation", rep or "")).strip().lower()
+            is_cicids2017 = (
+                dataset_profile == "cicids2017"
+                or "cicids2017" in representation_profile
+                or "cicids2017" in str(rep or "").lower()
+            )
+            args.flag_mode = (
+                "cicids2017_legacy_first_packet" if is_cicids2017 else "packet_count"
+            )
+            print(
+                f"[自動旗標 profile] dataset={dataset_profile or 'unknown'}; "
+                f"representation={representation_profile or 'unknown'} "
+                f"-> flag_mode={args.flag_mode}"
+            )
+        os.makedirs(flows_dir, exist_ok=True)
+        print(f"[前處理器] dataset={payload.get('dataset', 'unknown')}，特徵欄位 {len(payload['feature_columns'])} 個，normalization={payload.get('normalization', 'none')}")
+
+    converter_version = None
+    if mode == "flow":
+        from pcap_flow_converter import CONVERTER_VERSION as converter_version
     run_meta = {"model": args.model, "model_type": bundle.model_type, "mode": mode,
                 "model_threshold": thr_model, "representation": rep, "labels": args.labels,
+                "scaler": args.scaler if mode == "flow" else None,
+                "tcp_termination": args.tcp_termination if mode == "flow" else None,
+                "bulk_mode": args.bulk_mode if mode == "flow" else None,
+                "flag_mode": args.flag_mode if mode == "flow" else None,
+                "missing_window_value": args.missing_window_value if mode == "flow" else None,
+                "converter_version": converter_version,
+                "calibration_csv": args.calibration_csv,
                 "started": datetime.now().isoformat(timespec="seconds")}
     with open(meta_path, "w", encoding="utf-8") as f:
         json.dump(run_meta, f, indent=2, ensure_ascii=False)
@@ -903,15 +1217,36 @@ def main():
     # ---------- flow 模式 stage 1：轉換（可平行） ----------
     log: List[dict] = []
     if mode == "flow":
+        from pcap_flow_converter import CONVERTER_VERSION
         params = {"flow_timeout": args.flow_timeout, "idle_threshold": args.idle_threshold,
-                  "bulk_threshold": args.bulk_threshold, "max_packets": args.max_packets_per_file}
+                  "bulk_threshold": args.bulk_threshold, "max_packets": args.max_packets_per_file,
+                  "tcp_termination": args.tcp_termination, "bulk_mode": args.bulk_mode,
+                  "flag_mode": args.flag_mode, "missing_window_value": args.missing_window_value,
+                  "converter_version": CONVERTER_VERSION}
         todo = []
+        sig = _conversion_signature(params)
         for tag, path in tags:
             csv_path = os.path.join(flows_dir, tag + ".csv")
-            if os.path.exists(csv_path) and not args.force_convert and not args.force:
-                print(f"[快取] 已有特徵 CSV：{tag}")
-            else:
+            if not os.path.exists(csv_path) or args.force_convert or args.force:
                 todo.append((tag, path, csv_path))
+                continue
+            saved = _read_conversion_signature(csv_path)
+            if saved is None:
+                print(f"[快取] 已有特徵 CSV：{tag}\n"
+                      f"  [警告] 沒有轉換參數紀錄，無法確認它是否用 tcp_termination={sig['tcp_termination']} 產生；"
+                      "若要套用目前的轉換規則請加 --force-convert。")
+            elif saved != sig:
+                diff = {k: (saved.get(k), sig[k]) for k in sig if saved.get(k) != sig[k]}
+                print(f"[快取失效] {tag}: 轉換參數已變更 {diff}，重新轉換。")
+                todo.append((tag, path, csv_path))
+            else:
+                print(f"[快取] 已有特徵 CSV：{tag}")
+        # 特徵 CSV 要重轉時，舊的計分結果已過期，必須一併刪除，否則 stage 2 會沿用舊分數。
+        for tag, _p, _c in todo:
+            stale = os.path.join(scored_dir, tag + ".csv.gz")
+            if os.path.exists(stale):
+                os.remove(stale)
+                print(f"[清除] 過期的計分快取：{tag}")
         if todo:
             print(f"\n[Stage 1] PCAP → 流量特徵：{len(todo)} 個檔案，workers={args.workers}")
             if args.workers > 1:
@@ -921,12 +1256,16 @@ def main():
                         t, p = futs[fu]
                         res = fu.result()
                         print(f"  {'完成' if res['ok'] else '失敗'} {t}  {res.get('seconds')}s  {res.get('error', '')}")
+                        if res["ok"]:
+                            _write_conversion_signature(res["csv"], sig)
                         log.append({"tag": t, "stage": "convert", **res})
             else:
                 for t, p, c in todo:
                     print(f"\n[轉換] {os.path.basename(p)} ({os.path.getsize(p) / 1e9:.2f} GB)")
                     res = convert_worker(p, c, spec, params)
                     print(f"  {'完成' if res['ok'] else '失敗'}  {res.get('seconds')}s  {res.get('error', '')}")
+                    if res["ok"]:
+                        _write_conversion_signature(res["csv"], sig)
                     log.append({"tag": t, "stage": "convert", **res})
 
     # ---------- stage 2：計分 ----------

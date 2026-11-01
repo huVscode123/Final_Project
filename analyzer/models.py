@@ -46,13 +46,19 @@ class AnalysisSession(models.Model):
 
     # ── 基本欄位 ─────────────────────────────────────────────
     mode        = models.CharField(max_length=10, choices=MODE_CHOICES)
-    model_key   = models.CharField(max_length=30, default='unsupervised_vae', verbose_name='異常偵測模型')
+    model_key   = models.CharField(max_length=30, default='unsup_cicids2017', verbose_name='異常偵測模型')
     label       = models.CharField(max_length=200, blank=True)
     pcap_file   = models.FileField(upload_to='uploads/', null=True, blank=True)
     task_status = models.CharField(max_length=20, choices=TASK_STATUS, default='pending')
     celery_task_id = models.CharField(max_length=100, blank=True,
                                       verbose_name='Celery Task ID')
     error_message  = models.TextField(blank=True, verbose_name='錯誤訊息')
+    # 由背景工作更新的真實階段進度；百分比不使用前端動畫猜測。
+    progress_percent = models.PositiveSmallIntegerField(default=0, verbose_name='分析進度百分比')
+    progress_stage = models.CharField(max_length=120, default='等待分析', verbose_name='分析階段')
+    progress_detail = models.CharField(max_length=240, blank=True, default='', verbose_name='進度說明')
+    processed_samples = models.PositiveIntegerField(default=0, verbose_name='已處理樣本數')
+    total_samples = models.PositiveIntegerField(default=0, verbose_name='預估樣本數')
 
     # ── 統計 ─────────────────────────────────────────────────
     packet_count = models.IntegerField(default=0)

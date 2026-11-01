@@ -1,0 +1,91 @@
+{
+  "generated_at": "2026-10-19T13:01:05",
+  "purpose": "representation / inference-pipeline sanity check; not a held-out model performance estimate",
+  "model_path": "output\\threshold_study\\unsup_cicids2017\\best_vae_cicids2017.pt",
+  "scaler_path": "output\\threshold_study\\unsup_cicids2017\\cicids2017_preprocessor.pkl",
+  "model_type": "cnn_vae",
+  "representation": "csv_features_cicids2017",
+  "threshold": 0.0008199410804081708,
+  "n_model_features": 78,
+  "normalization": "clip_0_1",
+  "image_size": 32,
+  "sample_rows_requested_per_dataset": 50000,
+  "train_sampling": {
+    "path": "data\\cicids2017\\Monday-WorkingHours.pcap_ISCX.csv",
+    "file_rows_after_filter": 529918,
+    "sample_rows": 50000,
+    "label_counts_seen": {
+      "BENIGN": 529918
+    },
+    "feature_values_coerced_to_zero_count": 64,
+    "has_label_column": true,
+    "label_filter": [
+      "BENIGN",
+      "NORMAL"
+    ],
+    "exclude_single_packet_flows": true,
+    "single_packet_rows_filtered": 0
+  },
+  "pcap_sampling": {
+    "path": "output\\batch_eval\\cicids_vae_monday_converter_fix\\flows\\cicids2017-PCAPs__Monday-WorkingHours.pcap.csv",
+    "file_rows_after_filter": 391671,
+    "sample_rows": 50000,
+    "label_counts_seen": {
+      "BENIGN": 512062
+    },
+    "feature_values_coerced_to_zero_count": 0,
+    "has_label_column": true,
+    "label_filter": [
+      "BENIGN",
+      "NORMAL"
+    ],
+    "exclude_single_packet_flows": true,
+    "single_packet_rows_filtered": 120391
+  },
+  "pcap_label_counts_full_file": {
+    "BENIGN": 512062
+  },
+  "pcap_filter_note": "auto：找到 BENIGN/NORMAL 標籤，只取正常標籤列。",
+  "train_score_summary": {
+    "dataset": "TRAIN_CSV_BENIGN_SAMPLE",
+    "n_scored": 50000,
+    "threshold": 0.0008199410804081708,
+    "anomalies": 1442,
+    "anomaly_rate": 0.02884,
+    "score_quantiles": {
+      "p50": 0.00034530070843175054,
+      "p90": 0.0005834490002598614,
+      "p95": 0.0007053249835735183,
+      "p99": 0.0014312150143086942,
+      "p99_9": 0.0025941688905003622
+    },
+    "normalization": "clip_0_1",
+    "image_size": 32,
+    "scaled_fraction_lt_0_before_clip": 0.2682282051282051,
+    "scaled_fraction_gt_1_before_clip": 0.1590053846153846,
+    "clip_applied": true
+  },
+  "pcap_score_summary": {
+    "dataset": "PCAP_FLOW_SAMPLE",
+    "n_scored": 50000,
+    "threshold": 0.0008199410804081708,
+    "anomalies": 28110,
+    "anomaly_rate": 0.5622,
+    "score_quantiles": {
+      "p50": 0.0013857153244316578,
+      "p90": 0.015766479074954983,
+      "p95": 0.01657337751239538,
+      "p99": 0.018242796920239928,
+      "p99_9": 0.020687491890042983
+    },
+    "normalization": "clip_0_1",
+    "image_size": 32,
+    "scaled_fraction_lt_0_before_clip": 0.2640205128205128,
+    "scaled_fraction_gt_1_before_clip": 0.23688,
+    "clip_applied": true
+  },
+  "score_anomaly_rate_delta_pcap_minus_train": 0.5333600000000001,
+  "score_p50_ratio_pcap_over_train": 4.0130682926344114,
+  "feature_comparison_csv": "output\\diagnostics\\cicids_csv_vs_pcap_monday\\feature_comparison.csv",
+  "score_samples_csv": "output\\diagnostics\\cicids_csv_vs_pcap_monday\\score_samples.csv"
+}

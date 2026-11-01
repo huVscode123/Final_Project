@@ -1,0 +1,16 @@
+[
+  {
+    "tag": "cicids2017-PCAPs__Monday-WorkingHours.pcap",
+    "stage": "convert",
+    "ok": true,
+    "seconds": 2.9,
+    "csv": "output/batch_eval/smoke_cicids_hybrid\\flows\\cicids2017-PCAPs__Monday-WorkingHours.pcap.csv"
+  },
+  {
+    "tag": "cicids2017-PCAPs__Monday-WorkingHours.pcap",
+    "stage": "score",
+    "ok": true,
+    "seconds": 0.4,
+    "n_scored": 757
+  }
+]
